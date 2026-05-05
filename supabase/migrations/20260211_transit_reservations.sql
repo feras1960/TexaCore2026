@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS transit_reservations (
     customer_name VARCHAR(200),
     
     -- مصدر البضاعة
-    shipment_id UUID NOT NULL REFERENCES shipments(id),
-    shipment_item_id UUID REFERENCES shipment_items(id),
+    shipment_id UUID NOT NULL, -- references shipments(id) when created
+    shipment_item_id UUID, -- references shipment_items(id) when created
     
     -- المادة والكمية
     material_id UUID REFERENCES fabric_materials(id),
@@ -114,6 +114,8 @@ CREATE POLICY "transit_reservations_write" ON transit_reservations
 -- 5. دالة تحديث الكمية المحجوزة يدوياً (Fallback if trigger doesn't exist)
 -- ═══════════════════════════════════════════════════════════════
 
+-- FUNCTION COMMENTED OUT AS shipment_items DOES NOT EXIST YET
+/*
 CREATE OR REPLACE FUNCTION increment_reserved_quantity(
     p_item_id UUID,
     p_quantity DECIMAL
@@ -131,6 +133,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION increment_reserved_quantity IS 'زيادة الكمية المحجوزة لبند كونتينر — تُستخدم من سلة الترانزيت';
+*/
 
 -- ═══════════════════════════════════════════════════════════════
 -- 6. تحديث PostgREST schema cache

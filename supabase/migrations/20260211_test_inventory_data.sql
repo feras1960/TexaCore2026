@@ -13,7 +13,10 @@ BEGIN
     -- جلب مستودع اودبسا
     SELECT id, branch_id INTO v_wh_odessa, v_branch_id
     FROM warehouses WHERE company_id = v_company_id AND name_ar ILIKE '%اودبسا%' LIMIT 1;
-    IF v_wh_odessa IS NULL THEN RAISE EXCEPTION 'مستودع اودبسا غير موجود!'; END IF;
+    IF v_wh_odessa IS NULL THEN 
+        RAISE NOTICE 'مستودع اودبسا غير موجود! Skipping test data insertion.'; 
+        RETURN;
+    END IF;
     RAISE NOTICE 'مستودع اودبسا: %', v_wh_odessa;
 
     -- إنشاء مستودع كييف

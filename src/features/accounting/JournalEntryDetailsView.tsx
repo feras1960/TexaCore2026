@@ -535,11 +535,11 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
               <h2 className="text-xl font-semibold text-erp-navy font-mono">{entry.id}</h2>
               <p className="text-gray-500 text-sm mt-1">{t('journalEntryDetails') || 'Journal Entry Details'}</p>
             </div>
-            <Badge variant="outline" className={`px-3 py-1 ${entry.status === 'posted'
+            <Badge variant="outline" className={`px-3 py-1 ${entry?.status === 'posted'
               ? 'bg-green-50 text-green-700 border-green-200'
               : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}>
-              {t(entry.status) || entry.status}
+              {entry?.status ? t(entry.status) || entry.status : t('draft')}
             </Badge>
           </div>
 

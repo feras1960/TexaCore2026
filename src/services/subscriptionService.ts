@@ -9,7 +9,7 @@
  * - فترات السماح
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, isSelfHosted } from '@/lib/supabase';
 
 // ═══════════════════════════════════════════════════════════════
 // الأنواع والواجهات
@@ -317,12 +317,16 @@ export const subscriptionService = {
       .order('is_main', { ascending: false });
 
     // الفواتير (من جدول saas_payments إذا موجود)
-    const { data: invoices } = await supabase
-      .from('saas_payments')
-      .select('id, payment_number, amount, currency, status, created_at, paid_at')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false })
-      .limit(10);
+    let invoices: any[] = [];
+    if (!isSelfHosted) {
+      const { data } = await supabase
+        .from('saas_payments')
+        .select('id, payment_number, amount, currency, status, created_at, paid_at')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      invoices = data || [];
+    }
 
     return {
       subscription: status.subscription,

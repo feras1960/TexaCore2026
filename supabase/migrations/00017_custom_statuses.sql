@@ -157,49 +157,49 @@ ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 -- 10. RLS Policies for status_groups
 CREATE POLICY "Users can view status groups in their tenant" ON status_groups
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_profiles WHERE user_id = auth.uid())
+    tenant_id IN (SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id WHERE u.id = auth.uid())
     OR tenant_id IS NULL
   );
 
 CREATE POLICY "Admins can manage status groups" ON status_groups
   FOR ALL USING (
     tenant_id IN (
-      SELECT tenant_id FROM user_profiles 
-      WHERE user_id = auth.uid() AND role IN ('admin', 'owner')
+      SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id 
+      WHERE u.id = auth.uid() AND u.role IN ('admin', 'owner')
     )
   );
 
 -- 11. RLS Policies for custom_statuses
 CREATE POLICY "Users can view custom statuses in their tenant" ON custom_statuses
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_profiles WHERE user_id = auth.uid())
+    tenant_id IN (SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id WHERE u.id = auth.uid())
     OR tenant_id IS NULL
   );
 
 CREATE POLICY "Admins can manage custom statuses" ON custom_statuses
   FOR ALL USING (
     tenant_id IN (
-      SELECT tenant_id FROM user_profiles 
-      WHERE user_id = auth.uid() AND role IN ('admin', 'owner')
+      SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id 
+      WHERE u.id = auth.uid() AND u.role IN ('admin', 'owner')
     )
   );
 
 -- 12. RLS Policies for status_history
 CREATE POLICY "Users can view status history in their tenant" ON status_history
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_profiles WHERE user_id = auth.uid())
+    tenant_id IN (SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id WHERE u.id = auth.uid())
   );
 
 CREATE POLICY "Users can insert status history" ON status_history
   FOR INSERT WITH CHECK (
-    tenant_id IN (SELECT tenant_id FROM user_profiles WHERE user_id = auth.uid())
+    tenant_id IN (SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id WHERE u.id = auth.uid())
   );
 
 -- 13. RLS Policies for sheet_customizations
 CREATE POLICY "Users can view their customizations or shared ones" ON sheet_customizations
   FOR SELECT USING (
     user_id = auth.uid() 
-    OR (is_shared = true AND tenant_id IN (SELECT tenant_id FROM user_profiles WHERE user_id = auth.uid()))
+    OR (is_shared = true AND tenant_id IN (SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id WHERE u.id = auth.uid()))
   );
 
 CREATE POLICY "Users can manage their customizations" ON sheet_customizations
@@ -208,15 +208,15 @@ CREATE POLICY "Users can manage their customizations" ON sheet_customizations
 -- 14. RLS Policies for print_templates
 CREATE POLICY "Users can view print templates in their tenant" ON print_templates
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_profiles WHERE user_id = auth.uid())
+    tenant_id IN (SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id WHERE u.id = auth.uid())
     OR tenant_id IS NULL
   );
 
 CREATE POLICY "Admins can manage print templates" ON print_templates
   FOR ALL USING (
     tenant_id IN (
-      SELECT tenant_id FROM user_profiles 
-      WHERE user_id = auth.uid() AND role IN ('admin', 'owner')
+      SELECT c.tenant_id FROM user_profiles u JOIN companies c ON u.company_id = c.id 
+      WHERE u.id = auth.uid() AND u.role IN ('admin', 'owner')
     )
   );
 

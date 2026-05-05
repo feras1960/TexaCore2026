@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { LanguageProvider } from './LanguageProvider';
 import { ThemeProvider } from './ThemeProvider';
@@ -8,6 +8,12 @@ import { InterfaceModeProvider } from './InterfaceModeProvider';
 import { Toaster } from '@/components/ui/toaster';
 import { REALTIME_SUBSCRIPTIONS } from '@/hooks/useGlobalRealtime';
 import { createDexiePersister } from '@/lib/queryPersistence';
+import { isSelfHosted } from '@/lib/supabase';
+
+// 🖥️ LOCAL MODE: DB is on same machine → skip IndexedDB (fetch is ~5ms)
+// 🌐 REMOTE SELFHOSTED: DB over network → keep IndexedDB but lighter settings
+const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const isLocalMode = isLocalhost;  // Only true localhost skips persistence
 
 // ═══════════════════════════════════════════════════════════════
 // 🔄 Auto-build skip list from REALTIME_SUBSCRIPTIONS
@@ -51,19 +57,20 @@ const REALTIME_SKIP_KEYS: Set<string> = new Set([
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,            // 5 minutes - data is "fresh"
-      gcTime: 24 * 60 * 60 * 1000,          // 24 hours - keep for persistence
+      staleTime: isLocalMode ? 2 * 60 * 1000 : 5 * 60 * 1000,  // Local: 2min, Cloud: 5min
+      gcTime: isLocalMode ? 30 * 60 * 1000 : 24 * 60 * 60 * 1000, // Local: 30min, Cloud: 24hr
       refetchOnWindowFocus: false,           // Don't refetch when user returns to tab
       refetchOnReconnect: 'always',          // Always refetch on network reconnect
-      retry: 1,
+      retry: (isLocalMode || isSelfHosted) ? 0 : 1,  // Selfhosted: no retries (fast fail), Cloud: 1 retry
     },
   },
 });
 
 // ═══════════════════════════════════════════════════════════════
-// Persistence: IndexedDB via Dexie.js
+// Persistence: IndexedDB via Dexie.js (CLOUD MODE ONLY)
+// 🖥️ Local mode skips this entirely — no IndexedDB writes!
 // ═══════════════════════════════════════════════════════════════
-const persistOptions = {
+const persistOptions = isLocalMode ? null : {
   persister: createDexiePersister(),
   maxAge: 7 * 24 * 60 * 60 * 1000,          // 7 days max cache age
   dehydrateOptions: {
@@ -137,6 +144,28 @@ interface AppProvidersProps {
 }
 
 export function AppProviders({ children }: AppProvidersProps) {
+  // 🖥️ LOCAL MODE: Use plain QueryClientProvider — no IndexedDB persistence
+  //    This eliminates the main-thread-blocking IndexedDB writes that
+  //    freeze the browser when handling thousands of entries.
+  if (isLocalMode || !persistOptions) {
+    console.log('⚡ [AppProviders] Local mode — IndexedDB persistence disabled');
+    return (
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <LanguageProvider>
+            <ThemeProvider>
+              <InterfaceModeProvider>
+                {children}
+                <Toaster />
+              </InterfaceModeProvider>
+            </ThemeProvider>
+          </LanguageProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  // ☁️ CLOUD MODE: Use PersistQueryClientProvider with IndexedDB
   return (
     <PersistQueryClientProvider
       client={queryClient}
@@ -160,3 +189,4 @@ export function AppProviders({ children }: AppProvidersProps) {
 export * from './LanguageProvider';
 export * from './ThemeProvider';
 export * from './InterfaceModeProvider';
+

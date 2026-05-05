@@ -9,6 +9,15 @@
 -- ║  S.1 — إعدادات المشتريات والاستلام في company_accounting_settings    ║
 -- ╚═══════════════════════════════════════════════════════════════════════╝
 
+CREATE TABLE IF NOT EXISTS company_accounting_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    company_id UUID NOT NULL REFERENCES companies(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_company_accounting_settings UNIQUE (tenant_id, company_id)
+);
+
 -- ── سياسة فروقات الاستلام ──
 ALTER TABLE company_accounting_settings ADD COLUMN IF NOT EXISTS
     receipt_variance_policy TEXT DEFAULT 'bill_on_receipt'

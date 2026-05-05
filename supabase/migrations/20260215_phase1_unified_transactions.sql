@@ -809,82 +809,82 @@ ALTER TABLE document_sequences ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "pt_tenant_isolation_select" ON purchase_transactions
     FOR SELECT TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "pt_tenant_isolation_insert" ON purchase_transactions
     FOR INSERT TO public
-    WITH CHECK (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    WITH CHECK (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "pt_tenant_isolation_update" ON purchase_transactions
     FOR UPDATE TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())))
-    WITH CHECK (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())))
+    WITH CHECK (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "pt_tenant_isolation_delete" ON purchase_transactions
     FOR DELETE TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 -- ─── purchase_transaction_items ────────────────────────────────────────
 
 CREATE POLICY "pti_tenant_isolation_select" ON purchase_transaction_items
     FOR SELECT TO public
-    USING ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    USING ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 CREATE POLICY "pti_tenant_isolation_insert" ON purchase_transaction_items
     FOR INSERT TO public
-    WITH CHECK ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    WITH CHECK ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 CREATE POLICY "pti_tenant_isolation_update" ON purchase_transaction_items
     FOR UPDATE TO public
-    USING ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    USING ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 CREATE POLICY "pti_tenant_isolation_delete" ON purchase_transaction_items
     FOR DELETE TO public
-    USING ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    USING ((transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 -- ─── sales_transactions ───────────────────────────────────────────────
 
 CREATE POLICY "st_tenant_isolation_select" ON sales_transactions
     FOR SELECT TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "st_tenant_isolation_insert" ON sales_transactions
     FOR INSERT TO public
-    WITH CHECK (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    WITH CHECK (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "st_tenant_isolation_update" ON sales_transactions
     FOR UPDATE TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())))
-    WITH CHECK (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())))
+    WITH CHECK (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "st_tenant_isolation_delete" ON sales_transactions
     FOR DELETE TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 -- ─── sales_transaction_items ──────────────────────────────────────────
 
 CREATE POLICY "sti_tenant_isolation_select" ON sales_transaction_items
     FOR SELECT TO public
-    USING ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    USING ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 CREATE POLICY "sti_tenant_isolation_insert" ON sales_transaction_items
     FOR INSERT TO public
-    WITH CHECK ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    WITH CHECK ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 CREATE POLICY "sti_tenant_isolation_update" ON sales_transaction_items
     FOR UPDATE TO public
-    USING ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    USING ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 CREATE POLICY "sti_tenant_isolation_delete" ON sales_transaction_items
     FOR DELETE TO public
-    USING ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_user_tenant_id()))
+    USING ((transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid()));
 
 -- ─── transaction_stage_log ────────────────────────────────────────────
@@ -892,18 +892,18 @@ CREATE POLICY "sti_tenant_isolation_delete" ON sales_transaction_items
 CREATE POLICY "tsl_tenant_isolation_select" ON transaction_stage_log
     FOR SELECT TO public
     USING (
-        (transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_user_tenant_id()))
+        (transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_tenant_id()))
         OR
-        (transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_user_tenant_id()))
+        (transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid())
     );
 
 CREATE POLICY "tsl_tenant_isolation_insert" ON transaction_stage_log
     FOR INSERT TO public
     WITH CHECK (
-        (transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_user_tenant_id()))
+        (transaction_id IN (SELECT id FROM purchase_transactions WHERE tenant_id = get_current_tenant_id()))
         OR
-        (transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_user_tenant_id()))
+        (transaction_id IN (SELECT id FROM sales_transactions WHERE tenant_id = get_current_tenant_id()))
         OR is_super_admin(auth.uid())
     );
 
@@ -911,15 +911,15 @@ CREATE POLICY "tsl_tenant_isolation_insert" ON transaction_stage_log
 
 CREATE POLICY "ds_tenant_isolation_select" ON document_sequences
     FOR SELECT TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "ds_tenant_isolation_insert" ON document_sequences
     FOR INSERT TO public
-    WITH CHECK (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    WITH CHECK (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 CREATE POLICY "ds_tenant_isolation_update" ON document_sequences
     FOR UPDATE TO public
-    USING (((tenant_id = get_current_user_tenant_id()) OR is_super_admin(auth.uid())));
+    USING (((tenant_id = get_current_tenant_id()) OR is_super_admin(auth.uid())));
 
 
 COMMIT;

@@ -73,7 +73,7 @@ export function preloadExchangeRates(companyId: string, force = false): void {
     if (!companyId) return;
     const now = Date.now();
     if (!force && _cachedRates.length > 0 && _cachedCompanyId === companyId && (now - _cacheTimestamp < CACHE_TTL_MS)) return;
-    if (!force && _loadingRatesPromise && _cachedCompanyId === companyId) return;
+    if (!force && _loadingRatesPromise && _cachedCompanyId === companyId && _cachedRates.length > 0) return;
 
     _cachedCompanyId = companyId;
     _loadingRatesPromise = ExchangeRatesService.getRates(companyId).then(data => {
@@ -88,9 +88,29 @@ export function preloadExchangeRates(companyId: string, force = false): void {
 }
 
 // ─── AUTO-PRELOAD at module import time ─────────────────────────────────────
+// ⚠️ Only preload if the stored session is still valid (not expired).
+// Without this check, a stale sb-*-auth-token with an old company_id
+// triggers 406 errors on every page load (including the login page).
 (() => {
     const cachedCid = _getCompanyIdFromLocalStorage();
-    if (cachedCid) preloadExchangeRates(cachedCid);
+    if (cachedCid) {
+        // Verify session token is not expired before preloading
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                    const raw = localStorage.getItem(key);
+                    if (!raw) continue;
+                    const parsed = JSON.parse(raw);
+                    const expiresAt = parsed?.expires_at;
+                    if (expiresAt && expiresAt * 1000 < Date.now()) {
+                        return; // Session expired — skip preload
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+        preloadExchangeRates(cachedCid);
+    }
 })();
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -225,7 +245,6 @@ export function useExchangeRateLookup(): ExchangeRateLookupReturn {
         return null; // Not found in DB
     }, [rates, baseCurrency]);
 
-    // ─── Sync Lookup: DB rates + online cache ───
     const lookupRate = useCallback((fromCurrency: string, toCurrency?: string): number => {
         const to = toCurrency || baseCurrency;
 
@@ -234,7 +253,9 @@ export function useExchangeRateLookup(): ExchangeRateLookupReturn {
 
         // Try DB first
         const dbRate = lookupFromDB(fromCurrency, to);
-        if (dbRate !== null && dbRate > 0) return dbRate;
+        if (dbRate !== null && dbRate > 0) {
+            return dbRate;
+        }
 
         // Check in-memory online cache (populated by lookupRateAsync)
         const onlineKey = `${fromCurrency}->${to}`;
@@ -247,6 +268,7 @@ export function useExchangeRateLookup(): ExchangeRateLookupReturn {
         }
 
         // No rate found — return 1
+        console.warn(`[lookupRate] ⚠️ No rate found for ${fromCurrency}→${to}. rates.length=${rates.length}, baseCurrency=${baseCurrency}`);
         return 1;
     }, [lookupFromDB, baseCurrency]);
 

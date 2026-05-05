@@ -40,10 +40,13 @@ export function Sidebar({ className }: SidebarProps) {
   // 🛡️ SECURITY: فلترة الموديولات حسب الصلاحيات والأدوار
   // 🚀 PERFORMANCE: عرض جميع الموديولات فوراً أثناء التحميل (optimistic rendering)
   // بعد اكتمال التحميل، يتم تطبيق الفلترة الفعلية
+  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
   const filteredModules = STATIC_MODULES.filter(module => {
-    // أثناء التحميل، نعرض فقط dashboard (بدل كل شيء)
+    // أثناء التحميل:
+    // 🖥️ Localhost: عرض كل الموديولات (optimistic — المالك يرى الكل عادةً)
+    // ☁️ Cloud: عرض dashboard فقط (حماية — ممكن يكون مستخدم عادي)
     if (rbacLoading) {
-      return module.code === 'dashboard';
+      return isLocalhost ? !module.requires_super_admin : module.code === 'dashboard';
     }
 
     // 1. إذا كان الموديول يتطلب Super Admin (مدير المنصة)، نتحقق من الصلاحية

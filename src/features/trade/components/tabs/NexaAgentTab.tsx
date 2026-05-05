@@ -43,7 +43,7 @@ import {
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // ═══════════════════════════════════════════════════════════
@@ -394,7 +394,7 @@ export function NexaAgentTab({ data, mode }: NexaAgentTabProps) {
                     document_type: data?.doc_type || 'trade_order',
                 };
 
-                const { data: result, error } = await supabase.functions.invoke('nexa-agent', {
+                const { data: result, error } = await cloudSupabase.functions.invoke('nexa-agent', {
                     body: payload,
                 });
 

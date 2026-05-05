@@ -18,13 +18,24 @@ const CURRENCY_FLAGS: Record<string, string> = {
 };
 
 const ACCOUNT_ICONS: Record<string, typeof Wallet> = {
-  '111': Wallet,   // صندوق
-  '112': Landmark,  // بنك
+  '111': Wallet,   // صندوق (TexaCore)
+  '112': Landmark,  // بنك (TexaCore)
+  '181': Wallet,   // صندوق (الرشيد)
+  '182': Landmark,  // بنك (الرشيد)
 };
 
-function getAccountIcon(code: string) {
-  if (code.startsWith('111')) return Wallet;
-  if (code.startsWith('112')) return Landmark;
+function getAccountIcon(code: string, name?: string) {
+  if (!code) return Wallet;
+  // Check exact match first
+  if (ACCOUNT_ICONS[code]) return ACCOUNT_ICONS[code];
+  // Check prefix patterns
+  if (code.startsWith('111') || code.startsWith('181')) return Wallet;
+  if (code.startsWith('112') || code.startsWith('182')) return Landmark;
+  // Fallback: check account name for bank keywords
+  if (name) {
+    const lower = name.toLowerCase();
+    if (lower.includes('بنك') || lower.includes('مصرف') || lower.includes('bank')) return Landmark;
+  }
   return Wallet;
 }
 
@@ -62,7 +73,7 @@ export function CurrencyExposurePanel({
       ) : (
         <ul className="divide-y divide-stone-100 dark:divide-stone-800">
           {items.map((account) => {
-            const Icon = getAccountIcon(account.accountCode);
+            const Icon = getAccountIcon(account.accountCode, account.accountName);
             const hasBalance = account.balance !== 0;
             return (
               <li

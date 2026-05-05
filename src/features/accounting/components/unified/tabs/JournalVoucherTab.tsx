@@ -9,6 +9,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/shared';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { SheetMode } from '../types';
@@ -32,8 +33,10 @@ interface JournalLineRow {
     account_id: string;
     account_name?: string;
     account_code?: string;
-    debit: number;
-    credit: number;
+    debit: number;         // ← المبلغ المعروض (FC للعملة الأجنبية، محلي للمحلية)
+    credit: number;        // ← المبلغ المعروض
+    debit_local: number;   // ← المبلغ المحلي دائماً (للمجاميع والتوازن)
+    credit_local: number;  // ← المبلغ المحلي دائماً
     description: string;
     cost_center_id?: string;
     cost_center_name?: string;
@@ -59,6 +62,8 @@ const createEmptyRow = (defaultCurrency: string = ''): JournalLineRow => ({
     account_id: '',
     debit: 0,
     credit: 0,
+    debit_local: 0,
+    credit_local: 0,
     description: '',
     currency: defaultCurrency,
     exchange_rate: 1,
@@ -112,8 +117,8 @@ export function JournalVoucherTab({
 
     // ─── C2: عند تغير status (draft→posted أو posted→draft) أعِد الجلب ───
     useEffect(() => {
-        if (data?.status && data.status !== prevStatusRef.current) {
-            prevStatusRef.current = data.status;
+        if (data?.status && data?.status !== prevStatusRef.current) {
+            prevStatusRef.current = data?.status;
             // أعِد ضبط المرجع ← يُسمح بإعادة جلب الأسطر من DB
             dbFetchedIdRef.current = null;
         }
@@ -147,13 +152,13 @@ export function JournalVoucherTab({
                 const userLines = rows.filter((l: any) => l.is_fund_line !== true);
                 if (userLines.length === 0) return;
 
-                // جلب أسماء الحسابات بالتوازي
+                // جلب أسماء الحسابات بالتوازي (مع العملة لكشف العملة الأجنبية)
                 const accountIds = [...new Set(userLines.map((l: any) => l.account_id).filter(Boolean))];
                 let accountMap: Record<string, any> = {};
                 if (accountIds.length > 0) {
                     const { data: accounts } = await supabase
                         .from('chart_of_accounts')
-                        .select('id, name_ar, name_en, account_code')
+                        .select('id, name_ar, name_en, account_code, currency')
                         .in('id', accountIds);
                     if (accounts) {
                         for (const a of accounts) {
@@ -167,22 +172,41 @@ export function JournalVoucherTab({
                 const mapped = userLines.map((line: any) => {
                     const acct = accountMap[line.account_id] || {} as any;
                     const rate = Number(line.exchange_rate) || 1;
-                    const hasFC = rate > 1;
+                    const hasFC = rate > 1 || (Number(line.debit_fc) > 0 || Number(line.credit_fc) > 0);
                     const fcD = Number(line.debit_fc) || 0;
                     const fcC = Number(line.credit_fc) || 0;
-                    const rawD = Number(line.debit) || 0;
-                    const rawC = Number(line.credit) || 0;
+                    const rawD = Number(line.debit) || 0;   // المبلغ المحلي من DB
+                    const rawC = Number(line.credit) || 0;  // المبلغ المحلي من DB
+                    // ═══ كشف العملة الذكي — 3 مصادر + fallback ═══
+                    const acctCurrency = acct.currency || '';
+                    let lineCurrency = line.currency || companyCurrency;
+                    if (hasFC && (fcD > 0 || fcC > 0)) {
+                        if (acctCurrency && acctCurrency !== companyCurrency) {
+                            lineCurrency = acctCurrency;
+                        } else if (line.currency && line.currency !== companyCurrency) {
+                            lineCurrency = line.currency;
+                        } else if (rate > 1 && lineCurrency === companyCurrency) {
+                            // rate > 1 يعني حتماً عملة أجنبية — fallback
+                            lineCurrency = 'USD';
+                        }
+                    } else if (acctCurrency && acctCurrency !== companyCurrency) {
+                        lineCurrency = acctCurrency;
+                    }
                     return {
                         id: line.id || crypto.randomUUID(),
                         account_id: line.account_id || '',
                         account_name: acct.name_ar || acct.name_en || '',
                         account_code: acct.account_code || '',
+                        // المعروض = FC عند وجوده، وإلا المحلي
                         debit:  hasFC ? (fcD > 0 ? fcD : (rawD > 0 ? Math.round(rawD / rate * 100) / 100 : 0)) : rawD,
                         credit: hasFC ? (fcC > 0 ? fcC : (rawC > 0 ? Math.round(rawC / rate * 100) / 100 : 0)) : rawC,
+                        // المحلي = دائماً من DB (للمجاميع)
+                        debit_local: rawD,
+                        credit_local: rawC,
                         description: line.description || '',
                         cost_center_id: line.cost_center_id || '',
                         cost_center_name: '',
-                        currency: line.currency || companyCurrency,
+                        currency: lineCurrency,
                         exchange_rate: rate,
                         link_type: line.reference_type || 'none',
                         invoice_id: line.reference_id || '',
@@ -205,7 +229,7 @@ export function JournalVoucherTab({
                 setReference(data.reference || '');
                 setDescription(data.description || '');
                 setVoucherNo(data.entry_number || '');
-                setStatus(data.status || 'draft');
+                setStatus(data?.status || 'draft');
                 setFundAccountId(data.fund_account_id || '');
                 // ═══ معاينة فورية: حمّل data.lines مفلترة (بدون الصندوق) ═══
                 // DB fetch (C1) يؤكد في الخلفية — لكن المعاينة فورية بدون شبكة
@@ -219,24 +243,50 @@ export function JournalVoucherTab({
                     .map((line: any) => {
                         // ═══ عرض بالعملة الأصلية: نأخذ debit_fc/credit_fc عندما تكون > 0 ═══
                         const rate = Number(line.exchange_rate) || 1;
-                        const hasFC = rate > 1; // عملة أجنبية
+                        const hasFC = rate > 1 || (Number(line.debit_fc) > 0 || Number(line.credit_fc) > 0); // عملة أجنبية
                         const fcD = Number(line.debit_fc) || 0;
                         const fcC = Number(line.credit_fc) || 0;
-                        const rawD = Number(line.debit) || 0;
-                        const rawC = Number(line.credit) || 0;
+                        const rawD = Number(line.debit) || 0;   // المبلغ المحلي من DB
+                        const rawC = Number(line.credit) || 0;  // المبلغ المحلي من DB
+                        // ═══ كشف العملة الذكي — 3 مصادر بالأولوية ═══
+                        // 1. عملة الحساب من chart_of_accounts (المصدر الموثوق)
+                        // 2. عملة السطر إذا مختلفة عن المحلية
+                        // 3. fallback: العملة المحلية
+                        const acctCurrency = line.account?.currency || '';
+                        let lineCurrency = line.currency || companyCurrency;
+                        if (hasFC && (fcD > 0 || fcC > 0)) {
+                            if (acctCurrency && acctCurrency !== companyCurrency) {
+                                lineCurrency = acctCurrency;
+                            } else if (line.currency && line.currency !== companyCurrency) {
+                                lineCurrency = line.currency;
+                            } else if (rate > 1 && lineCurrency === companyCurrency) {
+                                // ═══ آخر محاولة: rate > 1 يعني حتماً عملة أجنبية ═══
+                                // ابحث عن العملة من أسطر أخرى في نفس القيد
+                                const otherFC = (data?.lines || []).find((ol: any) => {
+                                    const oc = ol.account?.currency || ol.currency || '';
+                                    return oc && oc !== companyCurrency;
+                                });
+                                lineCurrency = otherFC?.account?.currency || otherFC?.currency || 'USD';
+                            }
+                        } else if (acctCurrency && acctCurrency !== companyCurrency) {
+                            lineCurrency = acctCurrency;
+                        }
                         
                         return {
                             id: line.id || crypto.randomUUID(),
                             account_id: line.account_id || '',
                             account_name: line.account?.name_ar || line.account?.name_en || line.account_name || '',
                             account_code: line.account?.account_code || line.account?.code || line.account_code || '',
-                            // إذا عملة أجنبية و debit_fc > 0 → نعرضه. وإلا debit / rate (أو debit إذا محلي)
+                            // المعروض = FC عند وجوده، وإلا المحلي
                             debit:  hasFC ? (fcD > 0 ? fcD : (rawD > 0 ? Math.round(rawD / rate * 100) / 100 : 0)) : rawD,
                             credit: hasFC ? (fcC > 0 ? fcC : (rawC > 0 ? Math.round(rawC / rate * 100) / 100 : 0)) : rawC,
+                            // المحلي = دائماً من DB (للمجاميع والتوازن)
+                            debit_local: rawD,
+                            credit_local: rawC,
                             description: line.description || '',
                             cost_center_id: line.cost_center_id || '',
                             cost_center_name: line.cost_center?.name || '',
-                            currency: line.currency || companyCurrency,
+                            currency: lineCurrency,
                             exchange_rate: rate,
                             link_type: line.reference_type || line.link_type || 'none',
                             invoice_id: line.reference_id || line.invoice_id || '',
@@ -276,11 +326,29 @@ export function JournalVoucherTab({
                     })
                     .map((line: any) => {
                         const rate = Number(line.exchange_rate) || 1;
-                        const hasFC = rate > 1; // عملة أجنبية
+                        const hasFC = rate > 1 || (Number(line.debit_fc) > 0 || Number(line.credit_fc) > 0);
                         const fcD = Number(line.debit_fc) || 0;
                         const fcC = Number(line.credit_fc) || 0;
                         const rawD = Number(line.debit) || 0;
                         const rawC = Number(line.credit) || 0;
+                        // ═══ كشف العملة الذكي (نفس منطق view/edit) ═══
+                        const acctCurrency = line.account?.currency || '';
+                        let lineCurrency = line.currency || companyCurrency;
+                        if (hasFC && (fcD > 0 || fcC > 0)) {
+                            if (acctCurrency && acctCurrency !== companyCurrency) {
+                                lineCurrency = acctCurrency;
+                            } else if (line.currency && line.currency !== companyCurrency) {
+                                lineCurrency = line.currency;
+                            } else if (rate > 1 && lineCurrency === companyCurrency) {
+                                const otherFC = (data?.lines || []).find((ol: any) => {
+                                    const oc = ol.account?.currency || ol.currency || '';
+                                    return oc && oc !== companyCurrency;
+                                });
+                                lineCurrency = otherFC?.account?.currency || otherFC?.currency || 'USD';
+                            }
+                        } else if (acctCurrency && acctCurrency !== companyCurrency) {
+                            lineCurrency = acctCurrency;
+                        }
                         
                         return {
                             id: line.id || crypto.randomUUID(),
@@ -289,10 +357,12 @@ export function JournalVoucherTab({
                             account_code: line.account?.account_code || line.account?.code || line.account_code || '',
                             debit:  hasFC ? (fcD > 0 ? fcD : (rawD > 0 ? Math.round(rawD / rate * 100) / 100 : 0)) : rawD,
                             credit: hasFC ? (fcC > 0 ? fcC : (rawC > 0 ? Math.round(rawC / rate * 100) / 100 : 0)) : rawC,
+                            debit_local: rawD,
+                            credit_local: rawC,
                             description: line.description || '',
                             cost_center_id: line.cost_center_id || '',
                             cost_center_name: line.cost_center?.name || '',
-                            currency: line.currency || companyCurrency,
+                            currency: lineCurrency,
                             exchange_rate: rate,
                             link_type: line.reference_type || line.link_type || 'none',
                             invoice_id: line.reference_id || line.invoice_id || '',
@@ -459,13 +529,33 @@ export function JournalVoucherTab({
         }
     }, [invoiceOptions, containerOptions, accountPartyMap, isRTL]);
 
-    // Computed Totals
+    // ═══ Computed Totals — دائماً بالعملة المحلية للتوازن الصحيح ═══
     const totals = useMemo(() => {
-        return lines.reduce((acc, row) => ({
-            debit: acc.debit + (Number(row.debit) || 0),
-            credit: acc.credit + (Number(row.credit) || 0),
-        }), { debit: 0, credit: 0 });
-    }, [lines]);
+        // ═══ حساب من الأسطر (المعروضة) ═══
+        const lineTotals = lines.reduce((acc, row) => {
+            const rate = Number(row.exchange_rate) || 1;
+            const dLocal = row.debit_local > 0 ? row.debit_local : (Number(row.debit) || 0) * rate;
+            const cLocal = row.credit_local > 0 ? row.credit_local : (Number(row.credit) || 0) * rate;
+            return {
+                debit: acc.debit + dLocal,
+                credit: acc.credit + cLocal,
+            };
+        }, { debit: 0, credit: 0 });
+
+        // ═══ للقيود الموجودة: إذا الـ header متوازن واختلف التقريب عن الأسطر ═══
+        // البحث في كل الأسماء الممكنة (snake_case + camelCase + _raw)
+        const headerDebit = Number(data?.total_debit) || Number(data?.totalDebit) || Number(data?._raw?.total_debit) || 0;
+        const headerCredit = Number(data?.total_credit) || Number(data?.totalCredit) || Number(data?._raw?.total_credit) || 0;
+        const headerBalanced = headerDebit > 0 && headerCredit > 0 && Math.abs(headerDebit - headerCredit) < 0.01;
+        const linesImbalanced = Math.abs(lineTotals.debit - lineTotals.credit) > 0.01;
+        
+        if (data?.id && !isCreate && headerBalanced && linesImbalanced) {
+            // الأسطر تظهر فرقاً بسبب التقريب لكن الـ header متوازن → نثق بالـ header
+            return { debit: headerDebit, credit: headerCredit };
+        }
+
+        return lineTotals;
+    }, [lines, data?.id, data?.total_debit, data?.totalDebit, data?._raw?.total_debit, data?.total_credit, data?.totalCredit, data?._raw?.total_credit, isCreate]);
 
     const isBalanced = Math.abs(totals.debit - totals.credit) < 0.01;
     const lineCount = lines.filter(r => r.account_id && (r.debit || r.credit)).length;
@@ -606,6 +696,26 @@ export function JournalVoucherTab({
         currentRow: JournalLineRow
     ): JournalLineRow | void => {
 
+        // ═══ عند تعديل المبلغ (debit/credit): حدّث المبلغ المحلي أيضاً ═══
+        if (colKey === 'debit' || colKey === 'credit') {
+            const val = Number(newValue) || 0;
+            const rate = Number(currentRow.exchange_rate) || 1;
+            const localVal = Math.round(val * rate * 100) / 100;
+            if (colKey === 'debit') {
+                return { ...currentRow, debit: val, debit_local: localVal };
+            } else {
+                return { ...currentRow, credit: val, credit_local: localVal };
+            }
+        }
+
+        // ═══ عند تعديل سعر الصرف: أعد حساب المبالغ المحلية ═══
+        if (colKey === 'exchange_rate') {
+            const newRate = Number(newValue) || 1;
+            const dLocal = Math.round((Number(currentRow.debit) || 0) * newRate * 100) / 100;
+            const cLocal = Math.round((Number(currentRow.credit) || 0) * newRate * 100) / 100;
+            return { ...currentRow, exchange_rate: newRate, debit_local: dLocal, credit_local: cLocal };
+        }
+
         // ─── عند اختيار الحساب: أخذ العملة والرصيد من الكاش مباشرة ───
         if (colKey === 'account_id' && newValue) {
             const accountId = String(newValue);
@@ -621,7 +731,6 @@ export function JournalVoucherTab({
             fetchedAccountIdsRef.current.add(accountId);
 
             // ═══ الرصيد من الكاش — فوري (0ms) ═══
-            // الكاش يحتوي على أرصدة حقيقية من RPC get_account_balances_bulk
             const balance = Number(acct?.current_balance) || 0;
             setAccountBalances(prev => new Map(prev).set(accountId, balance));
             if (isFC) {
@@ -633,13 +742,19 @@ export function JournalVoucherTab({
                 // تحديث العملة وسعر الصرف في السطر
                 const rate = lookupRate(acctCurrency, companyCurrency);
                 if (rate && rate !== 1) {
-                    return { ...currentRow, account_id: accountId, currency: acctCurrency, exchange_rate: rate };
+                    // أعد حساب المبالغ المحلية بالسعر الجديد
+                    const dLocal = Math.round((Number(currentRow.debit) || 0) * rate * 100) / 100;
+                    const cLocal = Math.round((Number(currentRow.credit) || 0) * rate * 100) / 100;
+                    return { ...currentRow, account_id: accountId, currency: acctCurrency, exchange_rate: rate, debit_local: dLocal, credit_local: cLocal };
                 }
                 lookupRateAsync(acctCurrency, companyCurrency).then(asyncRate => {
                     if (asyncRate && asyncRate !== 1) {
-                        setLines(prev => prev.map((l, i) =>
-                            i === rowIndex ? { ...l, currency: acctCurrency, exchange_rate: asyncRate } : l
-                        ));
+                        setLines(prev => prev.map((l, i) => {
+                            if (i !== rowIndex) return l;
+                            const dL = Math.round((Number(l.debit) || 0) * asyncRate * 100) / 100;
+                            const cL = Math.round((Number(l.credit) || 0) * asyncRate * 100) / 100;
+                            return { ...l, currency: acctCurrency, exchange_rate: asyncRate, debit_local: dL, credit_local: cL };
+                        }));
                     } else {
                         setLines(prev => prev.map((l, i) =>
                             i === rowIndex ? { ...l, currency: acctCurrency } : l
@@ -654,25 +769,30 @@ export function JournalVoucherTab({
         if (colKey === 'currency' && typeof newValue === 'string') {
             const targetCurrency = newValue || companyCurrency;
 
-            // العملة الأساسية → سعر 1
+            // العملة الأساسية → سعر 1، المبلغ المحلي = المبلغ نفسه
             if (targetCurrency === companyCurrency) {
-                return { ...currentRow, currency: targetCurrency, exchange_rate: 1 };
+                const d = Number(currentRow.debit) || 0;
+                const c = Number(currentRow.credit) || 0;
+                return { ...currentRow, currency: targetCurrency, exchange_rate: 1, debit_local: d, credit_local: c };
             }
 
             // حاول الحصول على السعر المخزّن مؤقتاً
             const rate = lookupRate(targetCurrency, companyCurrency);
             if (rate && rate !== 1) {
-                return { ...currentRow, currency: targetCurrency, exchange_rate: rate };
+                const dLocal = Math.round((Number(currentRow.debit) || 0) * rate * 100) / 100;
+                const cLocal = Math.round((Number(currentRow.credit) || 0) * rate * 100) / 100;
+                return { ...currentRow, currency: targetCurrency, exchange_rate: rate, debit_local: dLocal, credit_local: cLocal };
             }
 
             // Fallback async: اجلب من الـ API وحدّث السطر عند الوصول
             lookupRateAsync(targetCurrency, companyCurrency).then(asyncRate => {
                 if (asyncRate && asyncRate !== 1) {
-                    setLines(prev => prev.map((l, i) =>
-                        i === rowIndex && l.currency === targetCurrency
-                            ? { ...l, exchange_rate: asyncRate }
-                            : l
-                    ));
+                    setLines(prev => prev.map((l, i) => {
+                        if (i !== rowIndex || l.currency !== targetCurrency) return l;
+                        const dL = Math.round((Number(l.debit) || 0) * asyncRate * 100) / 100;
+                        const cL = Math.round((Number(l.credit) || 0) * asyncRate * 100) / 100;
+                        return { ...l, exchange_rate: asyncRate, debit_local: dL, credit_local: cL };
+                    }));
                 }
             });
 
@@ -706,7 +826,10 @@ export function JournalVoucherTab({
                 const oldRow = prevLines[idx];
                 if (oldRow && row.currency && row.currency !== oldRow.currency) {
                     const rate = lookupRate(row.currency, companyCurrency);
-                    return { ...row, exchange_rate: rate };
+                    // أعد حساب المبالغ المحلية بالسعر الجديد
+                    const dLocal = Math.round((Number(row.debit) || 0) * rate * 100) / 100;
+                    const cLocal = Math.round((Number(row.credit) || 0) * rate * 100) / 100;
+                    return { ...row, exchange_rate: rate, debit_local: dLocal, credit_local: cLocal };
                 }
                 return row;
             });
@@ -717,21 +840,7 @@ export function JournalVoucherTab({
     }, [lookupRate, companyCurrency]);
 
     // Status helpers
-    const getStatusColor = (s: string) => {
-        switch (s) {
-            case 'posted': return 'bg-green-100 text-green-700 border-green-200';
-            case 'draft': return 'bg-gray-100 text-gray-700 border-gray-200';
-            default: return 'bg-blue-100 text-blue-700 border-blue-200';
-        }
-    };
-    const getStatusIcon = (s: string) => {
-        switch (s) {
-            case 'posted': return <CheckCircle2 className="w-3.5 h-3.5" />;
-            case 'draft': return <Clock className="w-3.5 h-3.5" />;
-            default: return <AlertCircle className="w-3.5 h-3.5" />;
-        }
-    };
-
+    // === StatusBadge replaces getStatusColor/getStatusIcon ===
     // === Arabic Number to Words ===
     const numberToArabicWords = useCallback((num: number): string => {
         if (num === 0) return 'صفر';
@@ -985,7 +1094,7 @@ export function JournalVoucherTab({
         return '';
     }, []);
 
-    // F9 auto-balance handler
+    // F9 auto-balance handler — يعمل بالعملة المحلية
     const handleF9Balance = useCallback(() => {
         const diff = totals.debit - totals.credit;
         if (Math.abs(diff) < 0.01) {
@@ -1003,13 +1112,18 @@ export function JournalVoucherTab({
             setLines(prev => [...prev, newRow]);
             targetIdx = lines.length;
         }
-        // Set the balancing amount
+        // Set the balancing amount — المبلغ المحلي = diff (بالعملة المحلية)
+        // إذا السطر المستهدف بعملة أجنبية، حوّل المبلغ
         setLines(prev => {
             const copy = [...prev];
+            const targetRow = copy[targetIdx];
+            const targetRate = Number(targetRow?.exchange_rate) || 1;
+            // المبلغ المعروض (بعملة السطر) = diff / rate
+            const displayAmount = targetRate > 1 ? Math.round(Math.abs(diff) / targetRate * 100) / 100 : Math.abs(diff);
             if (diff > 0) {
-                copy[targetIdx] = { ...copy[targetIdx], credit: diff, debit: 0 };
+                copy[targetIdx] = { ...copy[targetIdx], credit: displayAmount, debit: 0, credit_local: Math.abs(diff), debit_local: 0 };
             } else {
-                copy[targetIdx] = { ...copy[targetIdx], debit: Math.abs(diff), credit: 0 };
+                copy[targetIdx] = { ...copy[targetIdx], debit: displayAmount, credit: 0, debit_local: Math.abs(diff), credit_local: 0 };
             }
             return copy;
         });
@@ -1102,7 +1216,7 @@ export function JournalVoucherTab({
 
         // ═══ إذا القيد مرحَّل بالفعل، الرصيد الحالي يتضمن هذه الحركة ═══
         // لا نضيف المبلغ مرة ثانية — نعرض الرصيد كما هو
-        const isPosted = data.status === 'posted' || data.is_posted === true;
+        const isPosted = data?.status === 'posted' || data?.is_posted === true;
         const effectiveAmount = isPosted ? 0 : transactionAmount;
 
         const afterBalance = currentBalance + effectiveAmount;
@@ -1119,7 +1233,7 @@ export function JournalVoucherTab({
             isCash: fundBalanceData.isCash,
             isBank: fundBalanceData.isBank,
         };
-    }, [fundBalanceData, lines, docType, data.status, data.is_posted]);
+    }, [fundBalanceData, lines, docType, data?.status, data?.is_posted]);
 
 
     return (
@@ -1270,13 +1384,7 @@ export function JournalVoucherTab({
             <div className="shrink-0 px-4 py-3 bg-gradient-to-b from-white via-white to-gray-50/60 dark:from-gray-800 dark:via-gray-800 dark:to-gray-850/80 border-b border-gray-100/80 dark:border-gray-700/60">
                 <div className="flex items-center gap-2.5 flex-wrap">
                     {/* Status Badge */}
-                    <div className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold shadow-sm",
-                        getStatusColor(status)
-                    )}>
-                        {getStatusIcon(status)}
-                        <span className="capitalize">{status}</span>
-                    </div>
+                    <StatusBadge status={status} />
 
                     <div className="h-6 w-px bg-gradient-to-b from-transparent via-gray-200 to-transparent dark:via-gray-600" />
 
@@ -1401,6 +1509,8 @@ export function JournalVoucherTab({
 
                     debitKey="debit"
                     creditKey="credit"
+                    balanceDebitKey="debit_local"
+                    balanceCreditKey="credit_local"
 
                     onAddRow={handleAddRow}
                     onInsertRow={handleInsertRow}

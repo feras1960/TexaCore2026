@@ -42,14 +42,19 @@
 
 -- ⚠️ لا نُعدّل: super_admin, support, support_senior (موجودين مسبقاً للمنصة)
 
-INSERT INTO roles (tenant_id, code, name_ar, name_en, is_super_admin, is_system, permissions)
+DELETE FROM roles WHERE code IN (
+    'tenant_admin', 'company_owner', 'company_admin', 'branch_manager',
+    'accountant', 'cashier', 'warehouse_keeper', 'sales_rep', 'purchaser', 'employee', 'auditor'
+);
+
+INSERT INTO roles (tenant_id, code, name_ar, name_en, is_system, permissions)
 VALUES
 
 -- ═══════════════════════════════════════════════════════════════
 -- المستوى 2: مدير المستأجر
 -- ═══════════════════════════════════════════════════════════════
 
-(NULL, 'tenant_admin', 'مدير المستأجر', 'Tenant Admin', false, true, '{
+(NULL, 'tenant_admin', 'مدير المستأجر', 'Tenant Admin', true, '{
     "level": "tenant",
     "scope": "all_companies",
     "companies": {"create": true, "read": true, "update": true, "delete": true},
@@ -64,7 +69,7 @@ VALUES
 -- المستوى 3: أدوار الشركة
 -- ═══════════════════════════════════════════════════════════════
 
-(NULL, 'company_owner', 'مالك الشركة', 'Company Owner', false, true, '{
+(NULL, 'company_owner', 'مالك الشركة', 'Company Owner', true, '{
     "level": "company",
     "scope": "company",
     "all_in_company": true,
@@ -79,7 +84,7 @@ VALUES
     "reports": {"all": true}
 }'::jsonb),
 
-(NULL, 'company_admin', 'مدير الشركة', 'Company Admin', false, true, '{
+(NULL, 'company_admin', 'مدير الشركة', 'Company Admin', true, '{
     "level": "company",
     "scope": "company",
     "settings": {"read": true, "update": true},
@@ -97,7 +102,7 @@ VALUES
 -- المستوى 4: مدير الفرع
 -- ═══════════════════════════════════════════════════════════════
 
-(NULL, 'branch_manager', 'مدير الفرع', 'Branch Manager', false, true, '{
+(NULL, 'branch_manager', 'مدير الفرع', 'Branch Manager', true, '{
     "level": "branch",
     "scope": "assigned_branches",
     "users": {"read": true},
@@ -115,7 +120,7 @@ VALUES
 -- المستوى 5: أدوار العمليات
 -- ═══════════════════════════════════════════════════════════════
 
-(NULL, 'accountant', 'محاسب', 'Accountant', false, true, '{
+(NULL, 'accountant', 'محاسب', 'Accountant', true, '{
     "level": "operations",
     "scope": "company",
     "accounting": {"all": true},
@@ -130,7 +135,7 @@ VALUES
     "purchases": {"read": true}
 }'::jsonb),
 
-(NULL, 'cashier', 'أمين صندوق', 'Cashier', false, true, '{
+(NULL, 'cashier', 'أمين صندوق', 'Cashier', true, '{
     "level": "operations",
     "scope": "assigned_funds",
     "funds": {
@@ -144,7 +149,7 @@ VALUES
     "reports": {"daily_cash": true, "my_transactions": true}
 }'::jsonb),
 
-(NULL, 'warehouse_keeper', 'أمين مستودع', 'Warehouse Keeper', false, true, '{
+(NULL, 'warehouse_keeper', 'أمين مستودع', 'Warehouse Keeper', true, '{
     "level": "operations",
     "scope": "assigned_warehouses",
     "warehouses": {
@@ -164,7 +169,7 @@ VALUES
     "reports": {"stock": true, "movements": true}
 }'::jsonb),
 
-(NULL, 'sales_rep', 'مندوب مبيعات', 'Sales Representative', false, true, '{
+(NULL, 'sales_rep', 'مندوب مبيعات', 'Sales Representative', true, '{
     "level": "operations",
     "scope": "own",
     "customers": {"create": true, "read": true, "update": true},
@@ -179,7 +184,7 @@ VALUES
     "reports": {"my_sales": true}
 }'::jsonb),
 
-(NULL, 'purchaser', 'مسؤول مشتريات', 'Purchaser', false, true, '{
+(NULL, 'purchaser', 'مسؤول مشتريات', 'Purchaser', true, '{
     "level": "operations",
     "scope": "company",
     "suppliers": {"create": true, "read": true, "update": true},
@@ -190,7 +195,7 @@ VALUES
     "reports": {"purchases": true}
 }'::jsonb),
 
-(NULL, 'employee', 'موظف', 'Employee', false, true, '{
+(NULL, 'employee', 'موظف', 'Employee', true, '{
     "level": "operations",
     "scope": "own",
     "read_only": true,
@@ -203,7 +208,7 @@ VALUES
 -- دور خاص: المدقق
 -- ═══════════════════════════════════════════════════════════════
 
-(NULL, 'auditor', 'مدقق', 'Auditor', false, true, '{
+(NULL, 'auditor', 'مدقق', 'Auditor', true, '{
     "level": "special",
     "scope": "company",
     "read_only": true,
@@ -213,13 +218,7 @@ VALUES
     "audit_logs": {"read": true},
     "reports": {"all": true},
     "document_edit_history": {"read": true}
-}'::jsonb)
-
-ON CONFLICT ON CONSTRAINT roles_tenant_id_code_key DO UPDATE SET
-    name_ar = EXCLUDED.name_ar,
-    name_en = EXCLUDED.name_en,
-    permissions = EXCLUDED.permissions,
-    updated_at = NOW();
+}'::jsonb);
 
 -- ═══════════════════════════════════════════════════════════════
 -- الجزء 2: ربط المستخدمين بالصناديق والمستودعات

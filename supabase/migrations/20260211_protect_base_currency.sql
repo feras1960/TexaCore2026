@@ -61,13 +61,17 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 5) Drop existing trigger if any
-DROP TRIGGER IF EXISTS trg_prevent_settings_base_currency_change ON company_accounting_settings;
-
--- 6) Create trigger on company_accounting_settings table
-CREATE TRIGGER trg_prevent_settings_base_currency_change
-    BEFORE UPDATE ON company_accounting_settings
-    FOR EACH ROW
-    EXECUTE FUNCTION prevent_settings_base_currency_change();
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'company_accounting_settings') THEN
+        DROP TRIGGER IF EXISTS trg_prevent_settings_base_currency_change ON company_accounting_settings;
+        
+        -- 6) Create trigger on company_accounting_settings table
+        EXECUTE 'CREATE TRIGGER trg_prevent_settings_base_currency_change
+            BEFORE UPDATE ON company_accounting_settings
+            FOR EACH ROW
+            EXECUTE FUNCTION prevent_settings_base_currency_change()';
+    END IF;
+END $$;
 
 -- ══════════════════════════════════════════════════════════════
 -- ✅ حالة التنفيذ - Execution Status

@@ -6,7 +6,7 @@
  * Used by workflow triggers, daily reports, and manual notifications.
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 
 // ─── Types ────────────────────────────────────────────────
 export interface TelegramNotification {
@@ -39,7 +39,7 @@ export async function sendTelegramNotification(
     message: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { data, error } = await supabase.functions.invoke('telegram-webhook', {
+        const { data, error } = await cloudSupabase.functions.invoke('telegram-webhook', {
             body: {
                 action: 'send_notification',
                 company_id: companyId,

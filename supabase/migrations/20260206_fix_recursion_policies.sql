@@ -206,7 +206,7 @@ CREATE POLICY "visibility_rules_modify" ON visibility_rules
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Drop existing function first
-DROP FUNCTION IF EXISTS get_user_roles(UUID);
+DROP FUNCTION IF EXISTS get_user_roles(UUID) CASCADE;
 
 -- Create with SECURITY DEFINER to bypass RLS
 CREATE OR REPLACE FUNCTION get_user_roles(p_user_id UUID)
@@ -239,7 +239,7 @@ END;
 $$;
 
 -- Fix is_super_admin function
-DROP FUNCTION IF EXISTS is_super_admin(UUID);
+DROP FUNCTION IF EXISTS is_super_admin(UUID) CASCADE;
 
 CREATE OR REPLACE FUNCTION is_super_admin(p_user_id UUID DEFAULT auth.uid())
 RETURNS BOOLEAN

@@ -376,12 +376,22 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         // 🌍 International purchases: override stored tax values to 0
         const isInternationalLoad = tradeMode === 'purchase' && data.receipt_mode === 'international';
 
+        // 📦 Posted/direct purchases: items are fully received (no partial receipt tracking)
+        const isFullyReceived = tradeMode === 'purchase'
+            && ['posted', 'received', 'paid', 'partial_paid'].includes(data.stage || '')
+            && (data.receipt_mode === 'direct' || !data.receipt_mode);
+
         return resolvedItems.map((item: any) => {
-            const sub = Number(item.subtotal || (item.quantity * item.unit_price) || 0);
+            const qty = Number(item.quantity || 0);
+            const sub = Number(item.subtotal || (qty * item.unit_price) || 0);
             const disc = Number(item.discount_amount || 0);
             const taxRate = isInternationalLoad ? 0 : Number(item.tax_rate || 0);
             const taxAmt  = isInternationalLoad ? 0 : Number(item.tax_amount || 0);
             const total   = isInternationalLoad ? (sub - disc) : Number(item.total || sub);
+
+            // Delivered/Received qty: explicit value → full qty for posted/direct → 0
+            const rawDelivered = Number(item.delivered_qty || item.received_qty || 0);
+            const effectiveDelivered = rawDelivered > 0 ? rawDelivered : (isFullyReceived ? qty : 0);
 
             return {
                 id: item.id || crypto.randomUUID(),
@@ -389,7 +399,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 material_code: item.material_code || item.item_code || '',
                 material_name_ar: item.material_name_ar || item.description_ar || item.description || item.item_name || item.name_ar || '',
                 material_name_en: item.material_name_en || item.item_name_en || item.name_en || '',
-                quantity: Number(item.quantity || 0),
+                quantity: qty,
                 unit: item.unit || 'meter',
                 unit_price: Number(item.unit_price || 0),
                 discount_percent: Number(item.discount_percent || 0),
@@ -407,12 +417,12 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 preferred_rolls: item.preferred_rolls || [],
                 notes: item.notes,
                 // Delivery/Receipt tracking — map received_qty (purchases) → delivered_qty
-                delivered_qty: Number(item.delivered_qty || item.received_qty || 0),
+                delivered_qty: effectiveDelivered,
                 cost_price: Number(item.cost_price || 0),
                 delivery_rolls: item.delivery_rolls || [],
             };
         });
-    }, [resolvedItems, data.currency, data.warehouse_id, companyCurrency, tradeMode, data.receipt_mode, warehouseNameMap]);
+    }, [resolvedItems, data.currency, data.warehouse_id, companyCurrency, tradeMode, data.receipt_mode, data.stage, warehouseNameMap]);
 
     // ─── Auto-sync document warehouse_id from items ───
     // When all items share the same warehouse and document has no warehouse_id, auto-set it
@@ -474,6 +484,14 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         // Skip for international purchases (tax = 0 is correct)
         const isInternational = tradeMode === 'purchase' && data.receipt_mode === 'international';
         if (isInternational) {
+            taxReconciliationDoneRef.current = true;
+            return;
+        }
+
+        // Skip for finalized/posted invoices — their tax values are authoritative
+        // (e.g. imported from legacy systems like الرشيد where tax=0 is intentional)
+        const finalizedStages = ['posted', 'received', 'delivered', 'completed', 'paid', 'cancelled'];
+        if (finalizedStages.includes(data.stage || '')) {
             taxReconciliationDoneRef.current = true;
             return;
         }

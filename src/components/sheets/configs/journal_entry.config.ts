@@ -57,7 +57,7 @@ export const journalEntryConfig: SheetConfig = {
   docType: 'journal_entry',
 
   // Header
-  title: (data) => data.voucherNo || data.entry_number || 'Journal Entry',
+  title: (data) => data?.voucherNo || data?.entry_number || 'Journal Entry',
   subtitle: (data) => {
     const date = data.date ? new Date(data.date).toLocaleDateString('ar-u-nu-latn') : '';
     return date;
@@ -67,7 +67,7 @@ export const journalEntryConfig: SheetConfig = {
 
   // Status Badge
   badge: (data: any) => {
-    const info = getStatusInfo(data.status);
+    const info = getStatusInfo(data?.status);
     return {
       label: info.label,
       variant: info.variant === 'destructive' ? 'error' : info.variant,
@@ -113,7 +113,7 @@ export const journalEntryConfig: SheetConfig = {
       label: 'common.status',
       icon: Clock,
       value: (data) => {
-        const info = getStatusInfo(data.status);
+        const info = getStatusInfo(data?.status);
         return info.label;
       },
       color: 'purple',
@@ -203,21 +203,21 @@ export const journalEntryConfig: SheetConfig = {
       label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      show: (data) => data.status === 'draft',
+      show: (data) => data?.status === 'draft',
     },
     {
       id: 'post',
       label: 'actions.post',
       icon: CheckCircle2,
       variant: 'default',
-      show: (data) => data.status === 'draft',
+      show: (data) => data?.status === 'draft',
     },
     {
       id: 'reverse',
       label: 'actions.reverse',
       icon: RotateCcw,
       variant: 'outline',
-      show: (data) => data.status === 'posted',
+      show: (data) => data?.status === 'posted',
     },
     {
       id: 'duplicate',
@@ -243,7 +243,7 @@ export const journalEntryConfig: SheetConfig = {
       label: 'actions.cancelEntry',
       icon: XCircle,
       variant: 'destructive',
-      show: (data) => data.status !== 'cancelled',
+      show: (data) => data?.status !== 'cancelled',
       confirm: {
         title: 'dialogs.cancelEntry',
         description: 'dialogs.cancelEntryWarning',
@@ -255,7 +255,7 @@ export const journalEntryConfig: SheetConfig = {
       label: 'actions.delete',
       icon: Trash2,
       variant: 'destructive',
-      show: (data) => data.status === 'draft',
+      show: (data) => data?.status === 'draft',
       confirm: {
         title: 'dialogs.deleteEntry',
         description: 'dialogs.deleteEntryWarning',

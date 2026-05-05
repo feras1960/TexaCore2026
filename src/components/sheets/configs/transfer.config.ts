@@ -53,7 +53,7 @@ export const transferConfig: SheetConfig = {
 
     // Status Badge
     badge: (data) => {
-        const info = getStatusInfo(data.status);
+        const info = getStatusInfo(data?.status);
         return {
             label: info.label,
             variant: info.variant,
@@ -195,7 +195,7 @@ export const transferConfig: SheetConfig = {
             labelAr: 'تعديل',
             icon: Edit,
             variant: 'outline',
-            show: (data) => data.status === 'draft',
+            show: (data) => data?.status === 'draft',
         },
         {
             id: 'post',
@@ -203,7 +203,7 @@ export const transferConfig: SheetConfig = {
             labelAr: 'ترحيل',
             icon: CheckCircle2,
             variant: 'default',
-            show: (data) => data.status === 'draft',
+            show: (data) => data?.status === 'draft',
         },
         {
             id: 'duplicate',
@@ -233,7 +233,7 @@ export const transferConfig: SheetConfig = {
             labelAr: 'إلغاء',
             icon: XCircle,
             variant: 'destructive',
-            show: (data) => data.status !== 'cancelled',
+            show: (data) => data?.status !== 'cancelled',
             confirm: {
                 title: 'dialogs.cancelTransfer',
                 titleAr: 'إلغاء التحويل',
@@ -249,7 +249,7 @@ export const transferConfig: SheetConfig = {
             labelAr: 'حذف',
             icon: Trash2,
             variant: 'destructive',
-            show: (data) => data.status === 'draft',
+            show: (data) => data?.status === 'draft',
             confirm: {
                 title: 'dialogs.deleteTransfer',
                 titleAr: 'حذف التحويل',

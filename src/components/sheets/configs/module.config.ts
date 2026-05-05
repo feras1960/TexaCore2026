@@ -81,7 +81,7 @@ export const moduleConfig: SheetConfig = {
       beta: { label: 'status.beta', variant: 'warning' },
       deprecated: { label: 'status.deprecated', variant: 'error' },
     };
-    const status = statusMap[data.status] || statusMap['inactive'];
+    const status = statusMap[data?.status] || statusMap['inactive'];
     return {
       label: status.label,
       variant: status.variant,
@@ -329,7 +329,7 @@ export const moduleConfig: SheetConfig = {
       label: 'actions.deactivate',
       icon: Lock,
       variant: 'destructive',
-      show: (data) => data.status === 'active' && !data.is_core,
+      show: (data) => data?.status === 'active' && !data.is_core,
       confirm: {
         title: 'dialogs.confirmDeactivation',
         description: 'dialogs.deactivateModuleWarning',
@@ -341,7 +341,7 @@ export const moduleConfig: SheetConfig = {
       label: 'actions.activate',
       icon: Unlock,
       variant: 'success',
-      show: (data) => data.status !== 'active',
+      show: (data) => data?.status !== 'active',
       onClick: () => { },
     },
   ],

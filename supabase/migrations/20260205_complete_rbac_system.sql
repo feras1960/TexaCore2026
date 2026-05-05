@@ -798,3 +798,26 @@ CREATE TRIGGER user_resource_access_updated_at
 --   - purchasing_manager (مسؤول المشتريات)
 --   - viewer (مشاهد فقط)
 -- ═══════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════
+-- 13. System Admin Functions
+-- ═══════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION is_super_admin(p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.id
+        WHERE ur.user_id = p_user_id
+          AND ur.is_active = true
+          AND r.code = 'super_admin'
+    );
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN false;
+END;
+$$;

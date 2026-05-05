@@ -9,7 +9,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useRBAC } from '@/hooks/useRBAC';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
+import { fetchLocalContextSnapshot, isSelfHosted } from '@/lib/ai/localContextBridge';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -120,6 +121,7 @@ function AnalyticsColumn({ companyId, language, isAr, userName, userRole }: { co
     // Step 2: Fetch AI Insights with Pro model AFTER cache is ready
     const fetchInsights = useCallback(async () => {
         if (!companyId || insightsLoaded || !cacheReady) return;
+
         setInsightsLoading(true);
         try {
             const prompt = isAr
@@ -166,12 +168,19 @@ Profitability analysis: revenue vs expenses, profit margin, strengths & weakness
 
 Be concise and actionable (3-5 lines per section).`;
 
+            // 🖥️ Self-hosted: fetch local context to bridge local-cloud data gap
+            const localContext = await fetchLocalContextSnapshot(companyId);
+
             // Retry once on cold start failure
             let data: any = null;
             let error: any = null;
             for (let attempt = 0; attempt < 2; attempt++) {
-                const result = await supabase.functions.invoke('nexa-agent', {
-                    body: { message: prompt, language, context_type: 'general', complexity: 'flash', company_id: companyId, client_role: userRole },
+                const result = await cloudSupabase.functions.invoke('nexa-agent', {
+                    body: {
+                        message: prompt, language, context_type: 'general', complexity: 'flash',
+                        company_id: companyId, client_role: userRole,
+                        ...(localContext ? { context_data: localContext, is_self_hosted: true } : {}),
+                    },
                 });
                 data = result.data;
                 error = result.error;
@@ -568,13 +577,17 @@ function ChatPanel({ companyId, language, isAr, userRole, userName }: { companyI
             const recentHistory = messages.slice(-3).map(m => ({ role: m.role, content: m.content.substring(0, 300) }));
             const conversationMemory = getMemoryFromMessages(messages);
 
-            const { data, error } = await supabase.functions.invoke('nexa-agent', {
+            // 🖥️ Self-hosted: fetch local context to bridge local-cloud data gap
+            const localContext = await fetchLocalContextSnapshot(companyId);
+
+            const { data, error } = await cloudSupabase.functions.invoke('nexa-agent', {
                 body: {
                     message: msg, language, context_type: contextType, context_id: contextId,
                     chat_history: recentHistory, complexity: selectedModel, company_id: companyId,
                     conversation_summary: conversationMemory || undefined,
                     client_role: userRole,
                     user_name: userName,
+                    ...(localContext ? { context_data: localContext, is_self_hosted: true } : {}),
                 },
             });
 

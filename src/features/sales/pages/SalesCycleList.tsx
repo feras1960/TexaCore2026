@@ -226,10 +226,7 @@ export default function SalesCycleList() {
     }, [viewMode, activeTab]);
 
     // Date Filter State
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfMonth(new Date()), // بداية الشهر الحالي للتوافق مع المحرك
-        to: new Date()
-    });
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // Search & Sort State
     const [searchTerm, setSearchTerm] = useState('');

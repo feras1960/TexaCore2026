@@ -11,7 +11,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- List tables with RLS but no policies (blocked)
-SELECT tablename as blocked_table
+SELECT t.tablename as blocked_table
 FROM pg_tables t
 LEFT JOIN pg_policies p ON t.tablename = p.tablename AND p.schemaname = 'public'
 WHERE t.schemaname = 'public'

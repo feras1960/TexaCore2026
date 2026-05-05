@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 import { cn } from '@/lib/utils';
 
@@ -200,7 +200,7 @@ export default function IntegrationsTab() {
                 setGoogleLoading(true);
                 try {
                     const redirectUri = window.location.origin + window.location.pathname;
-                    const { data, error } = await supabase.functions.invoke('google-integration', {
+                    const { data, error } = await cloudSupabase.functions.invoke('google-integration', {
                         body: { action: 'exchange_code', company_id: companyId, code, redirect_uri: redirectUri },
                     });
                     if (error) throw error;
@@ -279,7 +279,7 @@ export default function IntegrationsTab() {
         setGoogleLoading(true);
         try {
             const redirectUrl = window.location.origin + '/system-config/integrations';
-            const { data, error } = await supabase.functions.invoke('google-integration', {
+            const { data, error } = await cloudSupabase.functions.invoke('google-integration', {
                 body: { action: 'authorize', company_id: companyId, redirect_url: redirectUrl },
             });
             if (error) throw error;
@@ -294,7 +294,7 @@ export default function IntegrationsTab() {
         if (!companyId) return;
         setGoogleLoading(true);
         try {
-            const { error } = await supabase.functions.invoke('google-integration', {
+            const { error } = await cloudSupabase.functions.invoke('google-integration', {
                 body: { action: 'disconnect', company_id: companyId },
             });
             if (error) throw error;
@@ -332,7 +332,7 @@ export default function IntegrationsTab() {
                     toast({ title: isAr ? '✅ متصل!' : '✅ Connected!', description: `@${data.result.username}` });
                 } else { setTestStatus('error'); toast({ title: '❌', description: data.description, variant: 'destructive' }); }
             } else if (type === 'nova_poshta') {
-                const { data, error } = await supabase.functions.invoke('nova-poshta', {
+                const { data, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                     body: { action: 'getCounterparties', apiKey: config.api_key?.trim(), params: { CounterpartyProperty: 'Sender', Page: '1' } },
                 });
                 if (error) throw error;

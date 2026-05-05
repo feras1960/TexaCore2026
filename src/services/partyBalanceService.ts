@@ -15,9 +15,15 @@ import { supabase } from '@/lib/supabase';
 // ═══ Types ═══
 export interface PartyBalance {
     party_id: string;
+    // ═══ العملة المحلية (UAH) ═══
     total_debit: number;
     total_credit: number;
     balance: number;  // credit - debit for suppliers, debit - credit for customers
+    // ═══ العملة الأجنبية (USD) — محسوبة بسعر الصرف وقت كل حركة ═══
+    total_debit_fc: number;
+    total_credit_fc: number;
+    balance_fc: number;  // same sign convention as balance
+    // ═══ إحصائيات ═══
     transaction_count: number;
     last_transaction_date?: string;
 }
@@ -86,9 +92,14 @@ export const partyBalanceService = {
             for (const row of rpcData) {
                 balanceMap[row.party_id] = {
                     party_id: row.party_id,
+                    // العملة المحلية (UAH)
                     total_debit: Number(row.total_debit || 0),
                     total_credit: Number(row.total_credit || 0),
                     balance: Number(row.balance || 0),
+                    // العملة الأجنبية (USD) — بسعر صرف كل حركة
+                    total_debit_fc: Number(row.total_debit_fc || 0),
+                    total_credit_fc: Number(row.total_credit_fc || 0),
+                    balance_fc: Number(row.balance_fc || 0),
                     transaction_count: Number(row.transaction_count || 0),
                     last_transaction_date: row.last_transaction_date || undefined,
                 };

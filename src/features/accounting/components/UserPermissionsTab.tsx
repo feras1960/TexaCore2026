@@ -355,14 +355,22 @@ export default function UserPermissionsTab() {
         try {
             setSaving(true);
 
-            // Get tenant_id
+            // Get tenant_id via company_id since tenant_id is removed from user_profiles
             const { data: userData } = await supabase
                 .from('user_profiles')
-                .select('tenant_id')
+                .select('company_id')
                 .eq('id', selectedUser.id)
                 .single();
 
-            const tenantId = userData?.tenant_id;
+            let tenantId = null;
+            if (userData?.company_id) {
+                const { data: companyData } = await supabase
+                    .from('companies')
+                    .select('tenant_id')
+                    .eq('id', userData.company_id)
+                    .single();
+                tenantId = companyData?.tenant_id;
+            }
 
             // Update roles
             // First, deactivate all current roles

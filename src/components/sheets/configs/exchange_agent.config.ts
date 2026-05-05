@@ -67,7 +67,7 @@ export const exchangeAgentConfig: SheetConfig = {
       inactive: { label: 'common.status.inactive', variant: 'default' },
       suspended: { label: 'status.suspended', variant: 'error' },
     };
-    const status = statusMap[data.status] || statusMap.active;
+    const status = statusMap[data?.status] || statusMap.active;
     return { label: status.label, variant: status.variant };
   },
 
@@ -208,7 +208,7 @@ export const exchangeAgentConfig: SheetConfig = {
       labelAr: 'تعليق',
       icon: PauseCircle,
       variant: 'destructive',
-      show: (data) => data.status === 'active',
+      show: (data) => data?.status === 'active',
       confirm: {
         title: 'dialogs.confirmSuspend',
         titleAr: 'تعليق الوكيل',
@@ -222,7 +222,7 @@ export const exchangeAgentConfig: SheetConfig = {
       labelAr: 'تفعيل',
       icon: CheckCircle,
       variant: 'default',
-      show: (data) => data.status !== 'active',
+      show: (data) => data?.status !== 'active',
     },
     {
       id: 'print',

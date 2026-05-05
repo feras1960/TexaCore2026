@@ -190,76 +190,76 @@ ALTER TABLE variant_axes ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "variant_axes_select" ON variant_axes;
 CREATE POLICY "variant_axes_select" ON variant_axes
-    FOR SELECT USING (tenant_id = get_user_tenant_id());
+    FOR SELECT USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "variant_axes_insert" ON variant_axes;
 CREATE POLICY "variant_axes_insert" ON variant_axes
-    FOR INSERT WITH CHECK (tenant_id = get_user_tenant_id());
+    FOR INSERT WITH CHECK (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "variant_axes_update" ON variant_axes;
 CREATE POLICY "variant_axes_update" ON variant_axes
-    FOR UPDATE USING (tenant_id = get_user_tenant_id());
+    FOR UPDATE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "variant_axes_delete" ON variant_axes;
 CREATE POLICY "variant_axes_delete" ON variant_axes
-    FOR DELETE USING (tenant_id = get_user_tenant_id() AND is_system = false);
+    FOR DELETE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()) AND is_system = false);
 
 -- 7b. variant_axis_values
 ALTER TABLE variant_axis_values ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "variant_axis_values_select" ON variant_axis_values;
 CREATE POLICY "variant_axis_values_select" ON variant_axis_values
-    FOR SELECT USING (tenant_id = get_user_tenant_id());
+    FOR SELECT USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "variant_axis_values_insert" ON variant_axis_values;
 CREATE POLICY "variant_axis_values_insert" ON variant_axis_values
-    FOR INSERT WITH CHECK (tenant_id = get_user_tenant_id());
+    FOR INSERT WITH CHECK (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "variant_axis_values_update" ON variant_axis_values;
 CREATE POLICY "variant_axis_values_update" ON variant_axis_values
-    FOR UPDATE USING (tenant_id = get_user_tenant_id());
+    FOR UPDATE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "variant_axis_values_delete" ON variant_axis_values;
 CREATE POLICY "variant_axis_values_delete" ON variant_axis_values
-    FOR DELETE USING (tenant_id = get_user_tenant_id());
+    FOR DELETE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 -- 7c. product_variant_config
 ALTER TABLE product_variant_config ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "product_variant_config_select" ON product_variant_config;
 CREATE POLICY "product_variant_config_select" ON product_variant_config
-    FOR SELECT USING (company_id IN (SELECT id FROM companies WHERE tenant_id = get_user_tenant_id()));
+    FOR SELECT USING (company_id IN (SELECT id FROM companies WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 DROP POLICY IF EXISTS "product_variant_config_insert" ON product_variant_config;
 CREATE POLICY "product_variant_config_insert" ON product_variant_config
-    FOR INSERT WITH CHECK (company_id IN (SELECT id FROM companies WHERE tenant_id = get_user_tenant_id()));
+    FOR INSERT WITH CHECK (company_id IN (SELECT id FROM companies WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 DROP POLICY IF EXISTS "product_variant_config_update" ON product_variant_config;
 CREATE POLICY "product_variant_config_update" ON product_variant_config
-    FOR UPDATE USING (company_id IN (SELECT id FROM companies WHERE tenant_id = get_user_tenant_id()));
+    FOR UPDATE USING (company_id IN (SELECT id FROM companies WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 DROP POLICY IF EXISTS "product_variant_config_delete" ON product_variant_config;
 CREATE POLICY "product_variant_config_delete" ON product_variant_config
-    FOR DELETE USING (company_id IN (SELECT id FROM companies WHERE tenant_id = get_user_tenant_id()));
+    FOR DELETE USING (company_id IN (SELECT id FROM companies WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 -- 7d. product_variant_values
 ALTER TABLE product_variant_values ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "product_variant_values_select" ON product_variant_values;
 CREATE POLICY "product_variant_values_select" ON product_variant_values
-    FOR SELECT USING (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = get_user_tenant_id()));
+    FOR SELECT USING (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 DROP POLICY IF EXISTS "product_variant_values_insert" ON product_variant_values;
 CREATE POLICY "product_variant_values_insert" ON product_variant_values
-    FOR INSERT WITH CHECK (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = get_user_tenant_id()));
+    FOR INSERT WITH CHECK (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 DROP POLICY IF EXISTS "product_variant_values_update" ON product_variant_values;
 CREATE POLICY "product_variant_values_update" ON product_variant_values
-    FOR UPDATE USING (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = get_user_tenant_id()));
+    FOR UPDATE USING (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 DROP POLICY IF EXISTS "product_variant_values_delete" ON product_variant_values;
 CREATE POLICY "product_variant_values_delete" ON product_variant_values
-    FOR DELETE USING (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = get_user_tenant_id()));
+    FOR DELETE USING (variant_id IN (SELECT id FROM product_variants WHERE tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid())));
 
 
 -- ═══════════════════════════════════════════════

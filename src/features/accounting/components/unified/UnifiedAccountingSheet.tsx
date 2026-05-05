@@ -1144,15 +1144,15 @@ export function UnifiedAccountingSheet({
                                                 })() : data?.status ? (
                                                     <span className={cn(
                                                         "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
-                                                        data.status === 'posted' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
-                                                            data.status === 'draft' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" :
-                                                                data.status === 'saved' ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
+                                                        data?.status === 'posted' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
+                                                            data?.status === 'draft' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" :
+                                                                data?.status === 'saved' ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
                                                                     "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
                                                     )}>
-                                                        {data.status === 'posted' ? (t('status.posted') || 'Posted') :
-                                                            data.status === 'draft' ? (t('status.draft') || 'Draft') :
-                                                                data.status === 'saved' ? (t('status.saved') || 'Saved') :
-                                                                    data.status}
+                                                        {data?.status === 'posted' ? (t('status.posted') || 'Posted') :
+                                                            data?.status === 'draft' ? (t('status.draft') || 'Draft') :
+                                                                data?.status === 'saved' ? (t('status.saved') || 'Saved') :
+                                                                    data?.status}
                                                     </span>
                                                 ) : null}
                                                 {data?.is_active !== undefined && (
@@ -1160,7 +1160,7 @@ export function UnifiedAccountingSheet({
                                                         "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
                                                         data.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
                                                     )}>
-                                                        {data.is_active ? (t('status.active') || 'Active') : (t('status.inactive') || 'Inactive')}
+                                                        {data?.is_active ? (t('status.active') || 'Active') : (t('status.inactive') || 'Inactive')}
                                                     </span>
                                                 )}
                                             </div>

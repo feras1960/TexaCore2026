@@ -162,22 +162,23 @@ const CORE_ACCOUNT_CODE_MAP: Record<string, string> = {
 };
 
 // Alternative code patterns to try (some charts use 3-digit, 4-digit, or different numbering)
+// Includes Al-Rasheed codes: 181=cash, 182=bank, 161=receivable, 261=payable
 const CORE_ACCOUNT_CODE_ALTERNATIVES: Record<string, string[]> = {
-  'default_cash_account_id':        ['1110', '111', '1010', '101', '100'],
-  'default_bank_account_id':        ['1120', '112', '1020', '102'],
-  'default_receivable_account_id':  ['1210', '121', '1200', '120', '130'],
-  'default_payable_account_id':     ['2110', '211', '2010', '201', '210'],
-  'default_revenue_account_id':     ['4110', '411', '4010', '401', '410'],
-  'default_expense_account_id':     ['5110', '511', '5010', '501', '510'],
-  'default_purchase_account_id':    ['5120', '512', '5020', '502', '520'],
-  'default_inventory_account_id':   ['1140', '114', '1040', '104', '115'],
+  'default_cash_account_id':        ['1110', '111', '1010', '101', '100', '181', '1810'],
+  'default_bank_account_id':        ['1120', '112', '1020', '102', '182', '1820'],
+  'default_receivable_account_id':  ['1210', '121', '1200', '120', '130', '161', '1610'],
+  'default_payable_account_id':     ['2110', '211', '2010', '201', '210', '261', '2610'],
+  'default_revenue_account_id':     ['4110', '411', '4010', '401', '410', '41', '412'],
+  'default_expense_account_id':     ['5110', '511', '5010', '501', '510', '31', '311'],
+  'default_purchase_account_id':    ['5120', '512', '5020', '502', '520', '34', '341'],
+  'default_inventory_account_id':   ['1140', '114', '1040', '104', '115', '13', '131'],
   'default_transit_purchase_account_id': ['1145', '1150', '115'],
   'default_tax_input_account_id':   ['1510', '151', '1500', '150', '1310'],
   'default_tax_output_account_id':  ['2120', '212', '2020', '202', '2210'],
   'default_freight_in_account_id':  ['5130', '513', '5030', '503'],
-  'default_retained_earnings_account_id': ['3110', '311', '3010', '301'],
-  'default_fx_gain_account_id':     ['433', '4330', '430'],
-  'default_fx_loss_account_id':     ['543', '5430', '540'],
+  'default_retained_earnings_account_id': ['3110', '311', '3010', '301', '21', '211'],
+  'default_fx_gain_account_id':     ['433', '4330', '430', '412'],
+  'default_fx_loss_account_id':     ['543', '5430', '540', '393'],
 };
 
 // Exchange account code → setting key mapping (V7 Chart)
@@ -424,8 +425,7 @@ export default function AccountingSettings() {
             console.log('[AccountingSettings] 🔄 Auto-persisting discovered accounts:', Object.keys(autoSaveFields));
             supabase
               .from('company_accounting_settings')
-              .update(autoSaveFields)
-              .eq('company_id', companyId)
+              .upsert({ company_id: companyId, ...autoSaveFields }, { onConflict: 'company_id' })
               .then(({ error }) => {
                 if (error) console.warn('[AccountingSettings] Auto-persist failed:', error.message);
                 else console.log('[AccountingSettings] ✅ Auto-persisted', Object.keys(autoSaveFields).length, 'accounts to DB');

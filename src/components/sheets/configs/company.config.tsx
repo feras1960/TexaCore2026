@@ -33,7 +33,7 @@ export const companyConfig: SheetConfig = {
 
     badge: (data) => {
         // Use company status, fallback to tenant status if missing
-        const status = data.status || data.tenant?.status || 'active';
+        const status = data?.status || data.tenant?.status || 'active';
         return {
             label: `status.${status}`,
             variant: status === 'active' ? 'success' : status === 'suspended' ? 'warning' : 'destructive',
@@ -48,7 +48,7 @@ export const companyConfig: SheetConfig = {
             icon: Ban,
             variant: 'warning',
             requiresAuth: true,
-            show: (data) => (data.status === 'active' || !data.status),
+            show: (data) => (data?.status === 'active' || !data?.status),
             confirm: {
                 title: 'dialogs.suspendTitle',
                 description: 'dialogs.suspendDescription',
@@ -65,7 +65,7 @@ export const companyConfig: SheetConfig = {
             icon: CheckCircle2,
             variant: 'default',
             requiresAuth: true,
-            show: (data) => data.status === 'suspended',
+            show: (data) => data?.status === 'suspended',
             onClick: async (data) => {
                 await companiesService.activate(data.id);
                 toast.success('Company activated successfully');

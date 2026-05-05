@@ -1,11 +1,13 @@
 {
   "name": "erpsystem-supabase",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.3.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --port 5173 --mode cloud",
+    "dev:local": "node scripts/api-proxy.cjs & vite --port 5174 --mode selfhosted",
+    "build": "vite build && rsync -a --delete dist/ texacore-installer/frontend/",
+    "build:only": "vite build",
     "build:check": "tsc && vite build",
     "preview": "vite preview",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src/ --ext ts,tsx --report-unused-disable-directives",
@@ -18,7 +20,8 @@
     "validate": "npm run typecheck && npm run lint && npm run check:translations",
     "prepare": "husky install || true",
     "pre-commit": "npm run validate",
-    "types:supabase": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts"
+    "types:supabase": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts",
+    "dev:desktop": "VITE_IS_DESKTOP=true vite --port 5174"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

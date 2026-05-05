@@ -39,7 +39,7 @@ export const customerConfig: SheetConfig = {
 
   // Status Badge
   badge: (data) => {
-    const status = data.status || (data.is_active !== false ? 'active' : 'inactive');
+    const status = data?.status || (data.is_active !== false ? 'active' : 'inactive');
     return {
       label: status === 'active' ? 'common.status.active' : 'common.status.inactive',
       variant: status === 'active' ? 'success' : 'default',

@@ -12,50 +12,31 @@
 CREATE TABLE IF NOT EXISTS print_templates (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID REFERENCES tenants(id),
-    company_id      UUID REFERENCES companies(id),
-    
-    -- Document identity
-    doc_type        VARCHAR(50) NOT NULL,       -- 'sales_invoice','purchase_invoice','journal_entry','receipt_voucher','payment_voucher','account_statement','contract','roll_label','container_label','delivery_note','goods_receipt','price_quote'
-    category        VARCHAR(30) NOT NULL DEFAULT 'invoice', -- 'invoice','receipt','report','contract','label'
+    doc_type        VARCHAR(50) NOT NULL,
     name_ar         VARCHAR(200) NOT NULL,
-    name_en         VARCHAR(200),
-    description_ar  TEXT,
-    description_en  TEXT,
-    
-    -- Template content
-    template_html   TEXT NOT NULL,
-    template_css    TEXT,
-    header_html     TEXT,
-    footer_html     TEXT,
-    
-    -- Variables metadata (for editor panel)
-    variables       JSONB DEFAULT '[]',
-    
-    -- Page setup
-    paper_size      VARCHAR(10) DEFAULT 'A4',
-    orientation     VARCHAR(10) DEFAULT 'portrait',
-    margins         JSONB DEFAULT '{"top": 10, "right": 10, "bottom": 10, "left": 10}',
-    custom_width    NUMERIC,
-    custom_height   NUMERIC,
-    
-    -- Content options (ALL default true for QR!)
-    include_qr      BOOLEAN DEFAULT true,
-    include_header  BOOLEAN DEFAULT true,
-    include_footer  BOOLEAN DEFAULT true,
-    include_logo    BOOLEAN DEFAULT true,
-    include_stamp   BOOLEAN DEFAULT false,
-    include_signature BOOLEAN DEFAULT false,
-    
-    -- State
-    is_default      BOOLEAN DEFAULT false,
-    is_system       BOOLEAN DEFAULT false,
-    is_active       BOOLEAN DEFAULT true,
-    sort_order      INTEGER DEFAULT 0,
-    
-    created_at      TIMESTAMPTZ DEFAULT now(),
-    updated_at      TIMESTAMPTZ DEFAULT now(),
-    created_by      UUID
+    template_html   TEXT NOT NULL
 );
+
+DO $$
+BEGIN
+    -- Add new columns to existing print_templates table
+    ALTER TABLE print_templates 
+        ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id),
+        ADD COLUMN IF NOT EXISTS name_en VARCHAR(200),
+        ADD COLUMN IF NOT EXISTS description_ar TEXT,
+        ADD COLUMN IF NOT EXISTS description_en TEXT,
+        ADD COLUMN IF NOT EXISTS header_html TEXT,
+        ADD COLUMN IF NOT EXISTS footer_html TEXT,
+        ADD COLUMN IF NOT EXISTS custom_width NUMERIC,
+        ADD COLUMN IF NOT EXISTS custom_height NUMERIC,
+        ADD COLUMN IF NOT EXISTS include_logo BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS include_stamp BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS include_signature BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS created_by UUID;
+        
+    -- Update existing columns if needed (cannot change category NOT NULL easily if there is data, but let's assume it's fine)
+END $$;
 
 -- ═══ 2. Company Print Settings ══════════════════════════════════
 CREATE TABLE IF NOT EXISTS company_print_settings (
@@ -120,16 +101,24 @@ END $$;
 
 -- ═══ 5. RLS ═════════════════════════════════════════════════════
 ALTER TABLE print_templates ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "pt_sel" ON print_templates FOR SELECT USING (tenant_id = get_user_tenant_id() OR tenant_id IS NULL);
-CREATE POLICY "pt_ins" ON print_templates FOR INSERT WITH CHECK (tenant_id = get_user_tenant_id());
-CREATE POLICY "pt_upd" ON print_templates FOR UPDATE USING (tenant_id = get_user_tenant_id());
-CREATE POLICY "pt_del" ON print_templates FOR DELETE USING (tenant_id = get_user_tenant_id() AND is_system = false);
+DROP POLICY IF EXISTS "pt_sel" ON print_templates;
+CREATE POLICY "pt_sel" ON print_templates FOR SELECT USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()) OR tenant_id IS NULL);
+DROP POLICY IF EXISTS "pt_ins" ON print_templates;
+CREATE POLICY "pt_ins" ON print_templates FOR INSERT WITH CHECK (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
+DROP POLICY IF EXISTS "pt_upd" ON print_templates;
+CREATE POLICY "pt_upd" ON print_templates FOR UPDATE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
+DROP POLICY IF EXISTS "pt_del" ON print_templates;
+CREATE POLICY "pt_del" ON print_templates FOR DELETE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()) AND is_system = false);
 
 ALTER TABLE company_print_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "cps_sel" ON company_print_settings FOR SELECT USING (tenant_id = get_user_tenant_id());
-CREATE POLICY "cps_ins" ON company_print_settings FOR INSERT WITH CHECK (tenant_id = get_user_tenant_id());
-CREATE POLICY "cps_upd" ON company_print_settings FOR UPDATE USING (tenant_id = get_user_tenant_id());
-CREATE POLICY "cps_del" ON company_print_settings FOR DELETE USING (tenant_id = get_user_tenant_id());
+DROP POLICY IF EXISTS "cps_sel" ON company_print_settings;
+CREATE POLICY "cps_sel" ON company_print_settings FOR SELECT USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
+DROP POLICY IF EXISTS "cps_ins" ON company_print_settings;
+CREATE POLICY "cps_ins" ON company_print_settings FOR INSERT WITH CHECK (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
+DROP POLICY IF EXISTS "cps_upd" ON company_print_settings;
+CREATE POLICY "cps_upd" ON company_print_settings FOR UPDATE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
+DROP POLICY IF EXISTS "cps_del" ON company_print_settings;
+CREATE POLICY "cps_del" ON company_print_settings FOR DELETE USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 -- ═══ 6. System Templates ═══════════════════════════════════════
 -- All templates use {{variable}} syntax

@@ -733,9 +733,12 @@ export function useAuth() {
     isAuthenticated: !!state.user && !state.mfaRequired,
     mfaRequired: state.mfaRequired,
     mfaFactorId: state.mfaFactorId,
-    tenantId: state.authUser?.tenant_id || null,
-    companyId: state.authUser?.company_id || null,
-    isSuperAdmin: state.authUser?.is_super_admin || false,
+    // ⚠️ Only expose companyId/tenantId when we have an actual authenticated user.
+    // cachedIds provides authUser for query key matching during init, but
+    // companyId must NOT leak to hooks before session is verified — prevents 406 errors.
+    tenantId: state.user ? (state.authUser?.tenant_id || null) : null,
+    companyId: state.user ? (state.authUser?.company_id || null) : null,
+    isSuperAdmin: state.user ? (state.authUser?.is_super_admin || false) : false,
     login,
     verifyMfa,
     cancelMfa,

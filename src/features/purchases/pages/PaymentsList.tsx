@@ -112,10 +112,7 @@ export default function PaymentsList() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortField, setSortField] = useState('voucher_date');
     const [sortAsc, setSortAsc] = useState(false);
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfMonth(new Date()),
-        to: new Date()
-    });
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // ─── Fetch Payments ──────────────────────────────────────────
     const paymentsQuery = useCachedQuery({

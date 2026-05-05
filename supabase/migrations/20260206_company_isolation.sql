@@ -31,9 +31,10 @@ BEGIN
     END IF;
     
     -- Get user's email and tenant_id
-    SELECT email, tenant_id INTO v_user_email, v_tenant_id
-    FROM user_profiles
-    WHERE id = p_user_id;
+    SELECT up.email, c.tenant_id INTO v_user_email, v_tenant_id
+    FROM user_profiles up
+    LEFT JOIN companies c ON up.company_id = c.id
+    WHERE up.id = p_user_id;
     
     IF v_tenant_id IS NULL THEN
         RETURN false;
@@ -71,9 +72,10 @@ BEGIN
     END IF;
     
     -- Get user's company and tenant
-    SELECT company_id, tenant_id INTO v_user_company_id, v_user_tenant_id
-    FROM user_profiles
-    WHERE id = p_user_id;
+    SELECT up.company_id, c.tenant_id INTO v_user_company_id, v_user_tenant_id
+    FROM user_profiles up
+    LEFT JOIN companies c ON up.company_id = c.id
+    WHERE up.id = p_user_id;
     
     -- Get company's tenant
     SELECT tenant_id INTO v_company_tenant_id
@@ -307,25 +309,25 @@ CREATE POLICY "fiscal_years_delete" ON fiscal_years
     USING (can_access_company(company_id));
 
 -- 3.10 Fix funds
-DROP POLICY IF EXISTS funds_select ON funds;
-DROP POLICY IF EXISTS funds_insert ON funds;
-DROP POLICY IF EXISTS funds_update ON funds;
-DROP POLICY IF EXISTS funds_delete ON funds;
+DROP POLICY IF EXISTS cash_accounts_select ON cash_accounts;
+DROP POLICY IF EXISTS cash_accounts_insert ON cash_accounts;
+DROP POLICY IF EXISTS cash_accounts_update ON cash_accounts;
+DROP POLICY IF EXISTS cash_accounts_delete ON cash_accounts;
 
-CREATE POLICY "funds_select" ON funds
+CREATE POLICY "cash_accounts_select" ON cash_accounts
     FOR SELECT TO authenticated
     USING (can_access_company(company_id));
 
-CREATE POLICY "funds_insert" ON funds
+CREATE POLICY "cash_accounts_insert" ON cash_accounts
     FOR INSERT TO authenticated
     WITH CHECK (can_access_company(company_id));
 
-CREATE POLICY "funds_update" ON funds
+CREATE POLICY "cash_accounts_update" ON cash_accounts
     FOR UPDATE TO authenticated
     USING (can_access_company(company_id))
     WITH CHECK (can_access_company(company_id));
 
-CREATE POLICY "funds_delete" ON funds
+CREATE POLICY "cash_accounts_delete" ON cash_accounts
     FOR DELETE TO authenticated
     USING (can_access_company(company_id));
 
@@ -342,28 +344,28 @@ CREATE POLICY "companies_select" ON companies
     FOR SELECT TO authenticated
     USING (
         is_super_admin() 
-        OR tenant_id = get_user_tenant_id()
+        OR tenant_id = get_current_tenant_id()
     );
 
 CREATE POLICY "companies_insert" ON companies
     FOR INSERT TO authenticated
     WITH CHECK (
         is_super_admin() 
-        OR (is_tenant_owner() AND tenant_id = get_user_tenant_id())
+        OR (is_tenant_owner() AND tenant_id = get_current_tenant_id())
     );
 
 CREATE POLICY "companies_update" ON companies
     FOR UPDATE TO authenticated
     USING (
         is_super_admin() 
-        OR (is_tenant_owner() AND tenant_id = get_user_tenant_id())
+        OR (is_tenant_owner() AND tenant_id = get_current_tenant_id())
     );
 
 CREATE POLICY "companies_delete" ON companies
     FOR DELETE TO authenticated
     USING (
         is_super_admin() 
-        OR (is_tenant_owner() AND tenant_id = get_user_tenant_id())
+        OR (is_tenant_owner() AND tenant_id = get_current_tenant_id())
     );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -379,7 +381,7 @@ CREATE POLICY "user_profiles_select" ON user_profiles
     FOR SELECT TO authenticated
     USING (
         is_super_admin()
-        OR tenant_id = get_user_tenant_id()
+        OR company_id IN (SELECT id FROM companies WHERE tenant_id = get_current_tenant_id())
         OR id = auth.uid()
     );
 
@@ -387,7 +389,7 @@ CREATE POLICY "user_profiles_insert" ON user_profiles
     FOR INSERT TO authenticated
     WITH CHECK (
         is_super_admin()
-        OR (is_tenant_owner() AND tenant_id = get_user_tenant_id())
+        OR (is_tenant_owner() AND company_id IN (SELECT id FROM companies WHERE tenant_id = get_current_tenant_id()))
         OR id = auth.uid()
     );
 
@@ -396,14 +398,14 @@ CREATE POLICY "user_profiles_update" ON user_profiles
     USING (
         is_super_admin()
         OR id = auth.uid()
-        OR (is_tenant_owner() AND tenant_id = get_user_tenant_id())
+        OR (is_tenant_owner() AND company_id IN (SELECT id FROM companies WHERE tenant_id = get_current_tenant_id()))
     );
 
 CREATE POLICY "user_profiles_delete" ON user_profiles
     FOR DELETE TO authenticated
     USING (
         is_super_admin()
-        OR (is_tenant_owner() AND tenant_id = get_user_tenant_id())
+        OR (is_tenant_owner() AND company_id IN (SELECT id FROM companies WHERE tenant_id = get_current_tenant_id()))
     );
 
 -- ═══════════════════════════════════════════════════════════════════════════

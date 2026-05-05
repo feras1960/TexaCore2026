@@ -421,15 +421,25 @@ export async function logAuditEvent(params: {
         const user = session?.user;
         if (!user) return;
 
-        // Get tenant_id from user profile
+        // Get tenant_id via company_id since tenant_id is removed from user_profiles
         const { data: profile } = await supabase
             .from('user_profiles')
-            .select('tenant_id')
+            .select('company_id')
             .eq('id', user.id)
             .single();
 
+        let tenantId = null;
+        if (profile?.company_id) {
+            const { data: companyData } = await supabase
+                .from('companies')
+                .select('tenant_id')
+                .eq('id', profile.company_id)
+                .single();
+            tenantId = companyData?.tenant_id;
+        }
+
         await supabase.from('audit_logs').insert({
-            tenant_id: profile?.tenant_id || null,
+            tenant_id: tenantId || null,
             user_id: user.id,
             action: params.action,
             entity_type: params.entity_type,

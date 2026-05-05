@@ -63,19 +63,19 @@ DELETE FROM status_transitions WHERE doc_type IN ('purchase_invoice', 'purchase_
 DELETE FROM custom_statuses WHERE doc_type IN ('purchase_invoice', 'purchase_order');
 
 -- إدخال الحالات الموحدة لدورة المشتريات (كلها في purchase_invoice)
-INSERT INTO custom_statuses (doc_type, code, name_ar, name_en, color, icon, sort_order, is_default, is_final, description)
+INSERT INTO custom_statuses (doc_type, code, name_ar, name_en, color, icon, sort_order, is_initial, is_final)
 VALUES
-  ('purchase_invoice', 'draft',            'مسودة',              'Draft',              'gray',    'FileText',      10, true,  false, 'مستند جديد — يُدخل المورد والبنود'),
-  ('purchase_invoice', 'requested',        'طلب شراء',           'Purchase Request',   'yellow',  'Send',          20, false, false, 'أُرسل كطلب شراء'),
-  ('purchase_invoice', 'quoted',           'عرض سعر',            'Quotation',          'purple',  'BookOpen',      30, false, false, 'تم استلام عرض سعر'),
-  ('purchase_invoice', 'ordered',          'أمر شراء',           'Purchase Order',     'blue',    'ShieldCheck',   40, false, false, 'أمر شراء مؤكد من المورد'),
-  ('purchase_invoice', 'received',         'تم الاستلام',        'Goods Received',     'teal',    'Package',       50, false, false, 'البضاعة تم استلامها'),
-  ('purchase_invoice', 'invoiced',         'فاتورة',             'Invoiced',           'indigo',  'Receipt',       60, false, false, 'فاتورة مشتريات — تحديد المبالغ النهائية'),
-  ('purchase_invoice', 'posted',           'مرحّلة',             'Posted',             'cyan',    'CheckCircle2',  70, false, false, 'القيد المحاسبي مرحّل'),
-  ('purchase_invoice', 'partially_paid',   'مدفوعة جزئياً',      'Partially Paid',     'orange',  'Coins',         80, false, false, 'تم دفع جزء من المبلغ'),
-  ('purchase_invoice', 'paid',             'مدفوعة بالكامل',     'Fully Paid',         'green',   'CircleCheck',   90, false, true,  'تم الدفع الكامل'),
-  ('purchase_invoice', 'cancelled',        'ملغية',              'Cancelled',          'red',     'XCircle',       100, false, true, 'تم إلغاء المستند'),
-  ('purchase_invoice', 'rejected',         'مرفوضة',             'Rejected',           'rose',    'Ban',           110, false, true, 'مستند مرفوض');
+  ('purchase_invoice', 'draft',            'مسودة',              'Draft',              'gray',    'FileText',      10, true,  false),
+  ('purchase_invoice', 'requested',        'طلب شراء',           'Purchase Request',   'yellow',  'Send',          20, false, false),
+  ('purchase_invoice', 'quoted',           'عرض سعر',            'Quotation',          'purple',  'BookOpen',      30, false, false),
+  ('purchase_invoice', 'ordered',          'أمر شراء',           'Purchase Order',     'blue',    'ShieldCheck',   40, false, false),
+  ('purchase_invoice', 'received',         'تم الاستلام',        'Goods Received',     'teal',    'Package',       50, false, false),
+  ('purchase_invoice', 'invoiced',         'فاتورة',             'Invoiced',           'indigo',  'Receipt',       60, false, false),
+  ('purchase_invoice', 'posted',           'مرحّلة',             'Posted',             'cyan',    'CheckCircle2',  70, false, false),
+  ('purchase_invoice', 'partially_paid',   'مدفوعة جزئياً',      'Partially Paid',     'orange',  'Coins',         80, false, false),
+  ('purchase_invoice', 'paid',             'مدفوعة بالكامل',     'Fully Paid',         'green',   'CircleCheck',   90, false, true),
+  ('purchase_invoice', 'cancelled',        'ملغية',              'Cancelled',          'red',     'XCircle',       100, false, true),
+  ('purchase_invoice', 'rejected',         'مرفوضة',             'Rejected',           'rose',    'Ban',           110, false, true);
 
 -- إدخال التحولات المسموحة
 INSERT INTO status_transitions (doc_type, from_status_id, to_status_id, requires_comment, requires_approval)
@@ -109,20 +109,20 @@ AND (
 DELETE FROM status_transitions WHERE doc_type IN ('sales_invoice', 'sales_order');
 DELETE FROM custom_statuses WHERE doc_type IN ('sales_invoice', 'sales_order');
 
-INSERT INTO custom_statuses (doc_type, code, name_ar, name_en, color, icon, sort_order, is_default, is_final, description)
+INSERT INTO custom_statuses (doc_type, code, name_ar, name_en, color, icon, sort_order, is_initial, is_final)
 VALUES
-  ('sales_invoice', 'draft',            'مسودة',              'Draft',              'gray',    'FileText',      10, true,  false, 'مستند جديد'),
-  ('sales_invoice', 'requested',        'طلب بيع',            'Sales Request',      'yellow',  'Send',          20, false, false, 'طلب بيع مُستلم'),
-  ('sales_invoice', 'quoted',           'عرض سعر',            'Quotation',          'purple',  'BookOpen',      30, false, false, 'عرض سعر مقدّم للعميل'),
-  ('sales_invoice', 'ordered',          'أمر بيع',            'Sales Order',        'blue',    'ShieldCheck',   40, false, false, 'أمر بيع مؤكد'),
-  ('sales_invoice', 'processing',       'قيد التجهيز',        'Processing',         'indigo',  'Loader2',       45, false, false, 'قيد التجهيز والتحضير'),
-  ('sales_invoice', 'delivered',        'تم التسليم',         'Delivered',          'teal',    'Truck',         50, false, false, 'تم تسليم البضاعة'),
-  ('sales_invoice', 'invoiced',         'فاتورة',             'Invoiced',           'cyan',    'Receipt',       60, false, false, 'فاتورة مبيعات'),
-  ('sales_invoice', 'posted',           'مرحّلة',             'Posted',             'blue',    'CheckCircle2',  70, false, false, 'القيد مرحّل'),
-  ('sales_invoice', 'partially_paid',   'مدفوعة جزئياً',      'Partially Paid',     'orange',  'Coins',         80, false, false, 'مدفوعة جزئياً'),
-  ('sales_invoice', 'paid',             'مدفوعة بالكامل',     'Fully Paid',         'green',   'CircleCheck',   90, false, true,  'تم التحصيل الكامل'),
-  ('sales_invoice', 'cancelled',        'ملغية',              'Cancelled',          'red',     'XCircle',       100, false, true, 'ملغية'),
-  ('sales_invoice', 'rejected',         'مرفوضة',             'Rejected',           'rose',    'Ban',           110, false, true, 'مرفوضة');
+  ('sales_invoice', 'draft',            'مسودة',              'Draft',              'gray',    'FileText',      10, true,  false),
+  ('sales_invoice', 'requested',        'طلب بيع',            'Sales Request',      'yellow',  'Send',          20, false, false),
+  ('sales_invoice', 'quoted',           'عرض سعر',            'Quotation',          'purple',  'BookOpen',      30, false, false),
+  ('sales_invoice', 'ordered',          'أمر بيع',            'Sales Order',        'blue',    'ShieldCheck',   40, false, false),
+  ('sales_invoice', 'processing',       'قيد التجهيز',        'Processing',         'indigo',  'Loader2',       45, false, false),
+  ('sales_invoice', 'delivered',        'تم التسليم',         'Delivered',          'teal',    'Truck',         50, false, false),
+  ('sales_invoice', 'invoiced',         'فاتورة',             'Invoiced',           'cyan',    'Receipt',       60, false, false),
+  ('sales_invoice', 'posted',           'مرحّلة',             'Posted',             'blue',    'CheckCircle2',  70, false, false),
+  ('sales_invoice', 'partially_paid',   'مدفوعة جزئياً',      'Partially Paid',     'orange',  'Coins',         80, false, false),
+  ('sales_invoice', 'paid',             'مدفوعة بالكامل',     'Fully Paid',         'green',   'CircleCheck',   90, false, true),
+  ('sales_invoice', 'cancelled',        'ملغية',              'Cancelled',          'red',     'XCircle',       100, false, true),
+  ('sales_invoice', 'rejected',         'مرفوضة',             'Rejected',           'rose',    'Ban',           110, false, true);
 
 INSERT INTO status_transitions (doc_type, from_status_id, to_status_id, requires_comment, requires_approval)
 SELECT 'sales_invoice', f.id, t.id,

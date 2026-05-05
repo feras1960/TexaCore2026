@@ -98,52 +98,56 @@
 -- الخطوة 1: إضافة جميع الأعمدة المفقودة
 -- ═══════════════════════════════════════════════════════════════
 
-ALTER TABLE company_accounting_settings
-    -- التأكد من وجود الأعمدة السابقة
-    ADD COLUMN IF NOT EXISTS default_cash_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_bank_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_receivable_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_payable_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_revenue_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_sales_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_expense_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_purchase_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_cogs_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_tax_input_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_tax_output_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_inventory_account_id UUID REFERENCES chart_of_accounts(id),
-    
-    -- 🆕 الحسابات الجديدة
-    ADD COLUMN IF NOT EXISTS default_petty_cash_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_sales_returns_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_sales_discount_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_purchase_returns_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_purchase_discount_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_inventory_variance_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_fx_gain_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_fx_loss_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_rounding_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_customer_advance_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_supplier_advance_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_retained_earnings_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_depreciation_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_freight_in_account_id UUID REFERENCES chart_of_accounts(id);
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'company_accounting_settings') THEN
+        EXECUTE 'ALTER TABLE company_accounting_settings
+            -- التأكد من وجود الأعمدة السابقة
+            ADD COLUMN IF NOT EXISTS default_cash_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_bank_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_receivable_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_payable_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_revenue_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_sales_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_expense_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_purchase_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_cogs_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_tax_input_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_tax_output_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_inventory_account_id UUID REFERENCES chart_of_accounts(id),
+            
+            -- 🆕 الحسابات الجديدة
+            ADD COLUMN IF NOT EXISTS default_petty_cash_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_sales_returns_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_sales_discount_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_purchase_returns_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_purchase_discount_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_inventory_variance_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_fx_gain_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_fx_loss_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_rounding_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_customer_advance_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_supplier_advance_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_retained_earnings_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_depreciation_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_freight_in_account_id UUID REFERENCES chart_of_accounts(id)';
 
--- التعليقات
-COMMENT ON COLUMN company_accounting_settings.default_petty_cash_account_id IS '🆕 المصروفات النثرية — Petty Cash';
-COMMENT ON COLUMN company_accounting_settings.default_sales_returns_account_id IS '🆕 مردودات المبيعات — Sales Returns';
-COMMENT ON COLUMN company_accounting_settings.default_sales_discount_account_id IS '🆕 خصم المبيعات — Sales Discount Allowed';
-COMMENT ON COLUMN company_accounting_settings.default_purchase_returns_account_id IS '🆕 مردودات المشتريات — Purchase Returns';
-COMMENT ON COLUMN company_accounting_settings.default_purchase_discount_account_id IS '🆕 خصم المشتريات — Purchase Discount Received';
-COMMENT ON COLUMN company_accounting_settings.default_inventory_variance_account_id IS '🆕 فروق المخزون — Inventory Variances/Write-offs';
-COMMENT ON COLUMN company_accounting_settings.default_fx_gain_account_id IS '🆕🔴 أرباح فروقات العملة — FX Realized/Unrealized Gains';
-COMMENT ON COLUMN company_accounting_settings.default_fx_loss_account_id IS '🆕🔴 خسائر فروقات العملة — FX Realized/Unrealized Losses';
-COMMENT ON COLUMN company_accounting_settings.default_rounding_account_id IS '🆕 فروق التقريب — Rounding Differences';
-COMMENT ON COLUMN company_accounting_settings.default_customer_advance_account_id IS '🆕 دفعات مقدمة من العملاء — Customer Advances (Liability)';
-COMMENT ON COLUMN company_accounting_settings.default_supplier_advance_account_id IS '🆕 دفعات مقدمة للموردين — Supplier Advances (Asset)';
-COMMENT ON COLUMN company_accounting_settings.default_retained_earnings_account_id IS '🆕 الأرباح المحتجزة — Retained Earnings (Equity)';
-COMMENT ON COLUMN company_accounting_settings.default_depreciation_account_id IS '🆕 مصاريف الإهلاك — Depreciation Expense';
-COMMENT ON COLUMN company_accounting_settings.default_freight_in_account_id IS '🆕 مصاريف الشحن على المشتريات — Freight-In / Landed Cost';
+        -- التعليقات
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_petty_cash_account_id IS ''🆕 المصروفات النثرية — Petty Cash''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_sales_returns_account_id IS ''🆕 مردودات المبيعات — Sales Returns''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_sales_discount_account_id IS ''🆕 خصم المبيعات — Sales Discount Allowed''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_purchase_returns_account_id IS ''🆕 مردودات المشتريات — Purchase Returns''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_purchase_discount_account_id IS ''🆕 خصم المشتريات — Purchase Discount Received''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_inventory_variance_account_id IS ''🆕 فروق المخزون — Inventory Variances/Write-offs''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_fx_gain_account_id IS ''🆕🔴 أرباح فروقات العملة — FX Realized/Unrealized Gains''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_fx_loss_account_id IS ''🆕🔴 خسائر فروقات العملة — FX Realized/Unrealized Losses''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_rounding_account_id IS ''🆕 فروق التقريب — Rounding Differences''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_customer_advance_account_id IS ''🆕 دفعات مقدمة من العملاء — Customer Advances (Liability)''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_supplier_advance_account_id IS ''🆕 دفعات مقدمة للموردين — Supplier Advances (Asset)''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_retained_earnings_account_id IS ''🆕 الأرباح المحتجزة — Retained Earnings (Equity)''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_depreciation_account_id IS ''🆕 مصاريف الإهلاك — Depreciation Expense''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_freight_in_account_id IS ''🆕 مصاريف الشحن على المشتريات — Freight-In / Landed Cost''';
+    END IF;
+END $$;
 
 
 -- ═══════════════════════════════════════════════════════════════
@@ -571,19 +575,21 @@ BEGIN
     RAISE NOTICE '🚀 بدء تحديد الحسابات الافتراضية الشاملة (26 حساب)...';
     RAISE NOTICE '═══════════════════════════════════════════════════════════════';
     
-    FOR v_rec IN 
-        SELECT c.id as company_id, c.name_ar, c.chart_type
-        FROM companies c WHERE c.chart_type IS NOT NULL
-    LOOP
-        BEGIN
-            RAISE NOTICE '';
-            RAISE NOTICE '🏢 % (نوع الشجرة: %)', v_rec.name_ar, v_rec.chart_type;
-            PERFORM auto_set_default_accounts(v_rec.company_id);
-            v_total := v_total + 1;
-        EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE '  ❌ خطأ: %', SQLERRM;
-        END;
-    END LOOP;
+        IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'company_accounting_settings') THEN
+            FOR v_rec IN 
+                SELECT c.id as company_id, c.name_ar, c.chart_type
+                FROM companies c WHERE c.chart_type IS NOT NULL
+            LOOP
+                BEGIN
+                    RAISE NOTICE '';
+                    RAISE NOTICE '🏢 % (نوع الشجرة: %)', v_rec.name_ar, v_rec.chart_type;
+                    PERFORM auto_set_default_accounts(v_rec.company_id);
+                    v_total := v_total + 1;
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE NOTICE '  ❌ خطأ: %', SQLERRM;
+                END;
+            END LOOP;
+        END IF;
     
     RAISE NOTICE '';
     RAISE NOTICE '═══════════════════════════════════════════════════════════════';
@@ -597,6 +603,8 @@ $$;
 -- الخطوة 5: استعلام التحقق الشامل
 -- ═══════════════════════════════════════════════════════════════
 
+-- 5️⃣ استعلام التحقق الشامل (Commented out because table might not exist)
+/*
 SELECT 
     c.name_ar AS "الشركة",
     c.chart_type AS "الشجرة",
@@ -627,3 +635,4 @@ SELECT
 FROM companies c
 LEFT JOIN company_accounting_settings cas ON cas.company_id = c.id
 ORDER BY c.name_ar;
+*/

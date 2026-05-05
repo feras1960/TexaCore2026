@@ -103,7 +103,14 @@ export function useCurrencyExposure(companyId: string) {
     queryFn: async (): Promise<CurrencyBreakdown[]> => {
       const { data, error } = await supabase.rpc('get_dashboard_currency_exposure', { p_company_id: companyId });
       if (error) throw error;
-      return (data as any) || [];
+      // RPC returns [{currency, valueBase, pct, ...}] — map to CurrencyBreakdown format
+      const raw = (data as any) || [];
+      return (Array.isArray(raw) ? raw : [raw]).map((item: any) => ({
+        accountCode: item.account_code || item.accountCode || item.currency || '',
+        accountName: item.account_name || item.accountName || item.currency || '',
+        currency: item.currency || 'UAH',
+        balance: item.valueBase ?? item.value_base ?? item.balance ?? 0,
+      }));
     },
     enabled: Boolean(companyId && companyId !== 'default-company'),
     staleTime: STALE_TIME,

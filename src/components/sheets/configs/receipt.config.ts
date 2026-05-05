@@ -55,7 +55,7 @@ export const receiptConfig: SheetConfig = {
 
     // Status Badge
     badge: (data) => {
-        const info = getStatusInfo(data.status);
+        const info = getStatusInfo(data?.status);
         return {
             label: info.label,
             variant: info.variant,
@@ -200,7 +200,7 @@ export const receiptConfig: SheetConfig = {
             labelAr: 'تعديل',
             icon: Edit,
             variant: 'outline',
-            show: (data) => data.status === 'draft',
+            show: (data) => data?.status === 'draft',
         },
         {
             id: 'post',
@@ -208,7 +208,7 @@ export const receiptConfig: SheetConfig = {
             labelAr: 'ترحيل',
             icon: CheckCircle2,
             variant: 'default',
-            show: (data) => data.status === 'draft',
+            show: (data) => data?.status === 'draft',
         },
         {
             id: 'duplicate',
@@ -238,7 +238,7 @@ export const receiptConfig: SheetConfig = {
             labelAr: 'إلغاء',
             icon: XCircle,
             variant: 'destructive',
-            show: (data) => data.status !== 'cancelled',
+            show: (data) => data?.status !== 'cancelled',
             confirm: {
                 title: 'dialogs.cancelReceipt',
                 titleAr: 'إلغاء سند القبض',
@@ -254,7 +254,7 @@ export const receiptConfig: SheetConfig = {
             labelAr: 'حذف',
             icon: Trash2,
             variant: 'destructive',
-            show: (data) => data.status === 'draft',
+            show: (data) => data?.status === 'draft',
             confirm: {
                 title: 'dialogs.deleteReceipt',
                 titleAr: 'حذف سند القبض',

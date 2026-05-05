@@ -426,7 +426,7 @@ export default function CashJournal() {
 
     // Apply Status Filter
     if (filters.status && filters.status !== 'all') {
-      data = data.filter((item) => item.status === filters.status);
+      data = data.filter((item) => item?.status === filters.status);
     }
 
     // Apply Origin Filter
@@ -564,9 +564,9 @@ export default function CashJournal() {
         totalDebit: acc.totalDebit + entryDebit,
         totalCredit: acc.totalCredit + entryCredit,
         count: acc.count + 1,
-        postedCount: acc.postedCount + (entry.status === 'posted' ? 1 : 0),
-        draftCount: acc.draftCount + (entry.status === 'draft' ? 1 : 0),
-        pendingCount: acc.pendingCount + (entry.status === 'pending' ? 1 : 0),
+        postedCount: acc.postedCount + (entry?.status === 'posted' ? 1 : 0),
+        draftCount: acc.draftCount + (entry?.status === 'draft' ? 1 : 0),
+        pendingCount: acc.pendingCount + (entry?.status === 'pending' ? 1 : 0),
       };
     }, { totalDebit: 0, totalCredit: 0, count: 0, postedCount: 0, draftCount: 0, pendingCount: 0 });
   }, [filteredAndSortedData]);

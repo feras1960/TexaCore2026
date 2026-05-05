@@ -267,7 +267,7 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
       if (state.entityDefinition) {
         try {
           console.log('🤖 Trying AI smart column mapping...');
-          const { data: aiResult } = await supabase.functions.invoke('import-ai-analyze', {
+          const { data: aiResult } = await cloudSupabase.functions.invoke('import-ai-analyze', {
             body: {
               action: 'smart_map',
               file_headers: parsed.headers,
@@ -1463,7 +1463,7 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
       if (state.entityDefinition) {
         try {
           console.log('🤖 Trying AI smart column mapping...');
-          const { data: aiResult } = await supabase.functions.invoke('import-ai-analyze', {
+          const { data: aiResult } = await cloudSupabase.functions.invoke('import-ai-analyze', {
             body: {
               action: 'smart_map',
               file_headers: parsed.headers,
@@ -1553,7 +1553,7 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
 
 // ─── Helper Functions ──────────────────────────────────────────
 
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 
 /**
  * تحديد اسم الجدول حسب نوع الكيان

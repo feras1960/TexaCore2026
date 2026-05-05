@@ -257,7 +257,7 @@ export function EnhancedActionToolbar({
     const effectiveStatus = stage || status || '';
     const isDraft = effectiveStatus === 'draft' || effectiveStatus === '';
     const isConfirmed = effectiveStatus === 'confirmed' || effectiveStatus === 'approved';
-    const isPosted = effectiveStatus === 'posted';
+    const isPosted = effectiveStatus === 'posted' || data?.is_posted === true || !!data?.journal_entry_id;
     const isPartiallyReceived = effectiveStatus === 'partially_received';
     const isFullyReceived = effectiveStatus === 'received';
     const isReceivedOrPartial = isPartiallyReceived || isFullyReceived;

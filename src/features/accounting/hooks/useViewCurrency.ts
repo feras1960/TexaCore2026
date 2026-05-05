@@ -100,9 +100,29 @@ export function preloadCurrencies(companyId: string, force = false): void {
 }
 
 // ─── AUTO-PRELOAD at module import time (INSTANT!) ─────────────────────────
+// ⚠️ Only preload if the stored session is still valid (not expired).
+// Without this check, a stale sb-*-auth-token with an old company_id
+// triggers a 406 error on every page load (including the login page).
 (() => {
     const cachedCid = getCompanyIdFromLocalStorage();
     if (cachedCid) {
+        // Verify the session token is not expired before preloading
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                    const raw = localStorage.getItem(key);
+                    if (!raw) continue;
+                    const parsed = JSON.parse(raw);
+                    const expiresAt = parsed?.expires_at;
+                    // expires_at is a Unix timestamp in seconds
+                    if (expiresAt && expiresAt * 1000 < Date.now()) {
+                        // Session expired — don't preload with stale company_id
+                        return;
+                    }
+                }
+            }
+        } catch { /* ignore */ }
         preloadCurrencies(cachedCid);
     }
 })();

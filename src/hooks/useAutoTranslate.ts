@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 
 // كل اللغات المدعومة في النظام
@@ -67,7 +67,7 @@ export function useAutoTranslate(options: UseAutoTranslateOptions = {}) {
 
         setIsTranslating(true);
         try {
-            const { data, error } = await supabase.functions.invoke('auto-translate', {
+            const { data, error } = await cloudSupabase.functions.invoke('auto-translate', {
                 body: {
                     text: text.trim(),
                     source_language: sourceLanguage,

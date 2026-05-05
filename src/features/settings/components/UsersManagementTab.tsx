@@ -46,7 +46,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useToast } from '@/components/ui/use-toast';
 import { rbacService, Role, UserRole } from '@/services/rbacService';
 import { companiesService } from '@/services/companiesService';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase, supabaseAdmin, cloudSupabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { logAuditEvent } from '@/features/users-permissions/components/AuditLogTab';
 
@@ -150,12 +150,28 @@ export default function UsersManagementTab() {
         try {
             setLoading(true);
 
-            // Load users — filtered by tenant_id (mandatory)
-            const { data: usersData, error: usersError } = await supabase
+            // Get companies for this tenant first to filter users
+            const { data: tenantCompanies } = await supabase
+                .from('companies')
+                .select('id')
+                .eq('tenant_id', tenantId);
+                
+            const companyIds = tenantCompanies?.map(c => c.id) || [];
+
+            // Load users — filtered by company_ids (mandatory since tenant_id is dropped)
+            let usersQuery = supabase
                 .from('user_profiles')
-                .select('id, email, full_name, avatar_url, company_id, branch_id, is_active, phone, tenant_id')
-                .eq('tenant_id', tenantId)
+                .select('id, email, full_name, avatar_url, company_id, branch_id, is_active, phone')
                 .order('full_name');
+                
+            if (companyIds.length > 0) {
+                usersQuery = usersQuery.in('company_id', companyIds);
+            } else {
+                // If no companies, don't return any users
+                usersQuery = usersQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+            }
+                
+            const { data: usersData, error: usersError } = await usersQuery;
 
             if (usersError) throw usersError;
 
@@ -528,7 +544,7 @@ export default function UsersManagementTab() {
                 const targetCompany = formData.selectedCompany || companyId;
 
                 // ✅ Call Edge Function (creates user + profile + roles + sends welcome email)
-                const { data: fnResult, error: fnError } = await supabase.functions.invoke('invite-user', {
+                const { data: fnResult, error: fnError } = await cloudSupabase.functions.invoke('invite-user', {
                     body: {
                         email: formData.email,
                         full_name: formData.full_name || null,

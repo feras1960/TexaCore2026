@@ -44,7 +44,7 @@ echo "📦 [1/2] Building texacore-db..."
 # We need a build context that includes both docker/ and supabase/migrations
 # Use a temporary Dockerfile with correct paths
 cat > "$DOCKER_DIR/.Dockerfile.db.tmp" << 'DEOF'
-FROM supabase/postgres:17.2.0
+FROM supabase/postgres:17.6.1.110
 COPY docker/volumes/db/roles.sql      /docker-entrypoint-initdb.d/migrations/99-roles.sql
 COPY docker/volumes/db/jwt.sql        /docker-entrypoint-initdb.d/init-scripts/98-jwt.sql
 COPY docker/volumes/db/realtime.sql   /docker-entrypoint-initdb.d/migrations/99-realtime.sql
@@ -77,6 +77,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --ignore-scripts
 COPY . .
+ENV NODE_OPTIONS="--max-old-space-size=8192"
+RUN echo "VITE_IS_DESKTOP=true" > .env.production
+RUN echo "VITE_TEXACORE_MODE=selfhosted" >> .env.production
+RUN echo "VITE_APP_VERSION=1.2.0" >> .env.production
 RUN npm run build
 
 # Stage 2: Serve with Nginx
@@ -96,6 +100,12 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # Healthcheck
+    location /health {
+        add_header Content-Type text/plain;
+        return 200 'healthy';
+    }
+
     # Cache static assets
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
         expires 30d;
@@ -105,12 +115,28 @@ server {
     # Config injection point (desktop mode)
     location /config.js {
         add_header Cache-Control "no-cache";
+        try_files /config.js =404;
     }
 }
 NGINX
 
+# Create entrypoint to inject config
+RUN cat > /entrypoint.sh << 'EOF'
+#!/bin/sh
+cat > /usr/share/nginx/html/config.js << CONFIG
+window.__TEXACORE_CONFIG__ = {
+  supabaseUrl: '${SUPABASE_URL:-http://localhost:8888}',
+  supabaseKey: '${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WO_eo0y4lHl1pBdvVu_mkwMvO1s22qwpM3C0}',
+  mode: 'selfhosted',
+  licensingUrl: '${LICENSING_SERVER_URL}'
+};
+CONFIG
+exec nginx -g "daemon off;"
+EOF
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/entrypoint.sh"]
 AEOF
 
 docker build \

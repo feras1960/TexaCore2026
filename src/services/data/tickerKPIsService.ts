@@ -26,7 +26,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export const TickerKPIsService = {
 
-  async getKPIs(tenantId: string, force = false): Promise<TickerKPIs | null> {
+  async getKPIs(companyId: string, force = false): Promise<TickerKPIs | null> {
     // Check cache
     if (!force && _cachedKPIs && Date.now() - _cacheTimestamp < CACHE_DURATION) {
       return _cachedKPIs;
@@ -34,7 +34,7 @@ export const TickerKPIsService = {
 
     try {
       const { data, error } = await supabase.rpc('get_ticker_kpis', {
-        p_tenant_id: tenantId,
+        p_tenant_id: companyId,
       });
 
       if (error) {

@@ -33,9 +33,7 @@ ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "tenants_select" ON tenants
     FOR SELECT USING (
         -- User belongs to this tenant
-        id IN (
-            SELECT tenant_id FROM user_profiles WHERE id = auth.uid()
-        )
+        id = get_current_tenant_id()
         OR
         -- Or user is super admin (check by joining user_roles and roles)
         EXISTS (

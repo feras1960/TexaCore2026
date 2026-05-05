@@ -9,8 +9,8 @@ DROP POLICY IF EXISTS "purchase_orders_policy" ON purchase_orders;
 
 CREATE POLICY "purchase_orders_policy" ON purchase_orders
     FOR ALL
-    USING (auth.role() = 'authenticated')
-    WITH CHECK (auth.role() = 'authenticated');
+    USING (auth.uid() IS NOT NULL)
+    WITH CHECK (auth.uid() IS NOT NULL);
 
 -- Purchase Invoices
 ALTER TABLE purchase_invoices ENABLE ROW LEVEL SECURITY;
@@ -19,33 +19,42 @@ DROP POLICY IF EXISTS "purchase_invoices_policy" ON purchase_invoices;
 
 CREATE POLICY "purchase_invoices_policy" ON purchase_invoices
     FOR ALL
-    USING (auth.role() = 'authenticated')
-    WITH CHECK (auth.role() = 'authenticated');
+    USING (auth.uid() IS NOT NULL)
+    WITH CHECK (auth.uid() IS NOT NULL);
 
 -- Purchase Receipts
-ALTER TABLE purchase_receipts ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Enable all access for authenticated users" ON purchase_receipts;
-DROP POLICY IF EXISTS "purchase_receipts_policy" ON purchase_receipts;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'purchase_receipts') THEN
+        EXECUTE 'ALTER TABLE purchase_receipts ENABLE ROW LEVEL SECURITY';
+        EXECUTE 'DROP POLICY IF EXISTS "Enable all access for authenticated users" ON purchase_receipts';
+        EXECUTE 'DROP POLICY IF EXISTS "purchase_receipts_policy" ON purchase_receipts';
 
-CREATE POLICY "purchase_receipts_policy" ON purchase_receipts
-    FOR ALL
-    USING (auth.role() = 'authenticated')
-    WITH CHECK (auth.role() = 'authenticated');
+        EXECUTE 'CREATE POLICY "purchase_receipts_policy" ON purchase_receipts
+            FOR ALL
+            USING (auth.uid() IS NOT NULL)
+            WITH CHECK (auth.uid() IS NOT NULL)';
+    END IF;
+END $$;
 
 -- Purchase Receipt Items
-ALTER TABLE purchase_receipt_items ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Enable all access for authenticated users" ON purchase_receipt_items;
-DROP POLICY IF EXISTS "purchase_receipt_items_policy" ON purchase_receipt_items;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'purchase_receipt_items') THEN
+        EXECUTE 'ALTER TABLE purchase_receipt_items ENABLE ROW LEVEL SECURITY';
+        EXECUTE 'DROP POLICY IF EXISTS "Enable all access for authenticated users" ON purchase_receipt_items';
+        EXECUTE 'DROP POLICY IF EXISTS "purchase_receipt_items_policy" ON purchase_receipt_items';
 
-CREATE POLICY "purchase_receipt_items_policy" ON purchase_receipt_items
-    FOR ALL
-    USING (auth.role() = 'authenticated')
-    WITH CHECK (auth.role() = 'authenticated');
+        EXECUTE 'CREATE POLICY "purchase_receipt_items_policy" ON purchase_receipt_items
+            FOR ALL
+            USING (auth.uid() IS NOT NULL)
+            WITH CHECK (auth.uid() IS NOT NULL)';
+    END IF;
+END $$;
 
 
 -- 2. Add Security Definer Function (Failsafe Approach)
 -- This function runs with elevated privileges to ensure the status update happens
 -- even if RLS policies are misconfigured or too strict for the specific user role.
+DROP FUNCTION IF EXISTS update_purchase_document_status_bypass_rls(text, uuid, text, uuid, text);
 CREATE OR REPLACE FUNCTION update_purchase_document_status_bypass_rls(
     p_table text,
     p_id uuid,

@@ -48,14 +48,18 @@ END $$;
 
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'employees' AND column_name = 'payable_account_id'
-    ) THEN
-        ALTER TABLE employees ADD COLUMN payable_account_id UUID REFERENCES chart_of_accounts(id);
-        RAISE NOTICE '✅ تمت إضافة عمود payable_account_id لجدول employees';
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'employees') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'employees' AND column_name = 'payable_account_id'
+        ) THEN
+            ALTER TABLE employees ADD COLUMN payable_account_id UUID REFERENCES chart_of_accounts(id);
+            RAISE NOTICE '✅ تمت إضافة عمود payable_account_id لجدول employees';
+        ELSE
+            RAISE NOTICE '⏭️ عمود payable_account_id موجود مسبقاً';
+        END IF;
     ELSE
-        RAISE NOTICE '⏭️ عمود payable_account_id موجود مسبقاً';
+        RAISE NOTICE '⚠️ جدول employees غير موجود — تم التخطي';
     END IF;
 END $$;
 
@@ -140,11 +144,15 @@ $function$;
 COMMENT ON FUNCTION auto_create_employee_sub_account() IS 'إنشاء حساب فرعي تلقائي للموظف تحت 213 (الرواتب المستحقة)';
 
 -- تفعيل الـ Trigger
-DROP TRIGGER IF EXISTS trg_auto_create_employee_sub_account ON employees;
-CREATE TRIGGER trg_auto_create_employee_sub_account
-    BEFORE INSERT ON employees
-    FOR EACH ROW
-    EXECUTE FUNCTION auto_create_employee_sub_account();
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'employees') THEN
+        DROP TRIGGER IF EXISTS trg_auto_create_employee_sub_account ON employees;
+        CREATE TRIGGER trg_auto_create_employee_sub_account
+            BEFORE INSERT ON employees
+            FOR EACH ROW
+            EXECUTE FUNCTION auto_create_employee_sub_account();
+    END IF;
+END $$;
 
 
 -- ═══════════════════════════════════════════════════════════════
@@ -273,6 +281,10 @@ DECLARE
     v_emp_name_en TEXT;
     v_count INT := 0;
 BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'employees') THEN
+        RETURN;
+    END IF;
+
     FOR v_emp IN 
         SELECT e.* 
         FROM employees e 

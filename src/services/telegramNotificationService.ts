@@ -14,7 +14,7 @@
  *   })
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 
 // Event type → source type + notification type mapping
 const EVENT_SOURCE_MAP: Record<string, { sourceType: string; notifType: 'info' | 'success' | 'warning' | 'error' }> = {
@@ -55,7 +55,7 @@ async function dispatch(companyId: string, eventType: string, htmlMessage: strin
 
         // 1. Send via Telegram (existing flow)
         try {
-            const response = await supabase.functions.invoke('telegram-webhook', {
+            const response = await cloudSupabase.functions.invoke('telegram-webhook', {
                 body: {
                     action: 'dispatch_notification',
                     company_id: companyId,
@@ -192,7 +192,7 @@ export async function sendTestNotification(channel: 'telegram' | 'email' | 'in_a
 </div>
 </body>
 </html>`;
-            const result = await supabase.functions.invoke('send-email', {
+            const result = await cloudSupabase.functions.invoke('send-email', {
                 body: {
                     to: session.user.email,
                     subject: '✅ TexaCore — إشعار تجريبي ناجح',
@@ -824,7 +824,7 @@ ${data.deliveryDate ? `📅 موعد التوصيل: ${data.deliveryDate}` : ''}
 ${data.companyName ? `— ${data.companyName}` : '— TexaFab'}`;
 
             // 3. Send directly to customer's chat
-            const response = await supabase.functions.invoke('telegram-webhook', {
+            const response = await cloudSupabase.functions.invoke('telegram-webhook', {
                 body: {
                     action: 'send_direct_message',
                     company_id: companyId,

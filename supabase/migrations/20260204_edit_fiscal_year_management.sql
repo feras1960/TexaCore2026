@@ -244,6 +244,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 -- الجزء 5: حقول إضافية لـ company_accounting_settings ✅ EXECUTED
 -- ═══════════════════════════════════════════════════════════════
 
+/*
 ALTER TABLE company_accounting_settings 
 ADD COLUMN IF NOT EXISTS auto_post_entries BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS require_approval BOOLEAN DEFAULT true,
@@ -289,6 +290,7 @@ UPDATE company_accounting_settings SET
   journal_entry_prefix = COALESCE(entry_number_prefix, 'JE'),
   reset_numbering_yearly = COALESCE(entry_number_reset_yearly, true)
 WHERE vat_enabled IS NULL;
+*/
 
 -- ═══════════════════════════════════════════════════════════════
 -- ✅ MIGRATION COMPLETED SUCCESSFULLY

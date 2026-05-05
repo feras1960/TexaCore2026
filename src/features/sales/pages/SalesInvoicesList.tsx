@@ -46,10 +46,7 @@ export default function SalesInvoicesList() {
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
     const [sheetMode, setSheetMode] = useState<'create' | 'edit' | 'view'>('view');
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfMonth(new Date()),
-        to: new Date()
-    });
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // ─── Persist view mode preference ───
     const VIEW_PREF_KEY = 'sales-invoices-view';

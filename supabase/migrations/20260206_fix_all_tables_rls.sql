@@ -277,18 +277,18 @@ DECLARE
 BEGIN
     FOR pol IN 
         SELECT policyname FROM pg_policies 
-        WHERE schemaname = 'public' AND tablename = 'funds'
+        WHERE schemaname = 'public' AND tablename = 'cash_accounts'
     LOOP
-        EXECUTE 'DROP POLICY IF EXISTS "' || pol.policyname || '" ON funds';
+        EXECUTE 'DROP POLICY IF EXISTS "' || pol.policyname || '" ON cash_accounts';
     END LOOP;
 END $$;
 
-ALTER TABLE funds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_accounts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "funds_read" ON funds
+CREATE POLICY "cash_accounts_read" ON cash_accounts
     FOR SELECT USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY "funds_write" ON funds
+CREATE POLICY "cash_accounts_write" ON cash_accounts
     FOR ALL USING (auth.uid() IS NOT NULL);
 
 -- ═══════════════════════════════════════════════════════════════════════════

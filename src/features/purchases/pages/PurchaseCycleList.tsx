@@ -169,10 +169,7 @@ export default function PurchaseCycleList() {
     });
 
     // Date Filter State
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfMonth(new Date()),
-        to: new Date()
-    });
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // ─── Persist view mode preference ───
     const VIEW_PREF_KEY = 'purchase-cycle-view';
@@ -485,7 +482,7 @@ export default function PurchaseCycleList() {
                             </span>
                         </div>
                         <span className="text-[10px] text-gray-400 font-mono ps-[18px]">
-                            {format(new Date(doc.created_at), 'HH:mm')}
+                            {format(dt, 'HH:mm')}
                         </span>
                     </div>
                 );

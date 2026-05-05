@@ -2,27 +2,29 @@
 -- إضافة ربط الفاتورة بالكونتينر مباشرة
 -- ═══════════════════════════════════════════════════════════════
 
--- 1. Add container_id to purchase_transactions
-ALTER TABLE purchase_transactions ADD COLUMN IF NOT EXISTS container_id uuid REFERENCES containers(id);
-COMMENT ON COLUMN purchase_transactions.container_id IS 'الكونتينر المرتبط - يُحدّث تلقائياً عند استيراد الفاتورة للكونتينر';
+DO $$ 
+BEGIN
+    -- 1. Check if containers table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'containers') THEN
+        -- 2. Add container_id to purchase_transactions without FK initially, or with FK if we use EXECUTE
+        EXECUTE 'ALTER TABLE purchase_transactions ADD COLUMN IF NOT EXISTS container_id uuid REFERENCES containers(id)';
+        EXECUTE 'COMMENT ON COLUMN purchase_transactions.container_id IS ''الكونتينر المرتبط - يُحدّث تلقائياً عند استيراد الفاتورة للكونتينر''';
 
--- 2. Index for fast lookups
-CREATE INDEX IF NOT EXISTS idx_purchase_transactions_container_id 
-ON purchase_transactions(container_id) WHERE container_id IS NOT NULL;
+        -- 3. Index for fast lookups
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_purchase_transactions_container_id ON purchase_transactions(container_id) WHERE container_id IS NOT NULL';
 
--- 3. Backfill: Link existing invoices that are already in containers
-UPDATE purchase_transactions pt
-SET container_id = ci.container_id
-FROM (
-    SELECT DISTINCT purchase_invoice_id, container_id
-    FROM container_items
-    WHERE purchase_invoice_id IS NOT NULL
-) ci
-WHERE pt.id = ci.purchase_invoice_id
-AND pt.container_id IS NULL;
-
--- 4. Verify
-SELECT pt.id, pt.order_number, pt.container_id, c.container_number, c.status as container_status
-FROM purchase_transactions pt
-JOIN containers c ON c.id = pt.container_id
-WHERE pt.container_id IS NOT NULL;
+        -- 4. Backfill: Link existing invoices that are already in containers
+        IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'container_items') THEN
+            EXECUTE '
+            UPDATE purchase_transactions pt
+            SET container_id = ci.container_id
+            FROM (
+                SELECT DISTINCT purchase_invoice_id, container_id
+                FROM container_items
+                WHERE purchase_invoice_id IS NOT NULL
+            ) ci
+            WHERE pt.id = ci.purchase_invoice_id
+            AND pt.container_id IS NULL';
+        END IF;
+    END IF;
+END $$;

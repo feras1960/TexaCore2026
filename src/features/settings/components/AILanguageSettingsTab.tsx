@@ -25,7 +25,7 @@ import {
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
 import { useCompany } from '@/hooks/useCompany';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -565,7 +565,7 @@ export default function AILanguageSettingsTab() {
         setGeneratingReport(type);
         try {
             const { data: comp } = await supabase.from('companies').select('tenant_id').eq('id', companyId).single();
-            const { data, error } = await supabase.functions.invoke('nexa-intelligence', {
+            const { data, error } = await cloudSupabase.functions.invoke('nexa-intelligence', {
                 body: { report_type: type, company_id: companyId, tenant_id: comp?.tenant_id },
             });
             if (error) throw error;

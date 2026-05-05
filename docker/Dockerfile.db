@@ -26,8 +26,8 @@ COPY volumes/db/webhooks.sql   /docker-entrypoint-initdb.d/migrations/99-webhook
 COPY ../supabase/migrations /app-migrations
 
 # Copy migration init script
-COPY migrations-init.sh /docker-entrypoint-initdb.d/init-scripts/99-app-migrations.sh
-RUN chmod +x /docker-entrypoint-initdb.d/init-scripts/99-app-migrations.sh
+COPY migrations-init.sh /docker-entrypoint-initdb.d/z99-app-migrations.sh
+RUN chmod +x /docker-entrypoint-initdb.d/z99-app-migrations.sh
 
 # Labels
 LABEL maintainer="TexaCore Team"

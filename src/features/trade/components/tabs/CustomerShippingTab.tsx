@@ -56,7 +56,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -517,7 +517,7 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
         citySearchTimer.current = setTimeout(async () => {
             setNpSearchingCities(true);
             try {
-                const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+                const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                     body: { action: 'searchCities', apiKey: npApiKey, params: { query } },
                 });
                 if (!error && result?.success && result?.data?.[0]?.Addresses) {
@@ -537,7 +537,7 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
         if (!npApiKey) return;
         setNpLoading(true);
         try {
-            const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+            const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                 body: { action: 'getWarehouses', apiKey: npApiKey, params: { cityRef } },
             });
             if (!error && result?.success) {
@@ -636,7 +636,7 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
                 documentParams.AfterpaymentOnGoodsCost = npCodAmount;
             }
 
-            const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+            const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                 body: { action: 'createDocument', apiKey: npApiKey, params: documentParams },
             });
 
@@ -675,7 +675,7 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
     const trackNpDocument = async () => {
         if (!npApiKey || !data?.tracking_number) return;
         try {
-            const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+            const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                 body: {
                     action: 'trackDocument',
                     apiKey: npApiKey,

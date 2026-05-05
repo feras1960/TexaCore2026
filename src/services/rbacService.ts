@@ -521,9 +521,9 @@ class RBACService {
     async assignRoleToUser(data: AssignRoleDTO): Promise<UserRole> {
         const { data: user } = await supabase.auth.getUser();
 
-        // Get tenant_id from user profile or the role
+        // Get company_id from user profile or tenant_id from role
         const [{ data: profile }, { data: role }] = await Promise.all([
-            supabase.from('user_profiles').select('tenant_id').eq('id', data.user_id).maybeSingle(),
+            supabase.from('user_profiles').select('company_id').eq('id', data.user_id).maybeSingle(),
             supabase.from('roles').select('tenant_id').eq('id', data.role_id).single(),
         ]);
 
@@ -532,7 +532,7 @@ class RBACService {
             .insert({
                 user_id: data.user_id,
                 role_id: data.role_id,
-                tenant_id: profile?.tenant_id || role?.tenant_id,
+                tenant_id: role?.tenant_id,
                 company_id: data.company_id,
                 expires_at: data.expires_at,
                 notes: data.notes,
@@ -566,7 +566,7 @@ class RBACService {
         const { data: user } = await supabase.auth.getUser();
         const { data: profile } = await supabase
             .from('user_profiles')
-            .select('tenant_id')
+            .select('company_id')
             .eq('id', userId)
             .maybeSingle();
 
@@ -584,7 +584,7 @@ class RBACService {
                     roleIds.map(roleId => ({
                         user_id: userId,
                         role_id: roleId,
-                        tenant_id: profile?.tenant_id,
+                        tenant_id: null,
                         company_id: companyId,
                         assigned_by: user?.user?.id,
                         is_active: true,
@@ -624,7 +624,7 @@ class RBACService {
         const { data: user } = await supabase.auth.getUser();
         const { data: profile } = await supabase
             .from('user_profiles')
-            .select('tenant_id, company_id')
+            .select('company_id')
             .eq('id', data.user_id)
             .maybeSingle();
 
@@ -637,7 +637,7 @@ class RBACService {
                 permissions: data.permissions || { read: true },
                 is_primary: data.is_primary || false,
                 notes: data.notes,
-                tenant_id: profile?.tenant_id,
+                tenant_id: null,
                 company_id: profile?.company_id,
                 assigned_by: user?.user?.id,
             })
@@ -673,7 +673,7 @@ class RBACService {
         const { data: user } = await supabase.auth.getUser();
         const { data: profile } = await supabase
             .from('user_profiles')
-            .select('tenant_id, company_id')
+            .select('company_id')
             .eq('id', userId)
             .maybeSingle();
 
@@ -695,7 +695,7 @@ class RBACService {
                         resource_id: r.id,
                         permissions: r.permissions || { read: true },
                         is_primary: r.is_primary || false,
-                        tenant_id: profile?.tenant_id,
+                        tenant_id: null,
                         company_id: profile?.company_id,
                         assigned_by: user?.user?.id,
                     }))
@@ -1213,6 +1213,9 @@ class RBACService {
 
             if (isSuperAdmin) return ['all'];
 
+            // If role has 'all' modules, return immediately (e.g. company_owner)
+            if (roleModules.has('all')) return ['all'];
+
             // If no roles assigned, return at least dashboard
             if (roleModules.size === 0) {
                 return ['dashboard'];
@@ -1221,21 +1224,30 @@ class RBACService {
             // ✅ Get tenant's active modules (from SaaS platform management)
             const { data: profile } = await supabase
                 .from('user_profiles')
-                .select('tenant_id, company_id')
+                .select('company_id')
                 .eq('id', userId)
                 .maybeSingle();
 
-            if (profile?.tenant_id) {
-                const { data: tenantMods } = await supabase
-                    .from('tenant_modules')
-                    .select('module_code')
-                    .eq('tenant_id', profile.tenant_id)
-                    .eq('is_active', true);
+            if (profile?.company_id) {
+                // Fetch tenant_id from the company
+                const { data: company } = await supabase
+                    .from('companies')
+                    .select('tenant_id')
+                    .eq('id', profile.company_id)
+                    .maybeSingle();
 
-                if (tenantMods && tenantMods.length > 0) {
-                    // Intersect: role modules ∩ tenant active modules
-                    const tenantModSet = new Set(tenantMods.map(m => m.module_code));
-                    return Array.from(roleModules).filter(m => tenantModSet.has(m));
+                if (company?.tenant_id) {
+                    const { data: tenantMods } = await supabase
+                        .from('tenant_modules')
+                        .select('module_code')
+                        .eq('tenant_id', company.tenant_id)
+                        .eq('is_active', true);
+
+                    if (tenantMods && tenantMods.length > 0) {
+                        // Intersect: role modules ∩ tenant active modules
+                        const tenantModSet = new Set(tenantMods.map(m => m.module_code));
+                        return Array.from(roleModules).filter(m => tenantModSet.has(m));
+                    }
                 }
             }
 

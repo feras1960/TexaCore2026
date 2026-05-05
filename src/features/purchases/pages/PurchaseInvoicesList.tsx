@@ -69,10 +69,7 @@ export default function PurchaseInvoicesList() {
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [selectedDoc, setSelectedDoc] = useState<any | null>(null);
     const [docMode, setDocMode] = useState<'view' | 'create' | 'edit'>('view');
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfMonth(new Date()),
-        to: new Date(),
-    });
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortField, setSortField] = useState<string>('created_at');
     const [sortAsc, setSortAsc] = useState(false);
@@ -707,7 +704,7 @@ export default function PurchaseInvoicesList() {
                                             </button>
                                         </th>
                                         <th className="px-4 py-3 text-start text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            <button onClick={() => { setSortField('created_at'); setSortAsc(f => !f); }} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
+                                            <button onClick={() => { setSortField('doc_date'); setSortAsc(f => !f); }} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
                                                 {t('purchaseInvoices.dateTime')}
                                                 <ArrowUpDown className="w-3 h-3" />
                                             </button>
@@ -766,10 +763,11 @@ export default function PurchaseInvoicesList() {
                                             const isConfirmedPlus = ['confirmed', 'received', 'posted'].includes(stage);
                                             const isDelivered = stage === 'received';
 
-                                            // Date & elapsed time
+                                            // Date & elapsed time — use doc_date (original invoice date), NOT created_at (import date)
+                                            const docDate = new Date(doc.doc_date || doc.invoice_date || doc.created_at);
                                             const createdAt = new Date(doc.created_at);
-                                            const elapsed = formatDistanceToNow(createdAt, { addSuffix: true, locale: enUS });
-                                            const ageMs = Date.now() - createdAt.getTime();
+                                            const elapsed = formatDistanceToNow(docDate, { addSuffix: true, locale: enUS });
+                                            const ageMs = Date.now() - docDate.getTime();
                                             const ageColor = ageMs > 7 * 86400000 ? 'text-red-500' : ageMs > 3 * 86400000 ? 'text-amber-500' : 'text-emerald-500';
 
                                             // Stage accent colors for left border
@@ -820,17 +818,17 @@ export default function PurchaseInvoicesList() {
                                                         </div>
                                                     </td>
 
-                                                    {/* Date & Time & Elapsed */}
+                                                    {/* Date & Time & Elapsed — uses doc_date (original date) */}
                                                     <td className="px-4 py-3.5">
                                                         <div className="flex flex-col gap-0.5">
                                                             <div className="flex items-center gap-1.5">
                                                                 <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
                                                                 <span className="font-mono text-[12px] text-gray-700 dark:text-gray-300">
-                                                                    {createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                                    {docDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                                                                 </span>
                                                             </div>
                                                             <span className="font-mono text-[11px] text-gray-400 ps-[18px]">
-                                                                {createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                                {docDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                                                             </span>
                                                             <span className={`text-[10px] font-medium ps-[18px] ${ageColor}`}>
                                                                 ⏱ {elapsed}

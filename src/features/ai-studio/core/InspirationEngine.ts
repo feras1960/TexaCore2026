@@ -4,7 +4,7 @@
 // التوليد: مباشرة مع Google Gemini API (يتجاوز قيود المنطقة)
 // =============================================
 
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import type { DesignSettings, GenerationResult, FabricType, PatternStyle } from './types';
 import { buildShortPrompt } from '../prompts/promptBuilder';
 
@@ -49,7 +49,7 @@ export interface AnalysisResult {
   inspirationCards?: InspirationCard[];
 }
 
-const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL || 'https://wzkklenfsaepegymfxfz.supabase.co'}/functions/v1/generate-material-images`;
+// Cloud Edge Function URL is handled via cloudSupabase.functions.invoke
 
 // Cache for API key (fetched once from Edge Function)
 let _cachedApiKey: string | null = null;
@@ -72,20 +72,12 @@ export class InspirationEngine {
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(EDGE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-        },
-        body: JSON.stringify({ action: 'get_api_key' }),
+      const { data, error } = await cloudSupabase.functions.invoke('generate-material-images', {
+        body: { action: 'get_api_key' },
       });
 
-      if (!response.ok) return null;
-      const data = await response.json();
-      if (data.api_key) {
+      if (error) return null;
+      if (data?.api_key) {
         _cachedApiKey = data.api_key;
         _cachedModels = data.models;
         console.log('[InspirationEngine] 🔑 API key cached for direct Gemini calls');
@@ -109,45 +101,33 @@ export class InspirationEngine {
         return { success: false, error: 'Failed to load image' };
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        return { success: false, error: 'Authentication required' };
-      }
-
-      const response = await fetch(EDGE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-        },
-        body: JSON.stringify({
+      const { data: responseData, error: fnError } = await cloudSupabase.functions.invoke('generate-material-images', {
+        body: {
           action: 'analyze',
           reference_image_base64: imageData.base64,
           reference_image_mime: imageData.mimeType,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        return { success: false, error: `Analysis failed (${response.status})` };
+      if (fnError) {
+        return { success: false, error: `Analysis failed: ${fnError.message}` };
       }
 
-      const result = await response.json();
-      if (result.success) {
+      if (responseData?.success) {
         console.log('[InspirationEngine] ✅ Analysis:', {
-          fabric: result.fabric_analysis?.fabric_type,
-          pattern: result.fabric_analysis?.pattern_type,
-          colors: result.fabric_analysis?.colors?.length,
-          cards: result.inspiration_cards?.length,
+          fabric: responseData.fabric_analysis?.fabric_type,
+          pattern: responseData.fabric_analysis?.pattern_type,
+          colors: responseData.fabric_analysis?.colors?.length,
+          cards: responseData.inspiration_cards?.length,
         });
         return {
           success: true,
-          analysis: result.fabric_analysis,
-          inspirationCards: result.inspiration_cards,
+          analysis: responseData.fabric_analysis,
+          inspirationCards: responseData.inspiration_cards,
         };
       }
 
-      return { success: false, error: result.error || 'Analysis failed' };
+      return { success: false, error: responseData?.error || 'Analysis failed' };
     } catch (err: any) {
       console.error('[InspirationEngine] ❌ Analysis error:', err);
       return { success: false, error: err.message };
@@ -338,20 +318,14 @@ export class InspirationEngine {
 
     const { data: profile } = await (supabase as any)
       .from('user_profiles')
-      .select('company_id, tenant_id')
+      .select('company_id')
       .eq('id', session.user.id)
       .single();
 
     const companyId = profile?.company_id || session.user.user_metadata?.company_id || '';
 
-    const response = await fetch(EDGE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-      },
-      body: JSON.stringify({
+    const { data: result, error: fnError } = await cloudSupabase.functions.invoke('generate-material-images', {
+      body: {
         material_id: `inspiration_${Date.now()}`,
         company_id: companyId,
         reference_image_base64: imageData.base64,
@@ -367,17 +341,15 @@ export class InspirationEngine {
         },
         custom_short_prompt: shortPrompt,
         inspiration_mode: true,
-      }),
+      },
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[InspirationEngine] ❌ Edge Function error:', response.status, errText);
-      return { success: false, error: `Generation failed (${response.status})` };
+    if (fnError) {
+      console.error('[InspirationEngine] ❌ Edge Function error:', fnError.message);
+      return { success: false, error: `Generation failed: ${fnError.message}` };
     }
 
-    const result = await response.json();
-    if (result.success && result.image) {
+    if (result?.success && result.image) {
       console.log('[InspirationEngine] ✅ Success via Edge Function!', result.model_used);
       return {
         success: true,
@@ -388,7 +360,7 @@ export class InspirationEngine {
       };
     }
 
-    return { success: false, error: result.error || 'No image returned', fabricAnalysis: result.fabric_analysis };
+    return { success: false, error: result?.error || 'No image returned', fabricAnalysis: result?.fabric_analysis };
   }
 
   /**

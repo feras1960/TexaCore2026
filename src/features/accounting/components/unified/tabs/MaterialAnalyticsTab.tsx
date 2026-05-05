@@ -12,7 +12,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -180,7 +180,7 @@ export function MaterialAnalyticsTab({ data }: MaterialAnalyticsTabProps) {
                 content: m.content,
             }));
 
-            const { data: responseData, error } = await supabase.functions.invoke('nexa-agent', {
+            const { data: responseData, error } = await cloudSupabase.functions.invoke('nexa-agent', {
                 body: {
                     message: messageText,
                     language,

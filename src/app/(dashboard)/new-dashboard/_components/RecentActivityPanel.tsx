@@ -44,7 +44,7 @@ export function RecentActivityPanel({
       ) : (
         <ul className="space-y-3">
           {items.map((a) => {
-            const Icon = ACTIVITY_ICONS[a.type];
+            const Icon = ACTIVITY_ICONS[a.type] || FileText;
             return (
               <li key={a.id} className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">

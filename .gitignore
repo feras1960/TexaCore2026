@@ -101,3 +101,17 @@ wipe_script.py
 
 # RSA License Keys
 keys/private.pem
+
+# ═══ Large binary releases (use GitHub Releases instead) ═══
+releases/*.dmg
+releases/*.exe
+releases/*.AppImage
+
+# ═══ Rashid import data (local only) ═══
+rashid_data/
+rashid_*.csv
+*.rsf
+temp/
+
+# ═══ Embedded repos ═══
+erpnext-reference/

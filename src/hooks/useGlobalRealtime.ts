@@ -223,6 +223,14 @@ export function useGlobalRealtime() {
 
     useEffect(() => {
         if (!companyId || isSetup.current) return;
+
+        // Skip Realtime in local desktop mode — no Realtime service available
+        const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+        if (isLocal) {
+            console.log('🌐 [GlobalRealtime] Local mode — skipping WebSocket subscriptions');
+            return;
+        }
+
         isSetup.current = true;
 
         console.log('🌐 [GlobalRealtime] Setting up subscriptions for', REALTIME_SUBSCRIPTIONS.length, 'tables');

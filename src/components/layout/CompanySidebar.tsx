@@ -138,8 +138,8 @@ export function CompanySidebar() {
   const currentCompany = companies.find(c => c.is_current);
   const otherCompanies = companies.filter(c => !c.is_current);
 
-  const getName = (c: CompanyItem) => isAr ? (c.name_ar || c.name_en) : (c.name_en || c.name_ar);
-  const getInitial = (c: CompanyItem) => getName(c).charAt(0);
+  const getName = (c: CompanyItem) => isAr ? (c.name_ar || c.name_en || (c as any).name || '?') : (c.name_en || c.name_ar || (c as any).name || '?');
+  const getInitial = (c: CompanyItem) => (getName(c) || '?').charAt(0);
 
   // ═══ Collapsed: minimal trigger strip ═══
   if (collapsed) {

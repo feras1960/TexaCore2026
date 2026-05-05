@@ -112,6 +112,10 @@ export function useRealtimeInvalidation(config: RealtimeInvalidationConfig) {
         // Don't subscribe if disabled or missing companyId
         if (!enabled || !companyId) return;
 
+        // Skip Realtime in local desktop mode — no Realtime service
+        const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+        if (isLocal) return;
+
         // Reset retry count on fresh mount
         retryCountRef.current = 0;
 

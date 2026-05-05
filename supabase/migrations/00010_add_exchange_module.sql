@@ -232,8 +232,7 @@ CREATE TABLE IF NOT EXISTS currency_vaults (
     max_balance DECIMAL(15,2),
     
     gl_account_id UUID REFERENCES chart_of_accounts(id),
-    
-    custodian_id UUID REFERENCES users(id),
+    custodian_id UUID REFERENCES user_profiles(id),
     
     is_active BOOLEAN DEFAULT true,
     

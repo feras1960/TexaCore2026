@@ -26,7 +26,7 @@ import {
   Info,
   ShieldAlert
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import type { ImportJob, ImportRow, EntityDefinition, AISuggestions } from '@/services/importService';
 
 interface AIAnalysisStepProps {
@@ -113,7 +113,7 @@ export function AIAnalysisStep({
       }));
 
       // Call AI analyze edge function
-      const { data, error: fnError } = await supabase.functions.invoke('import-ai-analyze', {
+      const { data, error: fnError } = await cloudSupabase.functions.invoke('import-ai-analyze', {
         body: {
           job_id: importJob.id,
           entity_type: importJob.entity_type,

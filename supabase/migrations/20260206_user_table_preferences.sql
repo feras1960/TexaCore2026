@@ -45,15 +45,19 @@ CREATE TRIGGER trigger_user_table_preferences_updated_at
 ALTER TABLE user_table_preferences ENABLE ROW LEVEL SECURITY;
 
 -- 5. RLS Policies - users can only access their own preferences
+DROP POLICY IF EXISTS "user_table_prefs_select" ON user_table_preferences;
 CREATE POLICY "user_table_prefs_select" ON user_table_preferences
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "user_table_prefs_insert" ON user_table_preferences;
 CREATE POLICY "user_table_prefs_insert" ON user_table_preferences
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "user_table_prefs_update" ON user_table_preferences;
 CREATE POLICY "user_table_prefs_update" ON user_table_preferences
     FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "user_table_prefs_delete" ON user_table_preferences;
 CREATE POLICY "user_table_prefs_delete" ON user_table_preferences
     FOR DELETE USING (auth.uid() = user_id);
 

@@ -74,17 +74,17 @@ BEGIN
     -- إنشاء بيانات اختبار في جداول مختلفة
     
     -- عملاء لـ Tenant 1
-    INSERT INTO customers (tenant_id, company_id, code, name, name_ar, email, is_active)
+    INSERT INTO customers (tenant_id, company_id, code, name_ar, email, status)
     VALUES 
-        (v_tenant1_id, v_company1_id, 'CUST-T1-001', 'Customer T1-1', 'عميل ت1-1', 'cust1@tenant1.test', true),
-        (v_tenant1_id, v_company1_id, 'CUST-T1-002', 'Customer T1-2', 'عميل ت1-2', 'cust2@tenant1.test', true)
+        (v_tenant1_id, v_company1_id, 'CUST-T1-001', 'عميل ت1-1', 'cust1@tenant1.test', 'active'),
+        (v_tenant1_id, v_company1_id, 'CUST-T1-002', 'عميل ت1-2', 'cust2@tenant1.test', 'active')
     ON CONFLICT DO NOTHING;
     
     -- عملاء لـ Tenant 2
-    INSERT INTO customers (tenant_id, company_id, code, name, name_ar, email, is_active)
+    INSERT INTO customers (tenant_id, company_id, code, name_ar, email, status)
     VALUES 
-        (v_tenant2_id, v_company2_id, 'CUST-T2-001', 'Customer T2-1', 'عميل ت2-1', 'cust1@tenant2.test', true),
-        (v_tenant2_id, v_company2_id, 'CUST-T2-002', 'Customer T2-2', 'عميل ت2-2', 'cust2@tenant2.test', true)
+        (v_tenant2_id, v_company2_id, 'CUST-T2-001', 'عميل ت2-1', 'cust1@tenant2.test', 'active'),
+        (v_tenant2_id, v_company2_id, 'CUST-T2-002', 'عميل ت2-2', 'cust2@tenant2.test', 'active')
     ON CONFLICT DO NOTHING;
     
     RAISE NOTICE '✅ تم إنشاء بيانات الاختبار';

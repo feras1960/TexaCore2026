@@ -658,8 +658,8 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 // Match UnifiedTradeSheet enhancedData format
                                 type: 'purchase',
                                 subType: 'container',
-                                party_id: containerResult.data.supplier_id,
-                                status: containerResult.data.status || 'draft',
+                                party_id: containerResult.data?.supplier_id,
+                                status: containerResult.data?.status || 'draft',
                             };
                         } else if (mdiDocType === 'cash' || mdiDocType === 'receipt' || mdiDocType === 'payment') {
                             // ═══ يومية صندوق / مقبوضات / مدفوعات ═══

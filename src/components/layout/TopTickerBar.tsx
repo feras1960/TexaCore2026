@@ -97,9 +97,9 @@ export function TopTickerBar() {
           ? CompanyAnnouncementsService.getActive(companyId).then(setCompanyAnnouncements).catch(() => {})
           : Promise.resolve(),
 
-        // 6. KPIs via RPC (needs tenant_id, not company_id)
-        tId
-          ? TickerKPIsService.getKPIs(tId).then(setKpis).catch(() => {})
+        // 6. KPIs via RPC (needs company_id)
+        companyId
+          ? TickerKPIsService.getKPIs(companyId).then(setKpis).catch(() => {})
           : Promise.resolve(),
       ]);
     };

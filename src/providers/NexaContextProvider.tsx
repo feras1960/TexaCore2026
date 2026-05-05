@@ -9,7 +9,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 
 interface NexaEntity {
   type: string;       // 'customer' | 'material' | 'invoice' | 'journal_entry' | ...
@@ -61,8 +61,8 @@ export function NexaContextProvider({ children, isAr }: { children: React.ReactN
   const [hasNewInsight, setHasNewInsight] = useState(false);
   const { companyId } = useAuth();
 
-  // ── Feature flag: set to true only when nexa-agent Edge Function is deployed ──
-  const NEXA_EDGE_ENABLED = false;
+  // ── Feature flag: Edge Functions available via Cloud client ──
+  const NEXA_EDGE_ENABLED = true;
 
   // 🔥 Cache Warming on app start (DB only — Edge Function warming skipped if not deployed)
   useEffect(() => {
@@ -77,7 +77,7 @@ export function NexaContextProvider({ children, isAr }: { children: React.ReactN
 
     // 2. Warm the Edge Function only when deployed
     if (NEXA_EDGE_ENABLED) {
-      supabase.functions.invoke('nexa-agent', {
+      cloudSupabase.functions.invoke('nexa-agent', {
         body: { message: 'ping', language: 'ar', context_type: 'general', complexity: 'flash-lite', company_id: companyId },
       }).catch(() => {/* ignore warm-up errors */});
     }
@@ -88,7 +88,7 @@ export function NexaContextProvider({ children, isAr }: { children: React.ReactN
     if (!companyId || !NEXA_EDGE_ENABLED) return;
     const KEEP_ALIVE_MS = 4 * 60 * 1000;
     const interval = setInterval(() => {
-      supabase.functions.invoke('nexa-agent', {
+      cloudSupabase.functions.invoke('nexa-agent', {
         body: { message: 'ping', language: 'ar', context_type: 'general', complexity: 'flash-lite', company_id: companyId },
       }).catch(() => {/* ignore */});
     }, KEEP_ALIVE_MS);

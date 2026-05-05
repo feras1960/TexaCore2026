@@ -3,7 +3,7 @@
  * خدمة لوحة تحكم SaaS - إحصائيات من قاعدة البيانات الفعلية
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, isSelfHosted } from '@/lib/supabase';
 
 export interface DashboardStats {
   // المشتركين
@@ -60,6 +60,7 @@ class DashboardService {
    * جلب إحصائيات لوحة التحكم
    */
   async getStats(): Promise<DashboardStats> {
+    if (isSelfHosted) return this.getDefaultStats();
     try {
       // جلب إحصائيات المشتركين
       const { data: tenants, error: tenantsError } = await supabase
@@ -175,6 +176,7 @@ class DashboardService {
    * جلب بيانات الإيرادات الشهرية
    */
   async getRevenueData(months: number = 6): Promise<RevenueData[]> {
+    if (isSelfHosted) return [];
     try {
       const { data: payments, error } = await supabase
         .from('saas_payments')
@@ -230,6 +232,7 @@ class DashboardService {
    * جلب بيانات نمو المشتركين
    */
   async getTenantGrowthData(months: number = 6): Promise<TenantGrowthData[]> {
+    if (isSelfHosted) return [];
     try {
       const { data: tenants, error } = await supabase
         .from('tenants')
@@ -288,6 +291,7 @@ class DashboardService {
    * جلب المشتركين الأخيرين
    */
   async getRecentTenants(limit: number = 5): Promise<any[]> {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('tenants')
@@ -313,6 +317,7 @@ class DashboardService {
    * جلب المدفوعات المعلقة
    */
   async getPendingPayments(limit: number = 5): Promise<any[]> {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('saas_payments')
@@ -336,6 +341,7 @@ class DashboardService {
    * جلب الاشتراكات المنتهية قريباً
    */
   async getExpiringSubscriptions(days: number = 30): Promise<any[]> {
+    if (isSelfHosted) return [];
     try {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + days);

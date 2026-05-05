@@ -242,15 +242,11 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'payment_schedule_tenant_read' AND tablename = 'payment_schedule') THEN
         CREATE POLICY payment_schedule_tenant_read ON payment_schedule
-            FOR SELECT USING (
-                EXISTS (SELECT 1 FROM company_users cu WHERE cu.company_id = payment_schedule.company_id AND cu.user_id = auth.uid())
-            );
+            FOR SELECT USING (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'payment_schedule_tenant_write' AND tablename = 'payment_schedule') THEN
         CREATE POLICY payment_schedule_tenant_write ON payment_schedule
-            FOR ALL USING (
-                EXISTS (SELECT 1 FROM company_users cu WHERE cu.company_id = payment_schedule.company_id AND cu.user_id = auth.uid())
-            );
+            FOR ALL USING (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
 END $$;
 
@@ -259,23 +255,11 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'schedule_items_tenant_read' AND tablename = 'payment_schedule_items') THEN
         CREATE POLICY schedule_items_tenant_read ON payment_schedule_items
-            FOR SELECT USING (
-                EXISTS (
-                    SELECT 1 FROM payment_schedule ps
-                    JOIN company_users cu ON cu.company_id = ps.company_id AND cu.user_id = auth.uid()
-                    WHERE ps.id = payment_schedule_items.schedule_id
-                )
-            );
+            FOR SELECT USING (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'schedule_items_tenant_write' AND tablename = 'payment_schedule_items') THEN
         CREATE POLICY schedule_items_tenant_write ON payment_schedule_items
-            FOR ALL USING (
-                EXISTS (
-                    SELECT 1 FROM payment_schedule ps
-                    JOIN company_users cu ON cu.company_id = ps.company_id AND cu.user_id = auth.uid()
-                    WHERE ps.id = payment_schedule_items.schedule_id
-                )
-            );
+            FOR ALL USING (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
 END $$;
 

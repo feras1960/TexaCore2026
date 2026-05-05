@@ -37,8 +37,13 @@ BEGIN
         ALTER TABLE companies ADD COLUMN code VARCHAR(50);
         
         -- توليد codes للبيانات الموجودة
-        UPDATE companies SET code = 'COMP-' || LPAD(ROW_NUMBER() OVER ()::TEXT, 4, '0')
-        WHERE code IS NULL;
+        WITH numbered AS (
+            SELECT id, ROW_NUMBER() OVER () as rn FROM companies WHERE code IS NULL
+        )
+        UPDATE companies c
+        SET code = 'COMP-' || LPAD(n.rn::TEXT, 4, '0')
+        FROM numbered n
+        WHERE c.id = n.id;
         
         ALTER TABLE companies ALTER COLUMN code SET NOT NULL;
     END IF;
@@ -66,8 +71,7 @@ BEGIN
     UPDATE companies SET name_en = name WHERE name_en IS NULL OR name_en = '';
     
     -- إزالة constraint القديم وإضافة الجديد
-    DROP INDEX IF EXISTS companies_code_key;
-    ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_code_key;
+    ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_code_key CASCADE;
     CREATE UNIQUE INDEX IF NOT EXISTS companies_tenant_code_unique 
         ON companies(tenant_id, code);
     
@@ -107,8 +111,14 @@ BEGIN
         ALTER TABLE branches ADD COLUMN code VARCHAR(50);
         
         -- توليد codes للبيانات الموجودة
-        UPDATE branches SET code = 'BR-' || LPAD(ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY created_at)::TEXT, 3, '0')
-        WHERE code IS NULL;
+        WITH numbered AS (
+            SELECT id, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY created_at) as rn 
+            FROM branches WHERE code IS NULL
+        )
+        UPDATE branches b
+        SET code = 'BR-' || LPAD(n.rn::TEXT, 3, '0')
+        FROM numbered n
+        WHERE b.id = n.id;
         
         ALTER TABLE branches ALTER COLUMN code SET NOT NULL;
     END IF;
@@ -184,8 +194,7 @@ BEGIN
     UPDATE currencies SET exchange_rate = rate WHERE exchange_rate = 1 AND rate != 1;
     
     -- إزالة constraint القديم وإضافة الجديد
-    DROP INDEX IF EXISTS currencies_code_key;
-    ALTER TABLE currencies DROP CONSTRAINT IF EXISTS currencies_code_key;
+    ALTER TABLE currencies DROP CONSTRAINT IF EXISTS currencies_code_key CASCADE;
     CREATE UNIQUE INDEX IF NOT EXISTS currencies_tenant_code_unique 
         ON currencies(tenant_id, code);
     
@@ -227,4 +236,26 @@ CREATE POLICY "Currencies are viewable by all" ON currencies
                 SELECT company_id FROM user_profiles WHERE id = auth.uid()
             )
         ) OR tenant_id IS NULL
+    );
+
+-- Tenants: يمكن للمستخدمين رؤية tenant الخاص بهم فقط (منقولة من 00002)
+DROP POLICY IF EXISTS "Users can view their tenant" ON tenants;
+CREATE POLICY "Users can view their tenant" ON tenants
+    FOR SELECT USING (
+        id IN (
+            SELECT tenant_id FROM companies WHERE id IN (
+                SELECT company_id FROM user_profiles WHERE id = auth.uid()
+            )
+        )
+    );
+
+-- Subscriptions: يمكن للمستخدمين رؤية اشتراكات tenant الخاص بهم (منقولة من 00002)
+DROP POLICY IF EXISTS "Users can view tenant subscriptions" ON subscriptions;
+CREATE POLICY "Users can view tenant subscriptions" ON subscriptions
+    FOR SELECT USING (
+        tenant_id IN (
+            SELECT tenant_id FROM companies WHERE id IN (
+                SELECT company_id FROM user_profiles WHERE id = auth.uid()
+            )
+        )
     );

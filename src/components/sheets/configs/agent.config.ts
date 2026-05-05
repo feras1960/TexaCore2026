@@ -49,7 +49,7 @@ export const agentConfig: SheetConfig = {
       suspended: { label: 'status.suspended', variant: 'error' },
       terminated: { label: 'status.terminated', variant: 'default' },
     };
-    const status = statusMap[data.status] || statusMap.pending;
+    const status = statusMap[data?.status] || statusMap.pending;
     return {
       label: status.label,
       variant: status.variant,
@@ -179,7 +179,7 @@ export const agentConfig: SheetConfig = {
       label: 'actions.approve',
       icon: Shield,
       variant: 'success',
-      show: (data) => data.status === 'pending',
+      show: (data) => data?.status === 'pending',
       onClick: () => { },
     },
     {
@@ -187,7 +187,7 @@ export const agentConfig: SheetConfig = {
       label: 'actions.suspend',
       icon: PauseCircle,
       variant: 'destructive',
-      show: (data) => data.status === 'active',
+      show: (data) => data?.status === 'active',
       confirm: {
         title: 'dialogs.confirmSuspend',
         description: 'dialogs.suspendAgentWarning',
@@ -199,7 +199,7 @@ export const agentConfig: SheetConfig = {
       label: 'actions.activate',
       icon: CheckCircle,
       variant: 'success',
-      show: (data) => data.status === 'suspended',
+      show: (data) => data?.status === 'suspended',
       onClick: () => { },
     },
   ],

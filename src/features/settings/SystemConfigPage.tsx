@@ -421,10 +421,13 @@ export default function SystemConfigPage() {
     }, [getActiveTab]);
 
     // ─── Filter tabs by role ─────────────────────────────────────
+    // ⚡ FIX: When no roles are matched (user has no role assignments,
+    // e.g. owner/admin without explicit RBAC setup), show ALL tabs
+    // instead of only the first 2. This is the safe default.
     const visibleTabs = useMemo(() => {
         if (rbacLoading) return CONFIG_TABS;
         const filtered = CONFIG_TABS.filter(tab => hasAnyRole(tab.requiresRole));
-        return filtered.length > 0 ? filtered : CONFIG_TABS.slice(0, 2);
+        return filtered.length > 0 ? filtered : CONFIG_TABS;
     }, [rbacLoading, hasAnyRole]);
 
     // MainTabsBar needs only { id, labelKey, icon }

@@ -25,8 +25,7 @@ CREATE TABLE IF NOT EXISTS warehouses (
     
     phone VARCHAR(50),
     email VARCHAR(200),
-    
-    manager_id UUID REFERENCES users(id),
+    manager_id UUID REFERENCES user_profiles(id),
     
     is_active BOOLEAN DEFAULT true,
     allows_negative_stock BOOLEAN DEFAULT false,

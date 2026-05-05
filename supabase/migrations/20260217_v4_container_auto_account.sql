@@ -3,11 +3,13 @@
 -- ║  2026-02-17 — Phase 6B Container Auto-Account                       ║
 -- ╚═══════════════════════════════════════════════════════════════════════╝
 
--- 1️⃣ إضافة عمود container_account_id لجدول containers
-ALTER TABLE containers
-ADD COLUMN IF NOT EXISTS container_account_id UUID REFERENCES chart_of_accounts(id);
-
-COMMENT ON COLUMN containers.container_account_id IS 'حساب بضاعة بالطريق الفرعي — يُنشأ تلقائياً تحت 1143';
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'containers') THEN
+        EXECUTE 'ALTER TABLE containers ADD COLUMN IF NOT EXISTS container_account_id UUID REFERENCES chart_of_accounts(id)';
+        EXECUTE 'COMMENT ON COLUMN containers.container_account_id IS ''حساب بضاعة بالطريق الفرعي — يُنشأ تلقائياً تحت 1143''';
+    END IF;
+END $$;
 
 -- 2️⃣ دالة إنشاء حساب فرعي تلقائياً عند إنشاء كونتينر
 CREATE OR REPLACE FUNCTION create_container_transit_account()
@@ -98,12 +100,17 @@ END;
 $$;
 
 -- 3️⃣ إنشاء الـ Trigger
-DROP TRIGGER IF EXISTS trg_create_container_account ON containers;
-
-CREATE TRIGGER trg_create_container_account
-    BEFORE INSERT ON containers
-    FOR EACH ROW
-    EXECUTE FUNCTION create_container_transit_account();
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'containers') THEN
+        EXECUTE 'DROP TRIGGER IF EXISTS trg_create_container_account ON containers';
+        EXECUTE '
+        CREATE TRIGGER trg_create_container_account
+            BEFORE INSERT ON containers
+            FOR EACH ROW
+            EXECUTE FUNCTION create_container_transit_account();';
+    END IF;
+END $$;
 
 COMMENT ON FUNCTION create_container_transit_account() IS 'V4 — ينشئ حساب فرعي تلقائي تحت 1143 لكل كونتينر جديد (Extended + Fabric فقط)';
 
@@ -121,6 +128,7 @@ DECLARE
     v_chart_type VARCHAR(30);
     v_count INT := 0;
 BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'containers') THEN
     SELECT id INTO v_current_asset_type FROM account_types WHERE code = 'CURRENT_ASSET';
 
     FOR v_rec IN 
@@ -171,18 +179,24 @@ BEGIN
         ) RETURNING id INTO v_new_account_id;
 
         -- Link
-        UPDATE containers SET container_account_id = v_new_account_id WHERE id = v_rec.id;
+        EXECUTE 'UPDATE containers SET container_account_id = $1 WHERE id = $2' USING v_new_account_id, v_rec.id;
         v_count := v_count + 1;
         RAISE NOTICE '  ✅ كونتينر %: حساب %', v_container_ref, v_new_code;
     END LOOP;
 
     RAISE NOTICE '🏁 تم إنشاء % حساب للكونتينرات الموجودة', v_count;
+    END IF;
 END;
 $$;
 
 -- ============================================================
 -- Add missing columns to container_items
 -- ============================================================
-ALTER TABLE container_items ADD COLUMN IF NOT EXISTS color_name TEXT;
-ALTER TABLE container_items ADD COLUMN IF NOT EXISTS material_code TEXT;
-ALTER TABLE container_items ADD COLUMN IF NOT EXISTS expected_sell_price NUMERIC DEFAULT 0;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'container_items') THEN
+        EXECUTE 'ALTER TABLE container_items ADD COLUMN IF NOT EXISTS color_name TEXT';
+        EXECUTE 'ALTER TABLE container_items ADD COLUMN IF NOT EXISTS material_code TEXT';
+        EXECUTE 'ALTER TABLE container_items ADD COLUMN IF NOT EXISTS expected_sell_price NUMERIC DEFAULT 0';
+    END IF;
+END $$;

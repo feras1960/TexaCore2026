@@ -188,21 +188,7 @@ ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_modules ENABLE ROW LEVEL SECURITY;
 
 -- Tenants: يمكن للمستخدمين رؤية tenant الخاص بهم فقط
-CREATE POLICY "Users can view their tenant" ON tenants
-    FOR SELECT USING (
-        id IN (
-            SELECT tenant_id FROM companies WHERE id IN (
-                SELECT company_id FROM user_profiles WHERE id = auth.uid()
-            )
-        )
-    );
+-- سيتم إضافة الصلاحيات لاحقاً بعد إضافة tenant_id إلى جدول companies
 
 -- Subscriptions: يمكن للمستخدمين رؤية اشتراكات tenant الخاص بهم
-CREATE POLICY "Users can view tenant subscriptions" ON subscriptions
-    FOR SELECT USING (
-        tenant_id IN (
-            SELECT tenant_id FROM companies WHERE id IN (
-                SELECT company_id FROM user_profiles WHERE id = auth.uid()
-            )
-        )
-    );
+-- سيتم إضافة الصلاحيات لاحقاً بعد إضافة tenant_id إلى جدول companies

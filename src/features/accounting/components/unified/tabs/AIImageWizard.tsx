@@ -18,7 +18,7 @@ import {
     Palette, Shirt, Sofa, Save, ZoomIn,
     Tag, QrCode, Barcode, Globe,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import heic2any from 'heic2any';
@@ -906,22 +906,12 @@ CRITICAL FINAL TOUCH: Draw fine, clean divider lines ONLY between the main secti
                     // Using cached token if still valid
                     if (!cachedAccessToken) {
                         console.log('[AI-Wizard] 🔑 Getting access token...');
-                        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-                        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                        const tokenRaw = await fetch(`${supabaseUrl}/functions/v1/generate-material-images`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${supabaseAnonKey}`,
-                                'apikey': supabaseAnonKey,
-                            },
-                            body: JSON.stringify({ action: 'get_token' }),
+                        const { data: tokenData, error: tokenError } = await cloudSupabase.functions.invoke('generate-material-images', {
+                            body: { action: 'get_token' },
                         });
-                        if (!tokenRaw.ok) {
-                            const errText = await tokenRaw.text().catch(() => '');
-                            throw new Error(`Token request failed (${tokenRaw.status}): ${errText}`);
+                        if (tokenError) {
+                            throw new Error(`Token request failed: ${tokenError.message}`);
                         }
-                        const tokenData = await tokenRaw.json();
                         if (!tokenData?.access_token) {
                             throw new Error('No access_token in response');
                         }

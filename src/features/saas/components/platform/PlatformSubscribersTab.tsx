@@ -85,7 +85,9 @@ export default function PlatformSubscribersTab({ platformId, platformCode }: Sub
 
             const enriched = await Promise.all((tenantData || []).map(async (t) => {
                 const { count: cc } = await supabase.from('companies').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id);
-                const { count: uc } = await supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id);
+                const { data: tCompanies } = await supabase.from('companies').select('id').eq('tenant_id', t.id);
+                const cIds = tCompanies?.map(c => c.id) || [];
+                const { count: uc } = cIds.length > 0 ? await supabase.from('user_profiles').select('id', { count: 'exact', head: true }).in('company_id', cIds) : { count: 0 };
                 const sub = (subData || []).find(s => s.tenant_id === t.id);
                 return { ...t, companies_count: cc || 0, users_count: uc || 0, _subscription: sub };
             }));
@@ -103,9 +105,12 @@ export default function PlatformSubscribersTab({ platformId, platformCode }: Sub
     const loadDetail = useCallback(async (tenant: any) => {
         setDetailLoading(true);
         try {
-            const [companiesRes, usersRes, modulesRes, sysModulesRes] = await Promise.all([
-                supabase.from('companies').select('*').eq('tenant_id', tenant.id).order('name_ar'),
-                supabase.from('user_profiles').select('*').eq('tenant_id', tenant.id).order('created_at'),
+            // Fetch companies first to get users by company_id instead of tenant_id
+            const companiesRes = await supabase.from('companies').select('*').eq('tenant_id', tenant.id).order('name_ar');
+            const cIds = (companiesRes.data || []).map(c => c.id);
+
+            const [usersRes, modulesRes, sysModulesRes] = await Promise.all([
+                cIds.length > 0 ? supabase.from('user_profiles').select('*').in('company_id', cIds).order('created_at') : Promise.resolve({ data: [] }),
                 supabase.from('tenant_modules').select('*').eq('tenant_id', tenant.id).order('module_code'),
                 supabase.from('system_modules').select('*').eq('is_active', true).order('display_order'),
             ]);

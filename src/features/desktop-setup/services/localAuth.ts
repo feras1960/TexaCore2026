@@ -9,9 +9,11 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+import { appConfig } from '@/lib/supabase';
+
 // ─── Desktop Supabase Client (points to local Docker) ─────
-const DESKTOP_SUPABASE_URL = 'http://localhost:54321';
-const DESKTOP_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WO_eo0y4lHl1pBdvVu_mkwMvO1s22qwpM3C0';
+const DESKTOP_SUPABASE_URL = appConfig.supabaseUrl || 'http://localhost:54321';
+const DESKTOP_ANON_KEY = appConfig.supabaseKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WO_eo0y4lHl1pBdvVu_mkwMvO1s22qwpM3C0';
 const DESKTOP_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
 let desktopClient: SupabaseClient | null = null;

@@ -13,10 +13,15 @@
 -- ═══════════════════════════════════════════════════════════════
 
 -- ─── 0. New columns for containers ─────────────────────────
-ALTER TABLE containers ADD COLUMN IF NOT EXISTS receiving_warehouse_id UUID REFERENCES warehouses(id);
-ALTER TABLE containers ADD COLUMN IF NOT EXISTS warehouse_keeper_id UUID;
-ALTER TABLE containers ADD COLUMN IF NOT EXISTS receiving_notes TEXT;
-ALTER TABLE containers ADD COLUMN IF NOT EXISTS notification_rules JSONB DEFAULT '[]';
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'containers') THEN
+        EXECUTE 'ALTER TABLE containers ADD COLUMN IF NOT EXISTS receiving_warehouse_id UUID REFERENCES warehouses(id)';
+        EXECUTE 'ALTER TABLE containers ADD COLUMN IF NOT EXISTS warehouse_keeper_id UUID';
+        EXECUTE 'ALTER TABLE containers ADD COLUMN IF NOT EXISTS receiving_notes TEXT';
+        EXECUTE 'ALTER TABLE containers ADD COLUMN IF NOT EXISTS notification_rules JSONB DEFAULT ''[]''';
+    END IF;
+END $$;
 
 -- ─── 1. Notifications Table ─────────────────────────────────
 DROP TABLE IF EXISTS notifications CASCADE;
@@ -59,7 +64,14 @@ CREATE POLICY "notifications_delete_own" ON notifications
     FOR DELETE USING (user_id = auth.uid());
 
 -- Realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+    ELSE
+        RAISE NOTICE 'publication "supabase_realtime" does not exist, skipping Realtime setup';
+    END IF;
+END $$;
 
 -- ─── 2. Container Status Change Trigger ──────────────────────
 CREATE OR REPLACE FUNCTION fn_container_status_notification()
@@ -141,10 +153,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trg_container_status_notification ON containers;
-CREATE TRIGGER trg_container_status_notification
-    AFTER UPDATE OF status ON containers
-    FOR EACH ROW EXECUTE FUNCTION fn_container_status_notification();
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'containers') THEN
+        EXECUTE 'DROP TRIGGER IF EXISTS trg_container_status_notification ON containers';
+        EXECUTE '
+        CREATE TRIGGER trg_container_status_notification
+            AFTER UPDATE OF status ON containers
+            FOR EACH ROW EXECUTE FUNCTION fn_container_status_notification();';
+    END IF;
+END $$;
 
 -- ─── 3. Helper Functions ─────────────────────────────────────
 CREATE OR REPLACE FUNCTION fn_mark_notifications_read(notification_ids UUID[])

@@ -5,10 +5,11 @@
 
 -- 1. التأكد من جدول حركات المخزون (Inventory Movements)
 -- يجب أن لا يطلب product_id إلزامياً إذا كان material_id موجوداً
-BEGIN;
-    ALTER TABLE inventory_movements ALTER COLUMN product_id DROP NOT NULL;
-EXCEPTION WHEN OTHERS THEN NULL;
-END;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'inventory_movements') THEN
+        ALTER TABLE inventory_movements ALTER COLUMN product_id DROP NOT NULL;
+    END IF;
+END $$;
 
 DO $$
 BEGIN
@@ -25,27 +26,32 @@ END $$;
 
 -- 2. إصلاح سياسات الأمان (RLS) لحركات المخزون
 -- المشكلة: السياسات الحالية قد تمنع الإضافة التلقائية عند الاستلام
-ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'inventory_movements') THEN
+        EXECUTE 'ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY';
 
-DROP POLICY IF EXISTS "Enable all access for authenticated users" ON inventory_movements;
-DROP POLICY IF EXISTS "Allow insert for warehouse staff" ON inventory_movements;
-DROP POLICY IF EXISTS "Allow insert for authenticated users" ON inventory_movements;
-DROP POLICY IF EXISTS "Allow select for authenticated users" ON inventory_movements;
+        EXECUTE 'DROP POLICY IF EXISTS "Enable all access for authenticated users" ON inventory_movements';
+        EXECUTE 'DROP POLICY IF EXISTS "Allow insert for warehouse staff" ON inventory_movements';
+        EXECUTE 'DROP POLICY IF EXISTS "Allow insert for authenticated users" ON inventory_movements';
+        EXECUTE 'DROP POLICY IF EXISTS "Allow select for authenticated users" ON inventory_movements';
 
-CREATE POLICY "Allow insert for authenticated users" 
-ON inventory_movements 
-FOR INSERT 
-TO authenticated 
-WITH CHECK (true);
+        EXECUTE 'CREATE POLICY "Allow insert for authenticated users" 
+            ON inventory_movements 
+            FOR INSERT 
+            TO authenticated 
+            WITH CHECK (true)';
 
-CREATE POLICY "Allow select for authenticated users" 
-ON inventory_movements 
-FOR SELECT 
-TO authenticated 
-USING (true);
+        EXECUTE 'CREATE POLICY "Allow select for authenticated users" 
+            ON inventory_movements 
+            FOR SELECT 
+            TO authenticated 
+            USING (true)';
+    END IF;
+END $$;
 
 -- 3. إصلاح سياسات الأمان (RLS) لتحديث الفواتير
 -- المشكلة: الموظف لا يستطيع تغيير حالة الفاتورة من Posted إلى Received
+DROP FUNCTION IF EXISTS update_purchase_document_status_bypass_rls(text, uuid, text, uuid, text);
 CREATE OR REPLACE FUNCTION update_purchase_document_status_bypass_rls(
     p_table TEXT,
     p_id UUID,
@@ -76,13 +82,17 @@ $$;
 -- (تأكيد على الإصلاح السابق)
 DO $$
 BEGIN
-    ALTER TABLE inventory_stock DROP CONSTRAINT IF EXISTS inventory_stock_product_id_fkey;
-    ALTER TABLE inventory_stock ALTER COLUMN product_id DROP NOT NULL;
-EXCEPTION WHEN OTHERS THEN NULL;
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'inventory_stock') THEN
+        ALTER TABLE inventory_stock DROP CONSTRAINT IF EXISTS inventory_stock_product_id_fkey;
+        ALTER TABLE inventory_stock ALTER COLUMN product_id DROP NOT NULL;
+    END IF;
 END $$;
 
--- 5. تنظيف التريجرز القديمة التي قد تسبب تعارضاً
-DROP TRIGGER IF EXISTS trg_validate_inventory_movement ON inventory_movements;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'inventory_movements') THEN
+        EXECUTE 'DROP TRIGGER IF EXISTS trg_validate_inventory_movement ON inventory_movements';
+    END IF;
+END $$;
 
 DO $$
 BEGIN

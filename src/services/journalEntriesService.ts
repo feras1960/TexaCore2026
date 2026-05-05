@@ -37,6 +37,13 @@ export interface JournalEntryLine {
   cost_center_id?: string;
   party_type?: string | null;   // 'supplier' | 'customer'
   party_id?: string | null;     // UUID of supplier or customer
+  reference_type?: string | null;  // 'invoice' | 'container' | 'transfer' | 'none'
+  reference_id?: string | null;    // UUID of linked document
+  is_fund_line?: boolean;          // auto-generated fund line (hidden in UI)
+  currency?: string | null;
+  exchange_rate?: number;
+  debit_fc?: number;
+  credit_fc?: number;
   created_at: string;
 }
 
@@ -67,6 +74,8 @@ export interface CreateJournalEntryInput {
     party_type?: string | null;
     party_id?: string | null;
     is_fund_line?: boolean;  // ← سطر الصندوق التلقائي — يُخفى في تبويب القيد
+    reference_type?: string | null;  // stored reference type (invoice/container/transfer)
+    reference_id?: string | null;    // stored reference document ID
   }[];
 }
 

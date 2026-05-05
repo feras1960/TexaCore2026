@@ -470,15 +470,33 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
 
         const autoInit = async () => {
             const isBankFund = data?.is_bank_account;
-            const parentCode = isBankFund ? '112' : '111';
+            // Support both TexaCore (111/112) and Al-Rasheed (181/182) code patterns
+            const parentCodes = isBankFund ? ['112', '182', '1120'] : ['111', '181', '1110'];
 
-            // Find parent account
-            const { data: parentAcct } = await supabase
+            // Find parent account — try each code pattern
+            let parentAcct: any = null;
+            for (const parentCode of parentCodes) {
+              const { data: found } = await supabase
                 .from('chart_of_accounts')
                 .select('id, account_code, name_ar, name_en, account_type_id')
                 .eq('company_id', cId)
                 .eq('account_code', parentCode)
                 .single();
+              if (found) { parentAcct = found; break; }
+            }
+            // Also try flag-based detection as ultimate fallback
+            if (!parentAcct) {
+              const flagField = isBankFund ? 'is_bank_account' : 'is_cash_account';
+              const { data: flagAcct } = await supabase
+                .from('chart_of_accounts')
+                .select('id, account_code, name_ar, name_en, account_type_id')
+                .eq('company_id', cId)
+                .eq(flagField, true)
+                .eq('is_group', true)
+                .limit(1)
+                .single();
+              if (flagAcct) parentAcct = flagAcct;
+            }
 
             if (parentAcct) {
                 // Set parent
@@ -501,10 +519,10 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                     const codes = siblings
                         .map((s: any) => parseInt(s.account_code))
                         .filter((n: number) => !isNaN(n));
-                    const nextCode = codes.length > 0 ? (Math.max(...codes) + 1).toString() : parentCode + '1';
+                    const nextCode = codes.length > 0 ? (Math.max(...codes) + 1).toString() : parentAcct.account_code + '1';
                     onChange({ account_code: nextCode });
                 } else {
-                    onChange({ account_code: parentCode + '1' });
+                    onChange({ account_code: parentAcct.account_code + '1' });
                 }
 
                 // Set is_group to false and is_cash/is_bank flags

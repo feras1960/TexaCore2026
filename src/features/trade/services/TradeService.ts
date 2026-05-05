@@ -209,18 +209,29 @@ export const TradeService = {
         const tenantId = authUser?.user_metadata?.tenant_id || authUser?.app_metadata?.tenant_id;
 
         if (!tenantId) {
-            // Fallback: try user_profiles
+            // Fallback: try user_profiles -> companies to get tenant_id
             if (authUser?.id) {
                 const { data: profile } = await supabase
                     .from('user_profiles')
-                    .select('tenant_id')
+                    .select('company_id')
                     .eq('id', authUser.id)
                     .single();
-                if (!profile?.tenant_id) {
-                    throw new Error('tenant_id not found for current user');
+                    
+                if (profile?.company_id) {
+                    const { data: companyData } = await supabase
+                        .from('companies')
+                        .select('tenant_id')
+                        .eq('id', profile.company_id)
+                        .single();
+                        
+                    if (companyData?.tenant_id) {
+                        (doc as any)._resolved_tenant_id = companyData.tenant_id;
+                    } else {
+                        throw new Error('tenant_id not found for current user company');
+                    }
+                } else {
+                    throw new Error('company_id not found for current user');
                 }
-                // Use profile tenant_id below
-                (doc as any)._resolved_tenant_id = profile.tenant_id;
             } else {
                 throw new Error('tenant_id not found - user not authenticated');
             }
@@ -844,6 +855,33 @@ export const TradeService = {
             }
         }
 
+        // ── إثراء بنود المشتريات بأسماء المواد (purchase_transaction_items يحتوي material_id فقط) ──
+        if (docType === 'purchase_invoice' && items.length > 0) {
+            const materialIds = [...new Set(items.map((i: any) => i.material_id).filter(Boolean))];
+            if (materialIds.length > 0) {
+                const { data: materials } = await supabase
+                    .from('fabric_materials')
+                    .select('id, name_ar, name_en, code')
+                    .in('id', materialIds);
+
+                const matMap = new Map((materials || []).map((m: any) => [m.id, m]));
+                items = items.map((item: any) => {
+                    const mat = matMap.get(item.material_id);
+                    // ═══ إذا كان الوصف الحالي هو مجرد كود (رقمي قصير)، نستبدله بالاسم العربي ═══
+                    const descLooksLikeCode = !item.description || /^\d{1,10}$/.test(item.description.trim());
+                    const bestDescription = (descLooksLikeCode && mat?.name_ar) ? mat.name_ar : (item.description || mat?.name_ar || '');
+                    return {
+                        ...item,
+                        description: bestDescription,
+                        material_name_ar: mat?.name_ar || item.description || '',
+                        material_name_en: mat?.name_en || '',
+                        material_code: mat?.code || '',
+                        item_code: mat?.code || item.item_code || '',
+                    };
+                });
+            }
+        }
+
         // ── إثراء البنود بالرولونات واسم المستودع (فواتير المبيعات المسلَّمة) ──
         if (docType === 'invoice' && header?.stage && ['delivered', 'posted', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'completed', 'confirmed'].includes(header.stage) && items.length > 0) {
             let rollsByMat: Record<string, any[]> = {};
@@ -1030,11 +1068,23 @@ export const TradeService = {
         if (!tenantId) {
             const { data: profile } = await supabase
                 .from('user_profiles')
-                .select('tenant_id')
+                .select('company_id')
                 .eq('id', authUser.id)
                 .single();
-            if (!profile?.tenant_id) throw new Error('tenant_id not found');
-            data.tenant_id = profile.tenant_id;
+            if (profile?.company_id) {
+                const { data: companyData } = await supabase
+                    .from('companies')
+                    .select('tenant_id')
+                    .eq('id', profile.company_id)
+                    .single();
+                if (companyData?.tenant_id) {
+                    data.tenant_id = companyData.tenant_id;
+                } else {
+                    throw new Error('tenant_id not found in company');
+                }
+            } else {
+                throw new Error('company_id not found');
+            }
         } else {
             data.tenant_id = tenantId;
         }

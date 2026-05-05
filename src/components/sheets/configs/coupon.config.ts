@@ -63,7 +63,7 @@ export const couponConfig: SheetConfig = {
       expired: { label: 'status.expired', variant: 'error' },
       exhausted: { label: 'status.exhausted', variant: 'warning' },
     };
-    const status = statusMap[data.status] || statusMap['inactive'];
+    const status = statusMap[data?.status] || statusMap['inactive'];
     return {
       label: status.label,
       variant: status.variant,
@@ -290,7 +290,7 @@ export const couponConfig: SheetConfig = {
       label: 'actions.deactivate',
       icon: XCircle,
       variant: 'destructive',
-      show: (data) => data.status === 'active',
+      show: (data) => data?.status === 'active',
       confirm: {
         title: 'dialogs.confirmDeactivation',
         description: 'dialogs.deactivateCouponWarning',
@@ -302,7 +302,7 @@ export const couponConfig: SheetConfig = {
       label: 'actions.activate',
       icon: CheckCircle,
       variant: 'success',
-      show: (data) => data.status !== 'active' && data.status !== 'expired',
+      show: (data) => data?.status !== 'active' && data?.status !== 'expired',
       onClick: () => { },
     },
   ],

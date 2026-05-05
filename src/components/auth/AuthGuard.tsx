@@ -121,8 +121,29 @@ export function AuthGuard() {
         return;
       }
 
-      // If user has no tenant_id, they need to go through the wizard
+      // If user has no tenant_id, they need to go through the wizard.
+      // BUT: in local mode (localhost) the company is pre-provisioned,
+      // so we skip the wizard and let them in.
       if (!authUser.tenant_id) {
+        // Check if we're in local self-hosted mode
+        const isLocalMode = (() => {
+          try {
+            const stored = localStorage.getItem('texacore_active_company');
+            if (!stored) return false;
+            const company = JSON.parse(stored);
+            return company?.url?.includes('localhost') || company?.url?.includes('127.0.0.1');
+          } catch { return false; }
+        })();
+
+        if (isLocalMode) {
+          // Local mode: company already created — skip wizard, allow access
+          console.log('[AuthGuard] Local mode: skipping wizard, company is pre-provisioned');
+          setTenantValid(true);
+          setCheckingTenant(false);
+          tenantCheckedRef.current = true;
+          return;
+        }
+
         console.log('🧙 User has no tenant_id - needs registration wizard');
         setNeedsWizard(true);
         setTenantValid(false);
@@ -245,7 +266,17 @@ export function AuthGuard() {
   }
 
   // 🛡️ SECURITY: Tenant deleted or suspended → طرد فوري للموقع الرئيسي
-  if (tenantValid === false && !isSuperAdmin && !needsWizard) {
+  // In local mode: skip this check — the local tenant is always valid
+  const isLocalMode = (() => {
+    try {
+      const stored = localStorage.getItem('texacore_active_company');
+      if (!stored) return false;
+      const c = JSON.parse(stored);
+      return c?.url?.includes('localhost') || c?.url?.includes('127.0.0.1');
+    } catch { return false; }
+  })();
+
+  if (tenantValid === false && !isSuperAdmin && !needsWizard && !isLocalMode) {
     // استخدام window.location.href للتوجيه المباشر (لا ينتظر React)
     logout().then(() => {
       window.location.href = KICK_REDIRECT_URL;
@@ -259,6 +290,8 @@ export function AuthGuard() {
       </div>
     );
   }
+
+
 
   return <Outlet />;
 }

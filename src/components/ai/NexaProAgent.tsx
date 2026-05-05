@@ -11,7 +11,8 @@ import { createPortal } from 'react-dom';
 import { useNexaContext } from '@/providers/NexaContextProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
+import { fetchLocalContextSnapshot, isSelfHosted } from '@/lib/ai/localContextBridge';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Bot, Send, Loader2, X, Minus, Sparkles, MessageCircle } from 'lucide-react';
@@ -79,6 +80,8 @@ const CONTEXT_PROMPTS: Record<string, { ar: string[]; en: string[] }> = {
 };
 
 const PAGE_SIZE = 20;
+
+// 🖥️ Self-Hosted context bridging: see @/lib/ai/localContextBridge.ts
 
 export function NexaProAgent() {
     const { currentPage, currentPageLabel, currentEntity, isOpen, hasNewInsight, toggleCopilot, closeCopilot, setHasNewInsight } = useNexaContext();
@@ -322,12 +325,19 @@ function CopilotPanel({ companyId, isAr, language, currentPage, currentPageLabel
                 enrichedMessage = `[السياق: ${currentEntity.type} — ${currentEntity.label}${ctxInfo ? ' | ' + ctxInfo : ''}]\n${msg}`;
             }
 
+            // 🖥️ Self-hosted: fetch local context to bridge local-cloud data gap
+            let localContext: Record<string, any> | null = null;
+            if (isSelfHosted) {
+                setStreamPhase(isAr ? '📊 جاري تحميل بيانات الشركة...' : '📊 Loading company data...');
+                localContext = await fetchLocalContextSnapshot(companyId);
+            }
+
             // Retry once on cold start failure
             let data: any = null;
             let lastError: any = null;
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {
-                    const result = await supabase.functions.invoke('nexa-agent', {
+                    const result = await cloudSupabase.functions.invoke('nexa-agent', {
                         body: {
                             message: enrichedMessage, language,
                             context_type: currentEntity?.type || currentPage || 'general',
@@ -336,6 +346,8 @@ function CopilotPanel({ companyId, isAr, language, currentPage, currentPageLabel
                             complexity: 'auto',
                             company_id: companyId,
                             conversation_summary: getMemory(messages) || undefined,
+                            // 🖥️ Self-hosted: send local data snapshot directly
+                            ...(localContext ? { context_data: localContext, is_self_hosted: true } : {}),
                         },
                     });
                     data = result.data;

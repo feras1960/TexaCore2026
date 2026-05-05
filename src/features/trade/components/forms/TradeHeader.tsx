@@ -112,12 +112,22 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
     const isCreate = !data.id; // Check if creating new document
     const { pushContext } = useNexaContext();
 
+    // Resolve the effective date — doc_date (from purchase_transactions) takes priority
+    const effectiveDate = data.date || data.doc_date || data.invoice_date || '';
+
     // Set Default Date only if creating
     useEffect(() => {
-        if (isCreate && !data.date) {
+        if (isCreate && !effectiveDate) {
             onChange('date', new Date().toISOString());
         }
-    }, [isCreate, data.date, onChange]);
+    }, [isCreate, effectiveDate, onChange]);
+
+    // Sync doc_date → date for forms that read data.date (one-time on load)
+    useEffect(() => {
+        if (!isCreate && !data.date && (data.doc_date || data.invoice_date)) {
+            onChange('date', data.doc_date || data.invoice_date);
+        }
+    }, [isCreate, data.date, data.doc_date, data.invoice_date, onChange]);
 
     // ─── Detect multi-warehouse from items ───
     const warehouseInfo = useMemo(() => {

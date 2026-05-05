@@ -85,6 +85,10 @@ export interface AccountingGridProps<TData extends Record<string, any>> {
     debitKey?: string;
     /** مفتاح عمود الدائن */
     creditKey?: string;
+    /** مفتاح المدين لحساب التوازن (العملة المحلية) — افتراضي = debitKey */
+    balanceDebitKey?: string;
+    /** مفتاح الدائن لحساب التوازن (العملة المحلية) — افتراضي = creditKey */
+    balanceCreditKey?: string;
     /** تفعيل اختصار الموازنة */
     enableBalanceShortcut?: boolean;
     /** إخفاء تحذير الفرق في التوازن (لليومية الصندوق/المقبوضات/المدفوعات) */
@@ -547,6 +551,8 @@ export function AccountingGrid<TData extends Record<string, any>>({
     onSave,
     debitKey = 'debit',
     creditKey = 'credit',
+    balanceDebitKey: propBalanceDebitKey,
+    balanceCreditKey: propBalanceCreditKey,
     enableBalanceShortcut = false,
     hideBalanceWarning = false,
     showTotalsFooter = false,
@@ -573,6 +579,10 @@ export function AccountingGrid<TData extends Record<string, any>>({
 
     const { t, language } = useLanguage();
     const { decimalPlaces } = useAccountingSettings();
+
+    // ═══ Balance keys — للتوازن نستخدم المبلغ المحلي (debit_local/credit_local) ═══
+    const balDebitKey = propBalanceDebitKey || debitKey;
+    const balCreditKey = propBalanceCreditKey || creditKey;
 
     // ─── Initialize with empty rows if needed ───
     const initializedRef = useRef(false);
@@ -906,13 +916,14 @@ export function AccountingGrid<TData extends Record<string, any>>({
         return () => document.removeEventListener('keydown', handleGlobalKeyDown);
     }, [rows, onSave, cleanEmptyRowsOnSave, isRowEmpty]);
 
-    // ─── Totals ───
+    // ─── Totals (بالعملة المحلية للتوازن الصحيح) ───
     const totals = useMemo(() => {
         let totalDebit = 0;
         let totalCredit = 0;
         rows.forEach(row => {
-            totalDebit += Number(row[debitKey]) || 0;
-            totalCredit += Number(row[creditKey]) || 0;
+            // ═══ المجاميع بالمبلغ المحلي — لحساب التوازن الصحيح ═══
+            totalDebit += Number(row[balDebitKey]) || 0;
+            totalCredit += Number(row[balCreditKey]) || 0;
         });
         return {
             totalDebit,
@@ -920,7 +931,7 @@ export function AccountingGrid<TData extends Record<string, any>>({
             balance: totalDebit - totalCredit,
             rowCount: rows.filter(row => !isRowEmpty(row)).length,
         };
-    }, [rows, debitKey, creditKey, isRowEmpty]);
+    }, [rows, balDebitKey, balCreditKey, isRowEmpty]);
 
     // ─── TanStack Table ───
     // In read-only mode: filter out empty rows so only real data shows

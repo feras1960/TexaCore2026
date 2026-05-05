@@ -20,7 +20,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient, useIsRestoring } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSelfHosted } from '@/lib/supabase';
 import { accountsService } from '@/services/accountsService';
 import { warehouseService } from '@/services/warehouseService';
 import { preloadAccounts } from '@/components/ui/InlineAccountCell';
@@ -35,6 +35,12 @@ import { format } from 'date-fns';
 const SEMI_STATIC = 10 * 60 * 1000;  // 10 min
 const DYNAMIC     = 2  * 60 * 1000;  //  2 min
 const GC_TIME     = 24 * 60 * 60 * 1000;  // 24 hours (matches persistence)
+
+// ═══════════════════════════════════════════════
+// 🖥️ LOCAL MODE: Is the app running against a local database on same machine?
+// 🌐 REMOTE SELFHOSTED: keep full preloading (network latency = preloading valuable)
+// ═══════════════════════════════════════════════
+const isLocalMode = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 
 export function useDataPreloader() {
     const { companyId, user } = useAuth();
@@ -52,6 +58,30 @@ export function useDataPreloader() {
         hasPreloaded.current = true;
 
         const t0 = performance.now();
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🖥️ LOCAL/SELFHOSTED: Lightweight preload — data is on localhost
+        //    so on-demand fetching is fast (~5ms). Only load essentials.
+        //    This avoids 40+ concurrent HTTP requests choking PostgREST.
+        // ═══════════════════════════════════════════════════════════════
+        if (isLocalMode) {
+            Promise.allSettled([
+                // 1. Chart of Accounts — needed by almost every page
+                queryClient.prefetchQuery({
+                    queryKey: ['accounts', companyId, 'all'],
+                    queryFn: () => accountsService.getAll(companyId!, { includePartyAccounts: true }),
+                    staleTime: SEMI_STATIC,
+                    gcTime: GC_TIME,
+                }),
+                // 2-4. Inline lookups (small & fast)
+                Promise.resolve(preloadAccounts(companyId!)),
+                Promise.resolve(preloadCurrencies(companyId!)),
+                Promise.resolve(preloadExchangeRates(companyId!)),
+            ]).then(() => {
+                console.log(`⚡ [DataPreloader] Local mode — essentials loaded in ${Math.round(performance.now() - t0)}ms`);
+            });
+            return; // Skip Tier 1/2/3 heavy loading
+        }
 
         // ═══════════════════════════════════════════════
         // 🔴 Tier 1: Critical — Load immediately in parallel
@@ -512,9 +542,11 @@ export function useDataPreloader() {
                                 id, entry_number, entry_date, description, description_ar, description_en,
                                 status, is_posted, entry_type, reference_type, reference_id, reference_number,
                                 total_debit, total_credit, created_by, currency,
+                                fund_account_id,
                                 lines:journal_entry_lines(
                                     id, account_id, description, debit, credit,
                                     debit_fc, credit_fc, currency, exchange_rate, cost_center_id,
+                                    reference_type, reference_id, is_fund_line, line_number,
                                     account:chart_of_accounts(account_code, name_ar, name_en)
                                 )
                             `)

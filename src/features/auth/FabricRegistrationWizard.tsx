@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -437,7 +437,7 @@ export default function FabricRegistrationWizard() {
             const userName = user.user_metadata?.full_name || formData.companyName || 'User';
             if (userEmail) {
                 try {
-                    const emailRes = await supabase.functions.invoke('send-email', {
+                    const emailRes = await cloudSupabase.functions.invoke('send-email', {
                         body: {
                             to: userEmail,
                             subject: '🎉 مرحباً بك في TexaCore ERP — تم تفعيل حسابك بنجاح!',

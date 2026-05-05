@@ -43,7 +43,7 @@ serve(async (req) => {
       message, language = 'ar', context_type = 'general', context_id,
       context_data, chat_history = [], complexity = 'auto',
       company_id, stream = false, conversation_summary,
-      client_role, user_name,
+      client_role, user_name, is_self_hosted,
     } = await req.json()
 
     const apiKey = Deno.env.get("GOOGLE_AI_KEY")
@@ -169,8 +169,16 @@ serve(async (req) => {
 
     console.log('[NexaPro] 🔒', resolvedCompanyId ? `✅ company=${resolvedCompanyId}` : '❌ NO COMPANY', 'tenant:', resolvedTenantId || 'NONE', 'model:', usedModel);
 
+    // ═══ 🖥️ Self-Hosted Mode: bypass cloud data when local client provides context ═══
+    const selfHostedMode = is_self_hosted === true && !resolvedCompanyId;
+    if (selfHostedMode) {
+      console.log('[NexaPro] 🖥️ Self-hosted mode — using client-provided context. Keys:', Object.keys(context_data || {}));
+      userRole = client_role || 'company_owner';
+      enrichedContext = context_data || enrichedContext;
+    }
+
     // ═══ Fetch Context ═══
-    if (adminClient && resolvedCompanyId) {
+    if (!selfHostedMode && adminClient && resolvedCompanyId) {
       if (context_type === 'general') {
         enrichedContext = await fetchCachedContext(adminClient, resolvedCompanyId);
         if (enrichedContext) {
@@ -185,7 +193,7 @@ serve(async (req) => {
     }
 
     // Fallback: try user JWT if service role returned empty
-    if ((!enrichedContext?.overview && context_type === 'general') || (!enrichedContext?.material && context_type === 'material')) {
+    if (!selfHostedMode && ((!enrichedContext?.overview && context_type === 'general') || (!enrichedContext?.material && context_type === 'material'))) {
       if (authHeader && supabaseUrl && supabaseAnonKey) {
         const userClient = createClient(supabaseUrl, supabaseAnonKey, { global: { headers: { Authorization: authHeader } } });
         if (context_type === 'general' && resolvedCompanyId) {
@@ -203,6 +211,12 @@ serve(async (req) => {
         const { data: companyLoc } = await adminClient.from('companies').select('country, city, country_code').eq('id', resolvedCompanyId).single();
         if (companyLoc) locationInfo = { country: companyLoc.country, city: companyLoc.city, countryCode: companyLoc.country_code };
       } catch { /* ignore */ }
+    }
+
+    // 🖥️ Self-hosted: extract location from client-provided context
+    if (selfHostedMode && !locationInfo.country && enrichedContext?._company_country) {
+      locationInfo = { country: enrichedContext._company_country, city: enrichedContext._company_city, countryCode: enrichedContext._company_country_code };
+      console.log('[NexaPro] 🖥️ Self-hosted location:', JSON.stringify(locationInfo));
     }
 
     // ═══ 🔒 SECURITY: Filter context by user role BEFORE Gemini sees it ═══
@@ -223,14 +237,19 @@ serve(async (req) => {
     }
     contents.push({ role: 'user', parts: [{ text: message }] });
 
-    // ═══ SQL Agent Setup ═══
-    const schemaContext = adminClient ? await loadSchema(adminClient) : '';
+    // ═══ SQL Agent Setup (disabled for self-hosted — cloud DB has no local data) ═══
+    const schemaContext = (!selfHostedMode && adminClient) ? await loadSchema(adminClient) : '';
     const tools = buildSQLTools(schemaContext);
     const sqlAgentPrompt = buildSQLAgentPrompt(schemaContext, resolvedCompanyId, resolvedTenantId, userRole);
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`;
 
+    let selfHostedHint = '';
+    if (selfHostedMode) {
+      selfHostedHint = '\n\n⚠️ أنت تعمل في وضع Self-Hosted محلي. لا يمكنك استخدام SQL Agent. اعتمد فقط على البيانات المتوفرة في السياق أعلاه. قدّم تحليلات وتوصيات بناءً على ما لديك.';
+    }
+
     let geminiBody: any = {
-      system_instruction: { parts: [{ text: systemPrompt + sqlAgentPrompt }] },
+      system_instruction: { parts: [{ text: systemPrompt + sqlAgentPrompt + selfHostedHint }] },
       contents,
       generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
     };
@@ -274,7 +293,6 @@ serve(async (req) => {
     // ═══ Non-Streaming: Handle API errors ═══
     if (!result.ok) {
       console.error('[NexaPro] Gemini API error, status:', result.status);
-      // Try Flash-Lite fallback for ANY failed model
       console.log('[NexaPro] Trying Flash-Lite fallback...');
       const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
       const fallbackResponse = await fetch(fallbackUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system_instruction: { parts: [{ text: systemPrompt }] }, contents, generationConfig: { temperature: 0.4, maxOutputTokens: 8192 } }) });
@@ -296,13 +314,13 @@ serve(async (req) => {
     if (!responseText) {
       console.warn('[NexaPro] ⚠️ Empty response. finishReason:', finishReason, '— Retrying server-side...');
 
-      // Strategy 1: 🧠 Pro model (strongest) — best for complex analysis
+      // Strategy 1: 🧠 Pro model (strongest)
       if (!responseText) {
         try {
           console.log('[NexaPro] Retry 1/4: gemini-3.1-pro-preview (strongest)...');
           const proUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${apiKey}`;
           const proBody = {
-            system_instruction: { parts: [{ text: systemPrompt }] },
+            system_instruction: { parts: [{ text: systemPrompt + selfHostedHint }] },
             contents: [{ role: 'user', parts: [{ text: message }] }],
             generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
           };
@@ -315,13 +333,13 @@ serve(async (req) => {
         } catch (e) { console.warn('[NexaPro] Pro retry failed:', e); }
       }
 
-      // Strategy 2: ⚡ Flash without SQL tools (clean context)
+      // Strategy 2: ⚡ Flash without SQL tools
       if (!responseText) {
         try {
           console.log('[NexaPro] Retry 2/4: gemini-3-flash-preview (no tools)...');
           const retryUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
           const retryBody = {
-            system_instruction: { parts: [{ text: systemPrompt }] },
+            system_instruction: { parts: [{ text: systemPrompt + selfHostedHint }] },
             contents: [{ role: 'user', parts: [{ text: message }] }],
             generationConfig: { temperature: 0.5, maxOutputTokens: 4096 },
           };
@@ -334,7 +352,7 @@ serve(async (req) => {
         } catch (retryErr) { console.warn('[NexaPro] Flash retry failed:', retryErr); }
       }
 
-      // Strategy 3: 🔒 Flash with safety bypass (for SAFETY/RECITATION blocks)
+      // Strategy 3: 🔒 Flash with safety bypass
       if (!responseText && (finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'OTHER')) {
         try {
           console.log('[NexaPro] Retry 3/4: gemini-3-flash-preview (safety bypass)...');
@@ -352,7 +370,7 @@ serve(async (req) => {
         } catch (e) { console.warn('[NexaPro] Safety retry failed:', e); }
       }
 
-      // Strategy 4: 💨 Flash-Lite with minimal prompt (last resort)
+      // Strategy 4: 💨 Flash-Lite (last resort)
       if (!responseText) {
         try {
           console.log('[NexaPro] Retry 4/4: gemini-3.1-flash-lite-preview (last resort)...');

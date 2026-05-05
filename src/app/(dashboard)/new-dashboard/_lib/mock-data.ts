@@ -144,8 +144,8 @@ export const MOCK_ACTIVITY: ActivityItem[] = [
 ];
 
 export const MOCK_CURRENCIES: CurrencyBreakdown[] = [
-  { currency: 'USD', valueBase: 232492, pct: 68 },
-  { currency: 'EUR', valueBase: 75218, pct: 22 },
-  { currency: 'UAH', valueBase: 23933, pct: 7 },
-  { currency: 'SYP', valueBase: 10257, pct: 3 },
+  { accountCode: '1001', accountName: 'Cash USD', currency: 'USD', balance: 232492 },
+  { accountCode: '1002', accountName: 'Cash EUR', currency: 'EUR', balance: 75218 },
+  { accountCode: '1003', accountName: 'Cash UAH', currency: 'UAH', balance: 23933 },
+  { accountCode: '1004', accountName: 'Cash SYP', currency: 'SYP', balance: 10257 },
 ];

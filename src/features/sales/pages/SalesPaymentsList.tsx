@@ -28,10 +28,7 @@ export default function SalesPaymentsList() {
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [selectedPayment, setSelectedPayment] = useState<any>(null);
     const [sheetMode, setSheetMode] = useState<'create' | 'edit' | 'view'>('view');
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfMonth(new Date()),
-        to: new Date()
-    });
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // Fetch Receipts from journal_entries (entry_type = 'receipt')
     const paymentsQuery = useCachedQuery({

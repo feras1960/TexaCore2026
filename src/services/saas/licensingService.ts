@@ -4,7 +4,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 
 // ─── Types ───────────────────────────────────────────────────
 export interface LicenseCustomer {
@@ -295,7 +295,7 @@ export const licensingService = {
 
   // ─── Send License Key by Email ─────────────────────────
   async sendLicenseEmail(license: License, customerEmail: string, customerName?: string): Promise<{ success: boolean; error?: string }> {
-    const { data, error } = await supabase.functions.invoke('license-send-email', {
+    const { data, error } = await cloudSupabase.functions.invoke('license-send-email', {
       body: {
         to_email: customerEmail,
         license_key: license.license_key,

@@ -13,6 +13,10 @@
 -- full access to all modules.
 -- ═══════════════════════════════════════════════════════════════
 
+-- 0. Update the check constraint to allow 'special'
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_level_check;
+ALTER TABLE roles ADD CONSTRAINT roles_level_check CHECK (level::text = ANY (ARRAY['system'::character varying, 'tenant'::character varying, 'company'::character varying, 'branch'::character varying, 'operations'::character varying, 'custom'::character varying, 'special'::character varying]::text[]));
+
 -- 1. Fix company_owner: should be 'company' not 'tenant'
 UPDATE roles SET level = 'company' 
 WHERE code = 'company_owner' AND level = 'tenant';

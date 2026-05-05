@@ -6,14 +6,7 @@ import { useState, useEffect } from 'react';
 import { isSelfHosted } from '@/lib/supabase';
 import { AlertTriangle, X, Clock } from 'lucide-react';
 
-declare global {
-  interface Window {
-    __TEXACORE_CONFIG__?: {
-      mode?: string;
-      [key: string]: any;
-    };
-  }
-}
+// Window.__TEXACORE_CONFIG__ type is declared in @/lib/supabase.ts
 
 export function LicenseExpiryBanner() {
   const [daysLeft, setDaysLeft] = useState<number | null>(null);

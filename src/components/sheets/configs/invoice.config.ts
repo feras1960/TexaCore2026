@@ -49,7 +49,7 @@ export const invoiceConfig: SheetConfig = {
       submitted: { label: 'status.submitted', variant: 'info' },
       cancelled: { label: 'status.cancelled', variant: 'default' },
     };
-    const status = statusMap[data.status] || statusMap.draft;
+    const status = statusMap[data?.status] || statusMap.draft;
     return {
       label: status.label,
       variant: status.variant,
@@ -174,7 +174,7 @@ export const invoiceConfig: SheetConfig = {
       label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      show: (data) => data.status === 'draft',
+      show: (data) => data?.status === 'draft',
       onClick: () => { },
     },
     {
@@ -182,7 +182,7 @@ export const invoiceConfig: SheetConfig = {
       label: 'actions.submit',
       icon: CheckCircle,
       variant: 'success',
-      show: (data) => data.status === 'draft',
+      show: (data) => data?.status === 'draft',
       onClick: () => { },
     },
     {
@@ -190,7 +190,7 @@ export const invoiceConfig: SheetConfig = {
       label: 'actions.cancel',
       icon: XCircle,
       variant: 'destructive',
-      show: (data) => data.status !== 'cancelled' && data.status !== 'paid',
+      show: (data) => data?.status !== 'cancelled' && data?.status !== 'paid',
       confirm: {
         title: 'dialogs.confirmCancel',
         description: 'dialogs.cancelInvoiceWarning',
@@ -202,7 +202,7 @@ export const invoiceConfig: SheetConfig = {
       label: 'actions.delete',
       icon: Trash2,
       variant: 'destructive',
-      show: (data) => data.status === 'draft' || data.status === 'cancelled',
+      show: (data) => data?.status === 'draft' || data?.status === 'cancelled',
       confirm: {
         title: 'dialogs.confirmDelete',
         description: 'dialogs.deleteInvoiceWarning',

@@ -44,12 +44,12 @@ export async function signInWithMetadata(
       return { user: null, error: authError || new Error('Authentication failed') };
     }
 
-    // 2. Get user profile from database to get tenant_id and company_id
+    // 2. Get user profile from database to get company_id
     let profile = null;
     try {
       const { data, error: profileError } = await supabase
         .from('user_profiles')
-        .select('tenant_id, company_id')
+        .select('company_id')
         .eq('id', authData.user.id)
         .maybeSingle();
 
@@ -162,16 +162,15 @@ export async function getCurrentUserWithMetadata(): Promise<AuthUser | null> {
       try {
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('tenant_id, company_id')
+          .select('company_id')
           .eq('id', user.id)
           .maybeSingle();
 
         if (profile) {
-          tenantId = tenantId || profile.tenant_id;
           companyId = companyId || profile.company_id;
 
           // Update metadata for future fast access
-          if (profile.tenant_id || profile.company_id) {
+          if (profile.company_id) {
             supabase.auth.updateUser({
               data: {
                 tenant_id: tenantId,
@@ -269,7 +268,7 @@ export async function registerNewSubscriber(
     // 3. Get updated profile
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('tenant_id, company_id')
+      .select('company_id')
       .eq('id', authData.user.id)
       .maybeSingle();
 
@@ -277,7 +276,6 @@ export async function registerNewSubscriber(
     if (profile) {
       await supabase.auth.updateUser({
         data: {
-          tenant_id: profile.tenant_id,
           company_id: profile.company_id,
           is_super_admin: false,
         },
@@ -287,11 +285,10 @@ export async function registerNewSubscriber(
     const authUser: AuthUser = {
       id: authData.user.id,
       email: authData.user.email || '',
-      tenant_id: profile?.tenant_id || null,
+      tenant_id: null,
       company_id: profile?.company_id || null,
       is_super_admin: false,
       user_metadata: {
-        tenant_id: profile?.tenant_id || null,
         company_id: profile?.company_id || null,
         is_super_admin: false,
       },

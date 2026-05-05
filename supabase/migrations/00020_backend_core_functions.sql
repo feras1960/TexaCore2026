@@ -105,8 +105,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 -- Part 2: Enhanced Audit Logging System
 -- ═══════════════════════════════════════════════════════════════
 
--- جدول audit_logs المحسّن (إذا لم يكن موجوداً)
-CREATE TABLE IF NOT EXISTS audit_logs (
+-- جدول audit_logs المحسّن
+DROP TABLE IF EXISTS audit_logs CASCADE;
+CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -221,36 +222,36 @@ BEGIN
         v_action := 'create';
         v_new_values := to_jsonb(NEW);
         v_entity_name := COALESCE(
-            NEW.name,
-            NEW.name_ar,
-            NEW.code,
-            NEW.id::TEXT
+            v_new_values ->> 'name',
+            v_new_values ->> 'name_ar',
+            v_new_values ->> 'code',
+            v_new_values ->> 'id'
         );
     ELSIF TG_OP = 'UPDATE' THEN
         v_action := 'update';
         v_old_values := to_jsonb(OLD);
         v_new_values := to_jsonb(NEW);
         v_entity_name := COALESCE(
-            NEW.name,
-            NEW.name_ar,
-            NEW.code,
-            NEW.id::TEXT
+            v_new_values ->> 'name',
+            v_new_values ->> 'name_ar',
+            v_new_values ->> 'code',
+            v_new_values ->> 'id'
         );
     ELSIF TG_OP = 'DELETE' THEN
         v_action := 'delete';
         v_old_values := to_jsonb(OLD);
         v_entity_name := COALESCE(
-            OLD.name,
-            OLD.name_ar,
-            OLD.code,
-            OLD.id::TEXT
+            v_old_values ->> 'name',
+            v_old_values ->> 'name_ar',
+            v_old_values ->> 'code',
+            v_old_values ->> 'id'
         );
     END IF;
     
     -- تسجيل
     PERFORM log_audit(
         v_action,
-        TG_TABLE_NAME,
+        TG_TABLE_NAME::VARCHAR(100),
         COALESCE(NEW.id, OLD.id),
         v_entity_name,
         v_old_values,

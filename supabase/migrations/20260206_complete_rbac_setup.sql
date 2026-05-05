@@ -154,7 +154,7 @@ DELETE FROM roles WHERE code IN (
 INSERT INTO roles (code, name_ar, name_en, level, is_system, can_be_deleted, icon, color, visible_modules, permissions) VALUES
 
 -- مدير النظام (Platform)
-('super_admin', 'مدير النظام', 'Super Admin', 'platform', true, false, 'Crown', 'red',
+('super_admin', 'مدير النظام', 'Super Admin', 'system', true, false, 'Crown', 'red',
     ARRAY['dashboard', 'accounting', 'treasury', 'sales', 'purchases', 'inventory', 'warehouse', 
           'fabric', 'pharmacy', 'healthcare', 'doctors', 'restaurant', 'gold', 'shipments', 
           'crm', 'pos', 'real_estate', 'exchange', 'manufacturing', 'hr', 'e-commerce', 

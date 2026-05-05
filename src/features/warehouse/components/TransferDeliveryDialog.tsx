@@ -22,7 +22,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useRBAC } from '@/hooks/useRBAC';
 import { useWarehouses } from '@/features/warehouse/hooks/useWarehouseQueries';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
@@ -178,7 +178,7 @@ export function TransferDeliveryDialog({
         citySearchTimer.current = setTimeout(async () => {
             setNpSearchingCities(true);
             try {
-                const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+                const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                     body: { action: 'searchCities', apiKey: npApiKey, params: { query } },
                 });
                 if (!error && result?.success && result?.data?.[0]?.Addresses) {
@@ -198,7 +198,7 @@ export function TransferDeliveryDialog({
         if (!npApiKey) return;
         setNpLoading(true);
         try {
-            const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+            const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                 body: { action: 'getWarehouses', apiKey: npApiKey, params: { cityRef } },
             });
             if (!error && result?.success) {
@@ -284,7 +284,7 @@ export function TransferDeliveryDialog({
                 RecipientsPhone: nps.sender_phone || '',
             };
 
-            const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+            const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                 body: { action: 'createDocument', apiKey: npApiKey, params: documentParams },
             });
 
@@ -317,7 +317,7 @@ export function TransferDeliveryDialog({
     const trackNpDocument = useCallback(async () => {
         if (!npApiKey || !trackingNumber) return;
         try {
-            const { data: result, error } = await supabase.functions.invoke('nova-poshta', {
+            const { data: result, error } = await cloudSupabase.functions.invoke('nova-poshta', {
                 body: {
                     action: 'trackDocument',
                     apiKey: npApiKey,

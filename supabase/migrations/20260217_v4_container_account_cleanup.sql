@@ -46,8 +46,14 @@ END;
 $$;
 
 -- Create the trigger (AFTER DELETE — container row already gone, no FK conflict)
-DROP TRIGGER IF EXISTS trg_cleanup_container_account ON containers;
-CREATE TRIGGER trg_cleanup_container_account
-    AFTER DELETE ON containers
-    FOR EACH ROW
-    EXECUTE FUNCTION cleanup_container_transit_account();
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'containers') THEN
+        EXECUTE 'DROP TRIGGER IF EXISTS trg_cleanup_container_account ON containers';
+        EXECUTE '
+        CREATE TRIGGER trg_cleanup_container_account
+            AFTER DELETE ON containers
+            FOR EACH ROW
+            EXECUTE FUNCTION cleanup_container_transit_account();';
+    END IF;
+END $$;

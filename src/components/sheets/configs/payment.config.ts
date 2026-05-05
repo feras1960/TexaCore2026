@@ -41,7 +41,7 @@ export const paymentConfig: SheetConfig = {
       refunded: { label: 'status.refunded', variant: 'info' },
       cancelled: { label: 'status.cancelled', variant: 'default' },
     };
-    const status = statusMap[data.status] || statusMap.pending;
+    const status = statusMap[data?.status] || statusMap.pending;
     return {
       label: status.label,
       variant: status.variant,
@@ -133,7 +133,7 @@ export const paymentConfig: SheetConfig = {
       label: 'actions.confirm',
       icon: CheckCircle,
       variant: 'success',
-      show: (data) => data.status === 'pending',
+      show: (data) => data?.status === 'pending',
       onClick: () => { },
     },
     {
@@ -141,7 +141,7 @@ export const paymentConfig: SheetConfig = {
       label: 'actions.refund',
       icon: XCircle,
       variant: 'destructive',
-      show: (data) => data.status === 'completed',
+      show: (data) => data?.status === 'completed',
       confirm: {
         title: 'dialogs.confirmRefund',
         description: 'dialogs.refundPaymentWarning',

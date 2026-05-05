@@ -25,6 +25,17 @@
 -- ║  PART 0: إنشاء جدول عناوين العملاء (إن لم يكن موجوداً)     ║
 -- ╚═══════════════════════════════════════════════════════════════╝
 
+-- Create auto_set_tenant_id function if it doesn't exist
+CREATE OR REPLACE FUNCTION auto_set_tenant_id()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.tenant_id IS NULL THEN
+        NEW.tenant_id = get_current_tenant_id();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TABLE IF NOT EXISTS customer_addresses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
@@ -62,25 +73,25 @@ DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'customer_addresses' AND policyname = 'customer_addresses_select_policy') THEN
         CREATE POLICY customer_addresses_select_policy ON customer_addresses
             FOR SELECT TO authenticated
-            USING (is_platform_admin() OR tenant_id = get_user_tenant_id());
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
     -- INSERT
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'customer_addresses' AND policyname = 'customer_addresses_insert_policy') THEN
         CREATE POLICY customer_addresses_insert_policy ON customer_addresses
             FOR INSERT TO authenticated
-            WITH CHECK (is_platform_admin() OR tenant_id = get_user_tenant_id());
+            WITH CHECK (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
     -- UPDATE
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'customer_addresses' AND policyname = 'customer_addresses_update_policy') THEN
         CREATE POLICY customer_addresses_update_policy ON customer_addresses
             FOR UPDATE TO authenticated
-            USING (is_platform_admin() OR tenant_id = get_user_tenant_id());
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
     -- DELETE
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'customer_addresses' AND policyname = 'customer_addresses_delete_policy') THEN
         CREATE POLICY customer_addresses_delete_policy ON customer_addresses
             FOR DELETE TO authenticated
-            USING (is_platform_admin() OR tenant_id = get_user_tenant_id());
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
     END IF;
 END $$;
 
@@ -138,28 +149,36 @@ ALTER TABLE sales_invoices
     ADD COLUMN IF NOT EXISTS delivery_notes TEXT;
 
 -- ═══ 1.4 sales_deliveries ═══
-ALTER TABLE sales_deliveries
-    ADD COLUMN IF NOT EXISTS delivery_method VARCHAR(30) DEFAULT 'store_pickup',
-    ADD COLUMN IF NOT EXISTS shipping_address_id UUID REFERENCES customer_addresses(id),
-    ADD COLUMN IF NOT EXISTS shipping_address TEXT,
-    ADD COLUMN IF NOT EXISTS shipping_recipient VARCHAR(200),
-    ADD COLUMN IF NOT EXISTS shipping_phone VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS shipping_carrier VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS shipping_cost DECIMAL(12,2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS delivery_notes TEXT;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'sales_deliveries') THEN
+    ALTER TABLE sales_deliveries
+        ADD COLUMN IF NOT EXISTS delivery_method VARCHAR(30) DEFAULT 'store_pickup',
+        ADD COLUMN IF NOT EXISTS shipping_address_id UUID REFERENCES customer_addresses(id),
+        ADD COLUMN IF NOT EXISTS shipping_address TEXT,
+        ADD COLUMN IF NOT EXISTS shipping_recipient VARCHAR(200),
+        ADD COLUMN IF NOT EXISTS shipping_phone VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS shipping_carrier VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS shipping_cost DECIMAL(12,2) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS delivery_notes TEXT;
+  END IF;
+END $$;
 
 -- ═══ 1.5 transit_reservations ═══
-ALTER TABLE transit_reservations
-    ADD COLUMN IF NOT EXISTS delivery_method VARCHAR(30) DEFAULT 'store_pickup',
-    ADD COLUMN IF NOT EXISTS shipping_address_id UUID REFERENCES customer_addresses(id),
-    ADD COLUMN IF NOT EXISTS shipping_address TEXT,
-    ADD COLUMN IF NOT EXISTS shipping_recipient VARCHAR(200),
-    ADD COLUMN IF NOT EXISTS shipping_phone VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS shipping_carrier VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS shipping_cost DECIMAL(12,2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS delivery_notes TEXT;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'transit_reservations') THEN
+    ALTER TABLE transit_reservations
+        ADD COLUMN IF NOT EXISTS delivery_method VARCHAR(30) DEFAULT 'store_pickup',
+        ADD COLUMN IF NOT EXISTS shipping_address_id UUID REFERENCES customer_addresses(id),
+        ADD COLUMN IF NOT EXISTS shipping_address TEXT,
+        ADD COLUMN IF NOT EXISTS shipping_recipient VARCHAR(200),
+        ADD COLUMN IF NOT EXISTS shipping_phone VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS shipping_carrier VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS shipping_cost DECIMAL(12,2) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS delivery_notes TEXT;
+  END IF;
+END $$;
 
 
 -- ╔═══════════════════════════════════════════════════════════════╗
@@ -324,11 +343,53 @@ COMMENT ON TABLE shipment_documents IS 'بوليصات الشحن (TTN/Waybills)
 
 -- ═══ 4.1 RLS for shipping_carriers (D-Group: tenant_id + company_id) ═══
 ALTER TABLE shipping_carriers ENABLE ROW LEVEL SECURITY;
-SELECT create_company_rls_policies('shipping_carriers');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipping_carriers' AND policyname = 'shipping_carriers_select_policy') THEN
+        CREATE POLICY shipping_carriers_select_policy ON shipping_carriers
+            FOR SELECT TO authenticated
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipping_carriers' AND policyname = 'shipping_carriers_insert_policy') THEN
+        CREATE POLICY shipping_carriers_insert_policy ON shipping_carriers
+            FOR INSERT TO authenticated
+            WITH CHECK (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipping_carriers' AND policyname = 'shipping_carriers_update_policy') THEN
+        CREATE POLICY shipping_carriers_update_policy ON shipping_carriers
+            FOR UPDATE TO authenticated
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipping_carriers' AND policyname = 'shipping_carriers_delete_policy') THEN
+        CREATE POLICY shipping_carriers_delete_policy ON shipping_carriers
+            FOR DELETE TO authenticated
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+END $$;
 
 -- ═══ 4.2 RLS for shipment_documents (D-Group: tenant_id + company_id) ═══
 ALTER TABLE shipment_documents ENABLE ROW LEVEL SECURITY;
-SELECT create_company_rls_policies('shipment_documents');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipment_documents' AND policyname = 'shipment_documents_select_policy') THEN
+        CREATE POLICY shipment_documents_select_policy ON shipment_documents
+            FOR SELECT TO authenticated
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipment_documents' AND policyname = 'shipment_documents_insert_policy') THEN
+        CREATE POLICY shipment_documents_insert_policy ON shipment_documents
+            FOR INSERT TO authenticated
+            WITH CHECK (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipment_documents' AND policyname = 'shipment_documents_update_policy') THEN
+        CREATE POLICY shipment_documents_update_policy ON shipment_documents
+            FOR UPDATE TO authenticated
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'shipment_documents' AND policyname = 'shipment_documents_delete_policy') THEN
+        CREATE POLICY shipment_documents_delete_policy ON shipment_documents
+            FOR DELETE TO authenticated
+            USING (is_super_admin() OR tenant_id = get_current_tenant_id());
+    END IF;
+END $$;
 
 -- ═══ 4.3 Triggers for tenant_id auto-set ═══
 DO $$ BEGIN
@@ -373,8 +434,11 @@ CREATE INDEX IF NOT EXISTS idx_sales_orders_delivery_method
     ON sales_orders(delivery_method);
 CREATE INDEX IF NOT EXISTS idx_sales_orders_tracking 
     ON sales_orders(tracking_number) WHERE tracking_number IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_sales_deliveries_tracking 
-    ON sales_deliveries(tracking_number) WHERE tracking_number IS NOT NULL;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'sales_deliveries') THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_sales_deliveries_tracking ON sales_deliveries(tracking_number) WHERE tracking_number IS NOT NULL';
+  END IF;
+END $$;
 
 
 -- ╔═══════════════════════════════════════════════════════════════╗

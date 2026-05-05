@@ -148,9 +148,27 @@ export function invalidateAccountsCache(): void {
 }
 
 // ═══ AUTO-PRELOAD: Start loading accounts at module import time ═══
+// ⚠️ Only preload if the stored session is still valid (not expired).
+// Without this check, a stale sb-*-auth-token with an old company_id
+// triggers 406 errors on every page load (including the login page).
 (() => {
     const cachedCid = getCompanyIdFromCache();
     if (cachedCid) {
+        // Verify session token is not expired before preloading
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                    const raw = localStorage.getItem(key);
+                    if (!raw) continue;
+                    const parsed = JSON.parse(raw);
+                    const expiresAt = parsed?.expires_at;
+                    if (expiresAt && expiresAt * 1000 < Date.now()) {
+                        return; // Session expired — skip preload
+                    }
+                }
+            }
+        } catch { /* ignore */ }
         preloadAccounts(cachedCid);
     }
 })();

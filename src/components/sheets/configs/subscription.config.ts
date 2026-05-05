@@ -59,7 +59,7 @@ export const subscriptionConfig: SheetConfig = {
       expired: { label: 'status.expired', variant: 'error' },
       past_due: { label: 'status.pastDue', variant: 'error' },
     };
-    const status = statusMap[data.status] || statusMap.pending;
+    const status = statusMap[data?.status] || statusMap.pending;
     return {
       label: status.label,
       variant: status.variant,
@@ -286,7 +286,7 @@ export const subscriptionConfig: SheetConfig = {
       label: 'actions.upgradePlan',
       icon: ArrowUpCircle,
       variant: 'default',
-      show: (data) => data.status === 'active',
+      show: (data) => data?.status === 'active',
       onClick: () => { },
     },
     {
@@ -294,7 +294,7 @@ export const subscriptionConfig: SheetConfig = {
       label: 'actions.renewNow',
       icon: RefreshCw,
       variant: 'success',
-      show: (data) => ['active', 'expired', 'past_due'].includes(data.status),
+      show: (data) => ['active', 'expired', 'past_due'].includes(data?.status),
       onClick: () => { },
     },
     {
@@ -302,7 +302,7 @@ export const subscriptionConfig: SheetConfig = {
       label: 'actions.pause',
       icon: PauseCircle,
       variant: 'outline',
-      show: (data) => data.status === 'active',
+      show: (data) => data?.status === 'active',
       confirm: {
         title: 'dialogs.confirmPause',
         description: 'dialogs.pauseSubscriptionWarning',
@@ -314,7 +314,7 @@ export const subscriptionConfig: SheetConfig = {
       label: 'actions.resume',
       icon: PlayCircle,
       variant: 'success',
-      show: (data) => data.status === 'paused',
+      show: (data) => data?.status === 'paused',
       onClick: () => { },
     },
     {
@@ -322,7 +322,7 @@ export const subscriptionConfig: SheetConfig = {
       label: 'actions.cancel',
       icon: XCircle,
       variant: 'destructive',
-      show: (data) => ['active', 'paused', 'trial'].includes(data.status),
+      show: (data) => ['active', 'paused', 'trial'].includes(data?.status),
       confirm: {
         title: 'dialogs.confirmCancellation',
         description: 'dialogs.cancelSubscriptionWarning',

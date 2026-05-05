@@ -514,10 +514,18 @@ export function useTradeSave(
             if (!tenantId && authUser?.id) {
                 const { data: profile } = await supabase
                     .from('user_profiles')
-                    .select('tenant_id')
+                    .select('company_id')
                     .eq('id', authUser.id)
                     .single();
-                tenantId = profile?.tenant_id;
+                
+                if (profile?.company_id) {
+                    const { data: companyData } = await supabase
+                        .from('companies')
+                        .select('tenant_id')
+                        .eq('id', profile.company_id)
+                        .single();
+                    tenantId = companyData?.tenant_id;
+                }
             }
 
             if (!tenantId) {
@@ -1448,10 +1456,18 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                         if (session?.user) {
                                             const { data: profile } = await supabase
                                                 .from('user_profiles')
-                                                .select('tenant_id')
+                                                .select('company_id')
                                                 .eq('id', session.user.id)
                                                 .single();
-                                            return profile?.tenant_id;
+                                            if (profile?.company_id) {
+                                                const { data: companyData } = await supabase
+                                                    .from('companies')
+                                                    .select('tenant_id')
+                                                    .eq('id', profile.company_id)
+                                                    .single();
+                                                return companyData?.tenant_id;
+                                            }
+                                            return null;
                                         }
                                         return null;
                                     })(),
@@ -1626,10 +1642,18 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                         if (session?.user) {
                                             const { data: profile } = await supabase
                                                 .from('user_profiles')
-                                                .select('tenant_id')
+                                                .select('company_id')
                                                 .eq('id', session.user.id)
                                                 .single();
-                                            return profile?.tenant_id;
+                                            if (profile?.company_id) {
+                                                const { data: companyData } = await supabase
+                                                    .from('companies')
+                                                    .select('tenant_id')
+                                                    .eq('id', profile.company_id)
+                                                    .single();
+                                                return companyData?.tenant_id;
+                                            }
+                                            return null;
                                         }
                                         return null;
                                     })(),
@@ -1827,10 +1851,18 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                         if (session?.user) {
                                             const { data: profile } = await supabase
                                                 .from('user_profiles')
-                                                .select('tenant_id')
+                                                .select('company_id')
                                                 .eq('id', session.user.id)
                                                 .single();
-                                            return profile?.tenant_id;
+                                            if (profile?.company_id) {
+                                                const { data: companyData } = await supabase
+                                                    .from('companies')
+                                                    .select('tenant_id')
+                                                    .eq('id', profile.company_id)
+                                                    .single();
+                                                return companyData?.tenant_id;
+                                            }
+                                            return null;
                                         }
                                         return null;
                                     })(),

@@ -37,18 +37,24 @@ export default function MainLayout() {
 
   // 💾 Initialize storage, service worker, integrity checks, offline listener (once)
   useEffect(() => {
-    initStoragePersistence();
+    const isLocalhost = window.location.hostname === 'localhost';
+
+    // 🖥️ Localhost: skip IndexedDB-related features (not used)
+    if (!isLocalhost) {
+      initStoragePersistence();
+
+      // ⚡ Register Service Worker (background sync)
+      import('@/lib/serviceWorker/register').then(({ registerServiceWorker }) => {
+        registerServiceWorker();
+      }).catch(() => { /* non-critical */ });
+
+      // 🔍 Schedule daily integrity checks
+      import('@/lib/integrity/periodicIntegrityCheck').then(({ scheduleIntegrityChecks }) => {
+        scheduleIntegrityChecks();
+      }).catch(() => { /* non-critical */ });
+    }
+
     stockCountOfflineStore.setupReconnectListener();
-
-    // ⚡ Register Service Worker (background sync)
-    import('@/lib/serviceWorker/register').then(({ registerServiceWorker }) => {
-      registerServiceWorker();
-    }).catch(() => { /* non-critical */ });
-
-    // 🔍 Schedule daily integrity checks
-    import('@/lib/integrity/periodicIntegrityCheck').then(({ scheduleIntegrityChecks }) => {
-      scheduleIntegrityChecks();
-    }).catch(() => { /* non-critical */ });
 
     return () => {
       stockCountOfflineStore.teardownReconnectListener();

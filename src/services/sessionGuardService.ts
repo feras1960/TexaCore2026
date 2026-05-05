@@ -1,8 +1,12 @@
 // ════════════════════════════════════════════════════════════════
 // 🔒 Session Guard Service — Concurrent session limiting
+// ☁️ Always uses Cloud URL (VITE_ env = cloud, never localhost)
+// Uses raw fetch + sendBeacon (SDK not compatible with sendBeacon)
 // ════════════════════════════════════════════════════════════════
 
-const SESSION_GUARD_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/session-guard`;
+const CLOUD_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const CLOUD_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const SESSION_GUARD_URL = `${CLOUD_URL}/functions/v1/session-guard`;
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
 
 // Generate a unique session token per browser tab
@@ -63,7 +67,7 @@ export async function registerSession(): Promise<{
   try {
     const res = await fetch(SESSION_GUARD_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'apikey': CLOUD_KEY },
       body: JSON.stringify({
         action: 'register',
         license_key: licenseKey,
@@ -96,7 +100,7 @@ async function sendHeartbeat(): Promise<void> {
   try {
     await fetch(SESSION_GUARD_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'apikey': CLOUD_KEY },
       body: JSON.stringify({
         action: 'heartbeat',
         session_token: SESSION_TOKEN,
@@ -139,7 +143,7 @@ export async function endSession(): Promise<void> {
     } else {
       await fetch(SESSION_GUARD_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'apikey': CLOUD_KEY },
         body: payload,
         keepalive: true,
       });

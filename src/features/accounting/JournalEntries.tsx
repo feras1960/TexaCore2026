@@ -152,12 +152,41 @@ export default function JournalEntries() {
       const linesDebit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.debit || 0), 0);
       const linesCredit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.credit || 0), 0);
 
-      // ═══ Foreign Currency totals (from lines debit_fc / credit_fc) ═══
-      const linesDebitFc = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.debit_fc || 0), 0);
-      const linesCreditFc = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.credit_fc || 0), 0);
-      const entryCurrency = entry.currency || '';
-      // Show FC only if currency is non-empty and FC amounts differ from base amounts
-      const hasForeignCurrency = entryCurrency && linesDebitFc > 0 && Math.abs(linesDebitFc - (Number(entry.total_debit) || linesDebit)) > 0.01;
+      // ═══ Foreign Currency detection — check EACH line for FC ═══
+      // Only count FC from lines that are TRULY foreign currency (rate > 1 or account.currency ≠ local)
+      // Detect mixed-currency entries (multiple FC currencies or rates)
+      const companyCurr = entry.currency || 'UAH';
+      let linesDebitFc = 0;
+      let linesCreditFc = 0;
+      let detectedFcCurrency = '';
+      const fcRates = new Set<number>();
+      const fcCurrencies = new Set<string>();
+      for (const line of (entry.lines || [])) {
+        const fcD = Number(line.debit_fc || 0);
+        const fcC = Number(line.credit_fc || 0);
+        const rate = Number(line.exchange_rate) || 1;
+        const acctCurrency = line.account?.currency || '';
+        // ═══ Only count as FC if the line is genuinely foreign ═══
+        const isRealFC = rate > 1 || (acctCurrency && acctCurrency !== companyCurr);
+        if (isRealFC && (fcD > 0 || fcC > 0)) {
+          linesDebitFc += fcD;
+          linesCreditFc += fcC;
+          fcRates.add(rate);
+          // Detect the real FC currency
+          const lineFcCurr = (acctCurrency && acctCurrency !== companyCurr)
+            ? acctCurrency
+            : (line.currency && line.currency !== companyCurr)
+              ? line.currency
+              : 'USD';
+          fcCurrencies.add(lineFcCurr);
+          if (!detectedFcCurrency) detectedFcCurrency = lineFcCurr;
+        }
+      }
+      // ═══ Mixed = أكثر من عملة أجنبية أو أكثر من سعر صرف ═══
+      const isMixedCurrency = fcCurrencies.size > 1 || fcRates.size > 1;
+      const entryCurrency = detectedFcCurrency || entry.currency || '';
+      // Show FC only if real FC amounts exist and differ from local amounts
+      const hasForeignCurrency = !isMixedCurrency && linesDebitFc > 0 && Math.abs(linesDebitFc - (Number(entry.total_debit) || linesDebit)) > 0.01;
 
       return {
         id: entry.id,
@@ -167,9 +196,10 @@ export default function JournalEntries() {
         description: getLocalizedDescription(entry),
         totalDebit: Number(entry.total_debit) || linesDebit || 0,
         totalCredit: Number(entry.total_credit) || linesCredit || 0,
-        // Foreign currency amounts
+        // Foreign currency amounts — null for mixed or local-only entries
         totalDebitFc: hasForeignCurrency ? linesDebitFc : null,
         totalCreditFc: hasForeignCurrency ? linesCreditFc : null,
+        isMixedCurrency,
         currency: entryCurrency,
         status: entry.status,
         createdBy: entry.created_by || '',
@@ -202,8 +232,8 @@ export default function JournalEntries() {
     allEntries.forEach((e: any) => {
       const t = e.type || 'manual';
       counts[t] = (counts[t] || 0) + 1;
-      if (e.status === 'posted') counts['posted'] = (counts['posted'] || 0) + 1;
-      if (e.status === 'draft') counts['draft'] = (counts['draft'] || 0) + 1;
+      if (e?.status === 'posted') counts['posted'] = (counts['posted'] || 0) + 1;
+      if (e?.status === 'draft') counts['draft'] = (counts['draft'] || 0) + 1;
     });
     return counts;
   }, [allEntries]);
@@ -215,7 +245,7 @@ export default function JournalEntries() {
     // Apply tab filter
     if (activeTab !== 'all') {
       if (activeTab === 'posted' || activeTab === 'draft') {
-        data = data.filter((e: any) => e.status === activeTab);
+        data = data.filter((e: any) => e?.status === activeTab);
       } else {
         data = data.filter((e: any) => e.type === activeTab);
       }
@@ -268,8 +298,8 @@ export default function JournalEntries() {
   const totals = useMemo(() => {
     const totalDebit = filteredData.reduce((sum: number, entry: any) => sum + (Number(entry.totalDebit) || 0), 0);
     const totalCredit = filteredData.reduce((sum: number, entry: any) => sum + (Number(entry.totalCredit) || 0), 0);
-    const postedCount = filteredData.filter((e: any) => e.status === 'posted').length;
-    const draftCount = filteredData.filter((e: any) => e.status === 'draft').length;
+    const postedCount = filteredData.filter((e: any) => e?.status === 'posted').length;
+    const draftCount = filteredData.filter((e: any) => e?.status === 'draft').length;
     return { totalDebit, totalCredit, count: filteredData.length, postedCount, draftCount };
   }, [filteredData]);
 
@@ -723,9 +753,14 @@ export default function JournalEntries() {
         return (
           <div className="text-end">
             <span className="font-mono font-bold text-[13px] text-green-600 tabular-nums" dir="ltr">{formatCurrency(v)}</span>
-            {row.totalDebitFc != null && (
+            {row.totalDebitFc != null && row.totalDebitFc > 0 && Math.abs(row.totalDebitFc - v) > 0.01 && (
               <div className="text-[10px] text-blue-500/80 font-mono tabular-nums mt-0.5" dir="ltr">
                 {formatCurrency(row.totalDebitFc)} <span className="text-[9px] font-sans opacity-70">{row.currency}</span>
+              </div>
+            )}
+            {row.isMixedCurrency && (
+              <div className="text-[9px] text-amber-600/80 font-sans mt-0.5">
+                🔄 {language === 'ar' ? 'مختلط' : 'Mixed'}
               </div>
             )}
           </div>
@@ -746,7 +781,7 @@ export default function JournalEntries() {
         return (
           <div className="text-end">
             <span className="font-mono font-bold text-[13px] text-red-600 tabular-nums" dir="ltr">{formatCurrency(v)}</span>
-            {row.totalCreditFc != null && (
+            {row.totalCreditFc != null && row.totalCreditFc > 0 && Math.abs(row.totalCreditFc - v) > 0.01 && (
               <div className="text-[10px] text-blue-500/80 font-mono tabular-nums mt-0.5" dir="ltr">
                 {formatCurrency(row.totalCreditFc)} <span className="text-[9px] font-sans opacity-70">{row.currency}</span>
               </div>
@@ -812,7 +847,7 @@ export default function JournalEntries() {
       header: getLocalizedLabel('je_status', language),
       width: 'min-w-[90px]',
       cell: (row) => {
-        const s = row.status || 'draft';
+        const s = row?.status || 'draft';
         const cfg: Record<string, { bg: string; text: string; dot: string; label: string }> = {
           posted: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', label: getLocalizedLabel('je_post', language) },
           draft: { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500', label: getLocalizedLabel('je_dft', language) },

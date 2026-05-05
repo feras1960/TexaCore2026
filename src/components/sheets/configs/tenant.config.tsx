@@ -52,7 +52,7 @@ export const tenantConfig: SheetConfig = {
       suspended: { label: 'status.suspended', variant: 'error' },
       expired: { label: 'status.expired', variant: 'warning' },
     };
-    const status = statusMap[data.status] || statusMap.inactive;
+    const status = statusMap[data?.status] || statusMap.inactive;
     return {
       label: status.label,
       variant: status.variant,
@@ -149,7 +149,7 @@ export const tenantConfig: SheetConfig = {
       label: 'actions.suspend',
       icon: PauseCircle,
       variant: 'destructive',
-      show: (data) => data.status === 'active',
+      show: (data) => data?.status === 'active',
       confirm: {
         title: 'dialogs.confirmSuspend',
         description: 'dialogs.suspendTenantWarning',
@@ -169,7 +169,7 @@ export const tenantConfig: SheetConfig = {
       label: 'actions.activate',
       icon: CheckCircle,
       variant: 'success',
-      show: (data) => data.status === 'suspended' || data.status === 'inactive',
+      show: (data) => data?.status === 'suspended' || data?.status === 'inactive',
       onClick: async (data) => {
         try {
           await tenantsService.activate(data.id);

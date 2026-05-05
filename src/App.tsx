@@ -19,6 +19,8 @@ import KeepAliveOutlet from '@/components/layout/KeepAliveOutlet';
 
 // Pages only needed in NormalRoutes (placeholders + dev tools)
 const Login = React.lazy(() => import('@/features/auth/Login'));
+const LocalLauncher = React.lazy(() => import('@/features/desktop/pages/LocalLauncher'));
+const LocalRegistrationWizard = React.lazy(() => import('@/features/desktop/pages/LocalRegistrationWizard'));
 const Register = React.lazy(() => import('@/features/auth/Register'));
 const RegistrationWizard = React.lazy(() => import('@/features/auth/FabricRegistrationWizard'));
 const ComponentLab = React.lazy(() => import('@/features/componentLab/ComponentLab'));
@@ -79,10 +81,15 @@ function AppRoutes() {
     <Suspense fallback={<RouteLoader />}>
       <Routes>
         {/* Auth Routes (Public) */}
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={
+          (import.meta.env.VITE_IS_DESKTOP === 'true' || (typeof window !== 'undefined' && (window as any).env?.VITE_IS_DESKTOP === 'true')) ? <LocalLauncher /> : <Login />
+        } />
         <Route path="/register" element={<Register />} />
         {/* Registration Wizard - Semi-public (has its own internal auth guard) */}
         <Route path="/registration-wizard" element={<RegistrationWizard />} />
+        
+        {/* Desktop Specific Local Setup Route - Always available to prevent routing errors */}
+        <Route path="/local-setup" element={<LocalRegistrationWizard />} />
 
         {/* Protected Routes */}
         <Route element={<AuthGuard />}>

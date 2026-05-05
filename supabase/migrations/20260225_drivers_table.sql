@@ -55,17 +55,21 @@ CREATE INDEX IF NOT EXISTS idx_drivers_user ON drivers(user_id);
 ALTER TABLE drivers ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "drivers_select" ON drivers;
 CREATE POLICY "drivers_select" ON drivers FOR SELECT
-    USING (tenant_id = ((current_setting('request.jwt.claims', true))::json->>'tenant_id')::uuid);
+    USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "drivers_insert" ON drivers;
 CREATE POLICY "drivers_insert" ON drivers FOR INSERT
-    WITH CHECK (tenant_id = ((current_setting('request.jwt.claims', true))::json->>'tenant_id')::uuid);
+    WITH CHECK (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "drivers_update" ON drivers;
 CREATE POLICY "drivers_update" ON drivers FOR UPDATE
-    USING (tenant_id = ((current_setting('request.jwt.claims', true))::json->>'tenant_id')::uuid);
+    USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "drivers_delete" ON drivers;
 CREATE POLICY "drivers_delete" ON drivers FOR DELETE
-    USING (tenant_id = ((current_setting('request.jwt.claims', true))::json->>'tenant_id')::uuid);
+    USING (tenant_id = (SELECT tenant_id FROM user_profiles WHERE id = auth.uid()));
 
 -- Foreign key from sales_transactions to drivers
 -- (driver_id column was already added in delivery_workflow_phase1 migration)

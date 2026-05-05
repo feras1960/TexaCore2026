@@ -71,6 +71,18 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
         }
       }
 
+      // 🖥️ LOCAL MODE FALLBACK: If no company_id from JWT/profiles,
+      // read from texacore_active_company (set by .tcdb file opener or wizard)
+      if (!targetCompanyId) {
+        try {
+          const stored = localStorage.getItem('texacore_active_company');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed?.id) targetCompanyId = parsed.id;
+          }
+        } catch { /* ignore */ }
+      }
+
       // If we have companyId, fetch that company
       if (targetCompanyId) {
         const data = await companiesService.getById(targetCompanyId);
@@ -84,8 +96,10 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
     // Company data is static — never changes during a session
     staleTime: Infinity,
     gcTime: 60 * 60 * 1000, // 1 hour
-    // Don't fetch until auth is ready
-    enabled: autoFetch && !authLoading,
+    // Don't fetch until auth is ready AND user is actually authenticated
+    // Without isAuthenticated check, the query fires on the login page
+    // and reads a stale company_id from localStorage → 406 error
+    enabled: autoFetch && !authLoading && isAuthenticated,
     // Don't refetch on window focus or reconnect
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

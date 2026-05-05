@@ -278,8 +278,8 @@ CREATE POLICY "Enable all - fabric_material_colors" ON fabric_material_colors FO
 
 DO $$
 DECLARE
-    v_tenant_id UUID := 'e3a8b7ef-6f27-43c1-bd3f-61d183a97a47'::UUID;
-    v_company_id UUID := '14f19c82-b90d-45e2-9783-4b3c3789e8b7'::UUID;
+    v_tenant_id UUID := (SELECT id FROM tenants LIMIT 1);
+    v_company_id UUID := (SELECT id FROM companies LIMIT 1);
     -- Account Type IDs
     v_current_asset UUID;
     v_current_liability UUID;

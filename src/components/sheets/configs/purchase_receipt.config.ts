@@ -48,7 +48,7 @@ export const purchaseReceiptConfig: SheetConfig = {
             cancelled: { label: 'status.cancelled', variant: 'default' },
             returned: { label: 'status.returned', variant: 'error' },
         };
-        const status = statusMap[data.status] || statusMap.draft;
+        const status = statusMap[data?.status] || statusMap.draft;
         return {
             label: status.label,
             variant: status.variant,

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS stock_counts (
     
     -- المستودع والموقع
     warehouse_id UUID NOT NULL REFERENCES warehouses(id),
-    location_id UUID REFERENCES bin_locations(id),
+    location_id UUID REFERENCES warehouse_locations(id),
     
     -- التواريخ
     count_date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -81,12 +81,7 @@ ALTER TABLE stock_counts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS stock_counts_tenant_isolation ON stock_counts;
 CREATE POLICY stock_counts_tenant_isolation ON stock_counts
-    FOR ALL USING (
-        tenant_id IN (
-            SELECT tenant_id FROM tenant_users 
-            WHERE user_id = auth.uid()
-        )
-    );
+    FOR ALL USING (tenant_id = get_current_tenant_id());
 
 COMMENT ON TABLE stock_counts IS 'جداول الجرد المخزني - Stock Counts';
 
@@ -103,10 +98,10 @@ CREATE TABLE IF NOT EXISTS stock_count_items (
     roll_id UUID REFERENCES fabric_rolls(id),
     product_id UUID REFERENCES products(id),
     material_id UUID REFERENCES fabric_materials(id),
-    batch_id UUID REFERENCES batches(id),
+    batch_id UUID REFERENCES inventory_batches(id),
     
     -- الموقع
-    location_id UUID REFERENCES bin_locations(id),
+    location_id UUID REFERENCES warehouse_locations(id),
     
     -- الكميات
     system_quantity DECIMAL(15,3) NOT NULL DEFAULT 0,    -- الكمية في النظام
@@ -145,10 +140,7 @@ CREATE POLICY stock_count_items_tenant_isolation ON stock_count_items
     FOR ALL USING (
         stock_count_id IN (
             SELECT id FROM stock_counts 
-            WHERE tenant_id IN (
-                SELECT tenant_id FROM tenant_users 
-                WHERE user_id = auth.uid()
-            )
+            WHERE tenant_id = get_current_tenant_id()
         )
     );
 
@@ -232,12 +224,7 @@ ALTER TABLE sample_requests ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS sample_requests_tenant_isolation ON sample_requests;
 CREATE POLICY sample_requests_tenant_isolation ON sample_requests
-    FOR ALL USING (
-        tenant_id IN (
-            SELECT tenant_id FROM tenant_users 
-            WHERE user_id = auth.uid()
-        )
-    );
+    FOR ALL USING (tenant_id = get_current_tenant_id());
 
 COMMENT ON TABLE sample_requests IS 'طلبات العينات - Sample Requests';
 

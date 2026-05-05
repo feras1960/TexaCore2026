@@ -23,9 +23,14 @@ COPY . .
 ARG VITE_SUPABASE_URL=""
 ARG VITE_TEXACORE_MODE="selfhosted"
 ARG VITE_APP_VERSION="1.0.0"
+ARG VITE_IS_DESKTOP="true"
 
 # Increase Node.js heap for large build (9700+ modules)
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Create .env.production explicitly to ensure Vite picks it up
+RUN echo "VITE_IS_DESKTOP=true" > .env.production
+RUN echo "VITE_TEXACORE_MODE=selfhosted" >> .env.production
 
 # Build the app
 RUN npm run build

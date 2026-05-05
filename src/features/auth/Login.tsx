@@ -169,6 +169,21 @@ export default function Login() {
   const isRTL = direction === 'rtl';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
+  // Detect self-hosted from runtime config (NOT from import.meta.env which is baked at build time)
+  const isSelfHosted = (() => {
+    try {
+      // Check window config first (set by config.js from ServiceManager)
+      const wc = (window as any).__TEXACORE_CONFIG__;
+      if (wc?.mode === 'selfhosted') return true;
+      // Check localStorage (set during company creation)
+      if (localStorage.getItem('texacore_active_company')) return true;
+      // Check if running on localhost (Desktop mode)
+      if (window.location.hostname === 'localhost') return true;
+      // Fallback to build-time env
+      return import.meta.env.VITE_TEXACORE_MODE === 'selfhosted';
+    } catch { return false; }
+  })();
+
   // 🛡️ SECURITY: Check for security errors in URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -206,7 +221,12 @@ export default function Login() {
       return;
     }
 
-    const result = await login(email, password);
+    let loginEmail = email.trim();
+    if (isSelfHosted && !loginEmail.includes('@')) {
+      loginEmail = `${loginEmail}@texacore.local`;
+    }
+
+    const result = await login(loginEmail, password);
     if (result.error) {
       setFormError(result.error);
     } else if ((result as any).mfaRequired) {
@@ -459,64 +479,85 @@ export default function Login() {
             {/* Header */}
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                {t('authPage.login.title')}
+                {isSelfHosted ? (language === 'ar' ? 'نسخة سطح المكتب' : 'Desktop Edition') : t('authPage.login.title')}
               </h2>
-              <p className="text-gray-500 text-sm">
-                {t('auth.noAccount')}{' '}
-                <Link to="/register" className="text-teal-600 hover:text-teal-700 font-semibold">
-                  {t('authPage.createAccount')}
-                </Link>
-              </p>
+              {!isSelfHosted && (
+                <p className="text-gray-500 text-sm">
+                  {t('auth.noAccount')}{' '}
+                  <Link to="/register" className="text-teal-600 hover:text-teal-700 font-semibold">
+                    {t('authPage.createAccount')}
+                  </Link>
+                </p>
+              )}
+              {isSelfHosted && (
+                <p className="text-gray-500 text-sm mt-1">
+                  {language === 'ar' ? 'تسجيل الدخول للنظام الداخلي' : 'Login to local system'}
+                </p>
+              )}
             </div>
 
-            {/* Google Sign-In */}
-            <div className="mb-6">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-12 text-sm font-medium gap-3 border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all"
-                onClick={handleGoogleLogin}
-                disabled={googleLoading || loading}
-              >
-                {googleLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <GoogleIcon />
-                )}
-                {t('auth.continueWithGoogle')}
-              </Button>
-            </div>
+            {!isSelfHosted && (
+              <>
+                {/* Google Sign-In */}
+                <div className="mb-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-12 text-sm font-medium gap-3 border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                    onClick={handleGoogleLogin}
+                    disabled={googleLoading || loading}
+                  >
+                    {googleLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <GoogleIcon />
+                    )}
+                    {t('auth.continueWithGoogle')}
+                  </Button>
+                </div>
 
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-400">{t('common.or')}</span>
-              </div>
-            </div>
+                {/* Divider */}
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white text-gray-400">{t('common.or')}</span>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email */}
+              {/* Email / Username */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700 text-sm font-medium">
-                  {t('auth.email')}
+                  {isSelfHosted
+                    ? (language === 'ar' ? 'اسم المستخدم أو البريد' : 'Username or Email')
+                    : t('auth.email')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="email"
-                    type="email"
+                    type={isSelfHosted ? 'text' : 'email'}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t('auth.emailPlaceholder')}
+                    placeholder={isSelfHosted ? 'admin' : t('auth.emailPlaceholder')}
                     required
                     disabled={loading}
                     className="h-12 border-gray-200 focus:border-teal-500 focus:ring-teal-500/20 transition-all pe-10"
+                    dir="ltr"
                   />
                   <Mail className="absolute top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 end-3" />
                 </div>
+                {isSelfHosted && (
+                  <p className="text-xs text-gray-400">
+                    {language === 'ar'
+                      ? 'أدخل اسم المستخدم فقط (مثال: admin) أو البريد الكامل'
+                      : 'Enter username only (e.g. admin) or full email'}
+                  </p>
+                )}
               </div>
 
               {/* Password */}
@@ -600,36 +641,40 @@ export default function Login() {
               </Button>
             </form>
 
-            {/* Magic Link Divider */}
-            <div className="relative my-5">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-400">{t('common.or')}</span>
-              </div>
-            </div>
+            {!isSelfHosted && (
+              <>
+                {/* Magic Link Divider */}
+                <div className="relative my-5">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white text-gray-400">{t('common.or')}</span>
+                  </div>
+                </div>
 
-            {/* Magic Link Button */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleMagicLink}
-              disabled={magicLinkLoading || loading || googleLoading}
-              className="w-full h-11 text-sm font-medium gap-2 border-2 border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all rounded-xl"
-            >
-              {magicLinkLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
-              ) : (
-                <Sparkles className="w-4 h-4 text-amber-500" />
-              )}
-              <span className="text-gray-700">
-                {magicLinkSent
-                  ? (language === 'ar' ? '✅ تم الإرسال! تحقق من بريدك' : '✅ Sent! Check your email')
-                  : (language === 'ar' ? 'إرسال رابط الدخول السحري' : 'Send Magic Link')
-                }
-              </span>
-            </Button>
+                {/* Magic Link Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleMagicLink}
+                  disabled={magicLinkLoading || loading || googleLoading}
+                  className="w-full h-11 text-sm font-medium gap-2 border-2 border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all rounded-xl"
+                >
+                  {magicLinkLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                  )}
+                  <span className="text-gray-700">
+                    {magicLinkSent
+                      ? (language === 'ar' ? '✅ تم الإرسال! تحقق من بريدك' : '✅ Sent! Check your email')
+                      : (language === 'ar' ? 'إرسال رابط الدخول السحري' : 'Send Magic Link')
+                    }
+                  </span>
+                </Button>
+              </>
+            )}
 
             {/* Trust Badges */}
             <div className="flex items-center justify-center gap-6 mt-8 pt-6 border-t border-gray-100">

@@ -9,14 +9,16 @@
 
 -- ═══ 1. إصلاح FK على container_expenses ═══
 
--- حذف الـ FK القديم (يشير إلى accounts)
-ALTER TABLE container_expenses 
-DROP CONSTRAINT IF EXISTS container_expenses_expense_account_id_fkey;
-
--- إنشاء FK جديد يشير إلى chart_of_accounts
-ALTER TABLE container_expenses 
-ADD CONSTRAINT container_expenses_expense_account_id_fkey 
-FOREIGN KEY (expense_account_id) REFERENCES chart_of_accounts(id);
+DO $$ 
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'container_expenses') THEN
+        -- حذف الـ FK القديم (يشير إلى accounts)
+        EXECUTE 'ALTER TABLE container_expenses DROP CONSTRAINT IF EXISTS container_expenses_expense_account_id_fkey';
+        
+        -- إنشاء FK جديد يشير إلى chart_of_accounts
+        EXECUTE 'ALTER TABLE container_expenses ADD CONSTRAINT container_expenses_expense_account_id_fkey FOREIGN KEY (expense_account_id) REFERENCES chart_of_accounts(id)';
+    END IF;
+END $$;
 
 -- ═══ 2. أرشفة جدول accounts القديم ═══
 

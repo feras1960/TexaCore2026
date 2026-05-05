@@ -10,21 +10,24 @@
 -- ثم يقرأ كود الترحيل من هذه الإعدادات مباشرة
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- 1️⃣ إضافة الحقول الجديدة للحسابات الافتراضية
-ALTER TABLE company_accounting_settings 
-    ADD COLUMN IF NOT EXISTS default_purchase_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_cogs_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_tax_input_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_tax_output_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_sales_account_id UUID REFERENCES chart_of_accounts(id),
-    ADD COLUMN IF NOT EXISTS default_inventory_account_id UUID REFERENCES chart_of_accounts(id);
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'company_accounting_settings') THEN
+        EXECUTE 'ALTER TABLE company_accounting_settings 
+            ADD COLUMN IF NOT EXISTS default_purchase_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_cogs_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_tax_input_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_tax_output_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_sales_account_id UUID REFERENCES chart_of_accounts(id),
+            ADD COLUMN IF NOT EXISTS default_inventory_account_id UUID REFERENCES chart_of_accounts(id)';
 
-COMMENT ON COLUMN company_accounting_settings.default_purchase_account_id IS 'حساب المشتريات الافتراضي — يُستخدم في الجانب المدين عند ترحيل فواتير المشتريات';
-COMMENT ON COLUMN company_accounting_settings.default_cogs_account_id IS 'حساب تكلفة البضاعة المباعة — يُستخدم عند ترحيل فواتير المبيعات';
-COMMENT ON COLUMN company_accounting_settings.default_tax_input_account_id IS 'حساب ضريبة المدخلات (القيمة المضافة) — الجانب المدين';
-COMMENT ON COLUMN company_accounting_settings.default_tax_output_account_id IS 'حساب ضريبة المخرجات (القيمة المضافة) — الجانب الدائن';
-COMMENT ON COLUMN company_accounting_settings.default_sales_account_id IS 'حساب المبيعات الافتراضي — يُستخدم في الجانب الدائن عند ترحيل فواتير المبيعات';
-COMMENT ON COLUMN company_accounting_settings.default_inventory_account_id IS 'حساب المخزون الافتراضي';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_purchase_account_id IS ''حساب المشتريات الافتراضي — يُستخدم في الجانب المدين عند ترحيل فواتير المشتريات''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_cogs_account_id IS ''حساب تكلفة البضاعة المباعة — يُستخدم عند ترحيل فواتير المبيعات''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_tax_input_account_id IS ''حساب ضريبة المدخلات (القيمة المضافة) — الجانب المدين''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_tax_output_account_id IS ''حساب ضريبة المخرجات (القيمة المضافة) — الجانب الدائن''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_sales_account_id IS ''حساب المبيعات الافتراضي — يُستخدم في الجانب الدائن عند ترحيل فواتير المبيعات''';
+        EXECUTE 'COMMENT ON COLUMN company_accounting_settings.default_inventory_account_id IS ''حساب المخزون الافتراضي''';
+    END IF;
+END $$;
 
 -- 2️⃣ ربط الحسابات الافتراضية تلقائياً بناءً على شجرة الحسابات الموجودة
 DO $$
@@ -32,12 +35,11 @@ DECLARE
     v_company RECORD;
     v_account_id UUID;
 BEGIN
-    -- لكل شركة لديها إعدادات محاسبية
-    FOR v_company IN 
-        SELECT cas.id as settings_id, cas.company_id, c.tenant_id
-        FROM company_accounting_settings cas
-        JOIN companies c ON c.id = cas.company_id
-    LOOP
+-- لكل شركة لديها إعدادات محاسبية
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'company_accounting_settings') THEN
+        FOR v_company IN 
+            EXECUTE 'SELECT cas.id as settings_id, cas.company_id, c.tenant_id FROM company_accounting_settings cas JOIN companies c ON c.id = cas.company_id'
+        LOOP
         RAISE NOTICE '🔧 ربط الحسابات للشركة: %', v_company.company_id;
 
         -- ═══ حساب المشتريات/تكلفة البضاعة (الجانب المدين) ═══
@@ -249,6 +251,7 @@ BEGIN
         END IF;
 
     END LOOP;
+    END IF;
 
     RAISE NOTICE '';
     RAISE NOTICE '═══════════════════════════════════════════════════════════════';
@@ -265,7 +268,8 @@ BEGIN
 END;
 $$;
 
--- 3️⃣ التحقق من النتائج
+-- 3️⃣ التحقق من النتائج (Commented out because table might not exist)
+/*
 SELECT 
     c.name_ar as company_name,
     cas.default_purchase_account_id IS NOT NULL as has_purchase,
@@ -281,3 +285,4 @@ SELECT
     (SELECT account_code || ' - ' || name_ar FROM chart_of_accounts WHERE id = cas.default_receivable_account_id) as receivable_account
 FROM company_accounting_settings cas
 JOIN companies c ON c.id = cas.company_id;
+*/

@@ -241,7 +241,6 @@ export function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 h-10 px-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="/avatar.png" />
                   <AvatarFallback className="bg-erp-navy text-white text-sm">
                     {t('auth.userInitial')}
                   </AvatarFallback>

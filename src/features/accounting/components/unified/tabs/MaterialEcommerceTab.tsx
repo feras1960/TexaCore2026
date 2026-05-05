@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '@/i18n/config';
 import { useAutoTranslate } from '@/hooks/useAutoTranslate';
-import { supabase } from '@/lib/supabase';
+import { supabase, cloudSupabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { SheetMode } from '../types';
 
@@ -85,7 +85,7 @@ export function MaterialEcommerceTab({ data, mode, onChange }: MaterialEcommerce
 
     // Helper to call Edge Function directly (for generate modes)
     const callAutoTranslate = async (body: any) => {
-        const { data: result, error } = await supabase.functions.invoke('auto-translate', { body });
+        const { data: result, error } = await cloudSupabase.functions.invoke('auto-translate', { body });
         if (error) throw error;
         if (!result?.success) throw new Error(result?.error || 'Failed');
         return result;

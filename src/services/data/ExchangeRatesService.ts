@@ -35,7 +35,8 @@ export const ExchangeRatesService = {
         
         const now = Date.now();
         // Return existing data if cache is fresh (within 5 minutes)
-        if (!force && ratesCacheData && ratesCacheCompanyId === companyId && (now - ratesCacheTime < 5 * 60 * 1000)) {
+        // ⚠️ Empty cache is NOT valid — always re-fetch if we got 0 rates
+        if (!force && ratesCacheData && ratesCacheData.length > 0 && ratesCacheCompanyId === companyId && (now - ratesCacheTime < 5 * 60 * 1000)) {
             return ratesCacheData;
         }
         

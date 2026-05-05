@@ -327,23 +327,20 @@ export default function Parties() {
   const stats = useMemo(() => {
     let totalSupplierPayable = 0;
     let totalCustomerReceivable = 0;
+    const isShowingFc = effectiveCurrency !== baseCurrency;
     if (showTotals) {
-      supplierBalances.forEach((b, partyId) => {
-        const party = suppliers.find(s => s.id === partyId);
-        const cur = party?.currency || baseCurrency || 'USD';
-        totalSupplierPayable += convertBalance(b.balance, cur);
+      supplierBalances.forEach((b) => {
+        totalSupplierPayable += isShowingFc ? (b.balance_fc || 0) : b.balance;
       });
-      customerBalances.forEach((b, partyId) => {
-        const party = customers.find(c => c.id === partyId);
-        const cur = party?.currency || baseCurrency || 'USD';
-        totalCustomerReceivable += convertBalance(b.balance, cur);
+      customerBalances.forEach((b) => {
+        totalCustomerReceivable += isShowingFc ? (b.balance_fc || 0) : b.balance;
       });
     }
     return {
       customers: { total: customers.length, active: customers.filter(c => c.status === 'active').length, totalReceivables: totalCustomerReceivable },
       suppliers: { total: suppliers.length, active: suppliers.filter(s => s.status === 'active').length, totalPayables: totalSupplierPayable },
     };
-  }, [customers, suppliers, supplierBalances, customerBalances, convertBalance, baseCurrency, showTotals]);
+  }, [customers, suppliers, supplierBalances, customerBalances, baseCurrency, effectiveCurrency, showTotals]);
 
   // ─── Handlers ────────────────────────────────────────────────
   const handleRowClick = useCallback((row: Party) => {
@@ -460,23 +457,27 @@ export default function Parties() {
       width: '170px',
       cell: (row) => {
         const subLedger = currentBalances.get(row.id);
-        const rawBalance = subLedger ? subLedger.balance : 0;
-        const cur = row.currency || baseCurrency || 'USD';
-        const balance = convertBalance(rawBalance, cur);
-        const displayCur = isConverting ? displayCurrency : cur;
+        // ═══ الرصيد ثنائي العملة: استخدم القيمة المحسوبة مباشرة من RPC ═══
+        // balance = العملة المحلية (UAH) — محسوب من debit/credit الأصلية
+        // balance_fc = العملة الأجنبية (USD) — محسوب بسعر صرف كل حركة
+        const isShowingFc = effectiveCurrency !== baseCurrency;
+        const rawBalance = subLedger 
+          ? (isShowingFc ? (subLedger.balance_fc || 0) : subLedger.balance) 
+          : 0;
+        const displayCur = isShowingFc ? effectiveCurrency : (baseCurrency || 'UAH');
         const isSupplier = activeEntityTab === 'suppliers';
-        const color = balance > 0
+        const color = rawBalance > 0
           ? (isSupplier ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400')
-          : balance < 0
+          : rawBalance < 0
             ? (isSupplier ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')
             : 'text-gray-400';
         return (
           <div className="flex flex-col items-end">
             <span className={cn("font-mono font-bold text-[14px] tracking-tight", color)} dir="ltr">
-              {getCurrencySymbol(displayCur)} {fmtAmount(balance)}
+              {getCurrencySymbol(displayCur)} {fmtAmount(rawBalance)}
             </span>
-            {balance > 0 && isSupplier && <span className="text-[10px] text-red-400">{isRTL ? 'مستحق لهم' : 'we owe'}</span>}
-            {balance > 0 && !isSupplier && <span className="text-[10px] text-green-400">{isRTL ? 'مستحق لنا' : 'they owe'}</span>}
+            {rawBalance > 0 && isSupplier && <span className="text-[10px] text-red-400">{isRTL ? 'مستحق لهم' : 'we owe'}</span>}
+            {rawBalance > 0 && !isSupplier && <span className="text-[10px] text-green-400">{isRTL ? 'مستحق لنا' : 'they owe'}</span>}
             {subLedger && subLedger.transaction_count > 0 && (
               <span className="text-[9px] text-gray-300 mt-0.5">
                 {subLedger.transaction_count} {isRTL ? 'حركة' : 'txn'}
@@ -553,7 +554,7 @@ export default function Parties() {
   // RENDER
   // ═══════════════════════════════════════════════════════════════
   return (
-    <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500 pb-6" dir={direction}>
+    <div className="min-h-full space-y-4 animate-in fade-in duration-500 pb-6" dir={direction}>
 
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-1">
@@ -678,8 +679,8 @@ export default function Parties() {
       </div>
 
       {/* ─── Entity Tabs (Suppliers / Customers) ─── */}
-      <div className="flex-1 min-h-0 flex flex-col space-y-3">
-        <div className="flex flex-wrap items-center gap-3 px-1">
+        <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-950/95 backdrop-blur-sm pb-3 -mx-1 px-1 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex flex-wrap items-center gap-3 px-1 pt-2">
           {/* Entity switch */}
           <Tabs value={activeEntityTab} onValueChange={(v) => { setActiveEntityTab(v as any); setActiveStatusTab('all'); setSearchTerm(''); }} dir={direction}>
             <TabsList className="bg-white dark:bg-gray-900 p-1 border border-gray-200 dark:border-gray-800 rounded-lg">
@@ -758,7 +759,9 @@ export default function Parties() {
             }
           </Button>
         </div>
+        </div>
 
+      <div>
         {/* ─── NexaListTable ─── */}
         <NexaListTable<Party>
           data={filteredData}

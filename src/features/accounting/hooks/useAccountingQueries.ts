@@ -72,6 +72,7 @@ export function useJournalEntries(filters?: JournalEntriesFilters) {
                     total_credit,
                     created_by,
                     currency,
+                    fund_account_id,
                     lines:journal_entry_lines(
                         id,
                         account_id,
@@ -83,10 +84,15 @@ export function useJournalEntries(filters?: JournalEntriesFilters) {
                         currency,
                         exchange_rate,
                         cost_center_id,
+                        reference_type,
+                        reference_id,
+                        is_fund_line,
+                        line_number,
                         account:chart_of_accounts(
                             account_code,
                             name_ar,
-                            name_en
+                            name_en,
+                            currency
                         )
                     )
                 `)

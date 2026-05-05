@@ -88,7 +88,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // ═══════════════════════════════════════════════════════════════
 
 export function useRBAC(): UseRBACReturn {
-    const { user, loading: authLoading } = useAuth();
+    const { user, authUser, loading: authLoading } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [roles, setRoles] = useState<Role[]>([]);
@@ -195,14 +195,8 @@ export function useRBAC(): UseRBACReturn {
         if (!user?.id) return;
 
         // Get user's tenant_id first
-        let tenantId: string | null = null;
+        const tenantId = authUser?.tenant_id;
         const getTenantAndSubscribe = async () => {
-            const { data: profile } = await supabase
-                .from('user_profiles')
-                .select('tenant_id')
-                .eq('id', user.id)
-                .maybeSingle();
-            tenantId = profile?.tenant_id;
             if (!tenantId) return;
 
             const channel = supabase

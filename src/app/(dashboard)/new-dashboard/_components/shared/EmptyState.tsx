@@ -1,4 +1,4 @@
-import { FileQuestion } from 'lucide-react';
+import { FileQuestion, type LucideIcon } from 'lucide-react';
 
 export function EmptyState({
   icon: Icon,
@@ -6,7 +6,7 @@ export function EmptyState({
   description,
   action,
 }: {
-  icon: typeof Plus;
+  icon: LucideIcon;
   title: string;
   description?: string;
   action?: { label: string; onClick: () => void };

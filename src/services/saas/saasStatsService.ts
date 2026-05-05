@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, isSelfHosted } from '@/lib/supabase';
 
 export interface ProductStats {
   product_code: string;
@@ -26,6 +26,7 @@ class SaaSStatsService {
    * Get statistics for a specific product
    */
   async getProductStats(productCode: string): Promise<ProductStats | null> {
+    if (isSelfHosted) return null;
     try {
       const { data, error } = await supabase.rpc('get_product_stats', {
         p_product_code: productCode,
@@ -53,6 +54,7 @@ class SaaSStatsService {
    * Get overall dashboard statistics
    */
   async getDashboardStats(): Promise<DashboardStats> {
+    if (isSelfHosted) return { totalProducts: 0, totalPlans: 0, totalTenants: 0, activeTenants: 0, totalRevenue: 0, products: [] };
     try {
       const productCodes = ['nexacore', 'texacore', 'fincore', 'inducore', 'medcore'];
       
@@ -104,6 +106,7 @@ class SaaSStatsService {
    * Get recent tenants across all products
    */
   async getRecentTenants(limit: number = 10) {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('tenants')
@@ -132,6 +135,7 @@ class SaaSStatsService {
    * Get revenue by product
    */
   async getRevenueByProduct(currency: string = 'USD') {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('subscription_plans')
@@ -181,6 +185,7 @@ class SaaSStatsService {
    * Get subscribers growth over time (last 12 months)
    */
   async getSubscribersGrowth() {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('tenants')
@@ -222,6 +227,7 @@ class SaaSStatsService {
    * Get plan distribution (how many subscribers per plan)
    */
   async getPlanDistribution() {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('tenant_subscriptions')
@@ -269,6 +275,7 @@ class SaaSStatsService {
    * Get revenue trend (last 12 months) - from actual payments
    */
   async getRevenueTrend() {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('saas_payments')
@@ -303,6 +310,7 @@ class SaaSStatsService {
    * Get churn rate (percentage of cancelled subscriptions)
    */
   async getChurnRate() {
+    if (isSelfHosted) return { total: 0, active: 0, cancelled: 0, churnRate: 0 };
     try {
       const { data: allSubs } = await supabase
         .from('tenant_subscriptions')
@@ -332,6 +340,7 @@ class SaaSStatsService {
    * Get payment statistics by method
    */
   async getPaymentsByMethod() {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('saas_payments')
@@ -371,6 +380,7 @@ class SaaSStatsService {
    * Get recent payments
    */
   async getRecentPayments(limit: number = 10) {
+    if (isSelfHosted) return [];
     try {
       const { data, error } = await supabase
         .from('saas_payments')
