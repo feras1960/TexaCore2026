@@ -172,15 +172,19 @@ export default function Login() {
   // Detect self-hosted from runtime config (NOT from import.meta.env which is baked at build time)
   const isSelfHosted = (() => {
     try {
-      // Check window config first (set by config.js from ServiceManager)
+      // Check build-time env FIRST — if explicitly set to 'saas', it's NOT self-hosted
+      if (import.meta.env.VITE_TEXACORE_MODE === 'saas') return false;
+      // Check window config (set by config.js from ServiceManager)
       const wc = (window as any).__TEXACORE_CONFIG__;
       if (wc?.mode === 'selfhosted') return true;
+      if (wc?.mode === 'saas') return false;
       // Check localStorage (set during company creation)
       if (localStorage.getItem('texacore_active_company')) return true;
-      // Check if running on localhost (Desktop mode)
-      if (window.location.hostname === 'localhost') return true;
-      // Fallback to build-time env
-      return import.meta.env.VITE_TEXACORE_MODE === 'selfhosted';
+      // Fallback: check build-time env
+      if (import.meta.env.VITE_TEXACORE_MODE === 'selfhosted') return true;
+      // If no explicit mode set AND on localhost, assume selfhosted
+      if (!import.meta.env.VITE_TEXACORE_MODE && window.location.hostname === 'localhost') return true;
+      return false;
     } catch { return false; }
   })();
 
