@@ -130,9 +130,13 @@ export const companiesService = {
       .from('companies')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) {
+      // Don't throw on PGRST116 (0 rows) — happens after logout when RLS blocks
+      if (error.code === 'PGRST116') {
+        return null;
+      }
       console.error('Error fetching company:', error);
       throw error;
     }
