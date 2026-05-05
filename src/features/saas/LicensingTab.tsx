@@ -266,10 +266,37 @@ export default function LicensingTab() {
                           <Badge className={TIER_COLORS[license.tier] || ''}>{license.tier.toUpperCase()}</Badge>
                         </td>
                         <td className="p-3">
-                          <span className={`inline-flex items-center gap-1 ${statusConf.color}`}>
-                            <StatusIcon className="h-3.5 w-3.5" />
-                            {statusConf.label[isAr ? 'ar' : 'en']}
-                          </span>
+                          {license.status === 'suspended' ? (
+                            <span className="inline-flex items-center gap-1 text-orange-600">
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              {isAr ? 'موقوف' : 'Suspended'}
+                            </span>
+                          ) : license.status === 'revoked' ? (
+                            <span className="inline-flex items-center gap-1 text-red-800">
+                              <XCircle className="h-3.5 w-3.5" />
+                              {isAr ? 'ملغي' : 'Revoked'}
+                            </span>
+                          ) : expired ? (
+                            <span className="inline-flex items-center gap-1 text-red-600">
+                              <XCircle className="h-3.5 w-3.5" />
+                              {isAr ? 'منتهي' : 'Expired'}
+                            </span>
+                          ) : online ? (
+                            <span className="inline-flex items-center gap-1 text-green-600">
+                              <Wifi className="h-3.5 w-3.5" />
+                              {isAr ? 'متصل' : 'Online'}
+                            </span>
+                          ) : license.last_heartbeat_at ? (
+                            <span className="inline-flex items-center gap-1 text-gray-400">
+                              <Monitor className="h-3.5 w-3.5" />
+                              {isAr ? 'غير متصل' : 'Offline'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-yellow-600">
+                              <Clock className="h-3.5 w-3.5" />
+                              {isAr ? 'لم يتصل بعد' : 'Never connected'}
+                            </span>
+                          )}
                         </td>
                         <td className="p-3">
                           {license.subdomain ? (
