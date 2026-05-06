@@ -638,83 +638,67 @@ export function useAuth() {
   const logout = async () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
-      // 🧹 Clear ALL TexaCore localStorage keys on logout
-      // Prevents data leakage: drafts, caches, preferences on shared devices
-      if (typeof window !== 'undefined') {
-        const keysToRemove: string[] = [];
-        // Prefixes of ALL TexaCore app data stored in localStorage
-        const APP_PREFIXES = [
-          'sb-',                         // Supabase auth tokens
-          'supabase',                    // Supabase misc
-          'texacore_',                   // Trusted device, online rates, etc.
-          'receipt_sessions',            // Receipt drafts (receiptLocalStore)
-          'receipt_pending_queue',       // Receipt pending queue
-          'delivery_draft_',             // Transfer delivery drafts
-          'sales_delivery_draft_',       // Sales delivery drafts
-          'ai_analysis_cache_',          // AI analytics cache
-          'table_prefs_',               // Table column preferences
-          'materials_',                  // Materials view mode, filters
-          'wh_',                         // Warehouse location filters
-          'dashboard_',                  // Dashboard currency preference
-        ];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && APP_PREFIXES.some(prefix => key.startsWith(prefix) || key.includes(prefix))) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-        console.log(`🧹 [Logout] Cleared ${keysToRemove.length} localStorage keys`);
-      }
-
-      // 🔐 مسح قاعدة البيانات المحلية (IndexedDB) — حماية الجهاز المشترك
-      try {
-        const { offlineDB } = await import('@/features/warehouse/services/warehouseOfflineDB');
-        await offlineDB.delete();
-      } catch {
-        // تجاهل — قد لا يكون Dexie محملاً
-      }
-
-      // 🗑️ مسح كاش DataEngine (React Query + IndexedDB persistence)
-      try {
-        const { dataEngine } = await import('@/engine/DataEngine');
-        await dataEngine.clearAll();
-      } catch {
-        // تجاهل — قد لا يكون DataEngine محملاً
-      }
-
-      // 🔐 Clear encryption key from memory
-      try {
-        const { dbEncryption } = await import('@/lib/crypto/indexedDBEncryption');
-        dbEncryption.clearKey();
-      } catch { /* ignore */ }
-
-      // ⚡ Clear Service Worker auth
-      try {
-        const { clearSWAuth } = await import('@/lib/serviceWorker/register');
-        await clearSWAuth();
-      } catch { /* ignore */ }
-
-      // 📡 Notify all other tabs to logout too
-      try {
-        const { getTabSync } = await import('@/lib/sync/tabSyncChannel');
-        getTabSync().broadcast({ type: 'LOGOUT' });
-      } catch { /* ignore */ }
-
+      // 🚀 FAST: Sign out FIRST — this is what the user is waiting for
       const { error } = await signOut();
-      if (error) {
-        setState(prev => ({ ...prev, error: error.message, loading: false }));
-      } else {
-        setState({
-          user: null,
-          authUser: null,
-          session: null,
-          loading: false,
-          error: null,
-          mfaRequired: false,
-          mfaFactorId: null,
-        });
-      }
+
+      // Update state IMMEDIATELY — user sees login page instantly
+      setState({
+        user: null,
+        authUser: null,
+        session: null,
+        loading: false,
+        error: error?.message || null,
+        mfaRequired: false,
+        mfaFactorId: null,
+      });
+
+      // 🧹 BACKGROUND: All cleanup runs after UI has already updated
+      // None of these should block the user from seeing the login page
+      setTimeout(async () => {
+        // 1. Clear localStorage (synchronous — fast)
+        try {
+          const APP_PREFIXES = [
+            'sb-', 'supabase', 'texacore_', 'receipt_sessions',
+            'receipt_pending_queue', 'delivery_draft_', 'sales_delivery_draft_',
+            'ai_analysis_cache_', 'table_prefs_', 'materials_', 'wh_', 'dashboard_',
+          ];
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && APP_PREFIXES.some(prefix => key.startsWith(prefix) || key.includes(prefix))) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => localStorage.removeItem(key));
+          console.log(`🧹 [Logout] Cleared ${keysToRemove.length} localStorage keys`);
+        } catch { /* ignore */ }
+
+        // 2. Heavy async cleanup — all in parallel, non-blocking
+        await Promise.allSettled([
+          // Delete warehouse offline DB
+          import('@/features/warehouse/services/warehouseOfflineDB')
+            .then(m => m.offlineDB.delete())
+            .catch(() => {}),
+          // Clear DataEngine cache
+          import('@/engine/DataEngine')
+            .then(m => m.dataEngine.clearAll())
+            .catch(() => {}),
+          // Clear encryption key
+          import('@/lib/crypto/indexedDBEncryption')
+            .then(m => m.dbEncryption.clearKey())
+            .catch(() => {}),
+          // Clear Service Worker auth
+          import('@/lib/serviceWorker/register')
+            .then(m => m.clearSWAuth())
+            .catch(() => {}),
+        ]);
+
+        // 3. Notify other tabs (fire-and-forget)
+        try {
+          const { getTabSync } = await import('@/lib/sync/tabSyncChannel');
+          getTabSync().broadcast({ type: 'LOGOUT' });
+        } catch { /* ignore */ }
+      }, 0);
     } catch (err: any) {
       setState(prev => ({
         ...prev,
