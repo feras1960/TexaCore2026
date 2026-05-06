@@ -240,11 +240,6 @@ export default function Accounting() {
               aria-labelledby={`tab-${tab.id}`}
               aria-hidden={!isActive}
               className={isActive ? 'block' : 'hidden'}
-              // Performance: prevent any re-renders when hidden
-              style={{
-                contain: isActive ? 'none' : 'strict',
-                contentVisibility: isActive ? 'visible' : 'hidden',
-              }}
             >
               <Suspense fallback={<div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>}>
                 <TabComponent />

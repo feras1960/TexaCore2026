@@ -188,20 +188,20 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
               // Active page — normal rendering
               display: 'block',
             } : {
-              // ⚡ Inactive page — keep mounted OFF-SCREEN with real dimensions
-              // This fixes ECharts "Can't get DOM width or height" errors
-              // because display:none gives elements 0×0 dimensions
-              position: 'absolute',
+              // ⚡ Inactive page — keep mounted but fully out of layout flow
+              // Using fixed position + visibility:hidden ensures:
+              // 1. Elements keep real dimensions (ECharts happy)
+              // 2. Zero impact on parent scroll height (fixes scroll cutoff bug)
+              // 3. No paint cost (visibility:hidden = no compositing)
+              position: 'fixed',
               top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
+              left: '-200vw',
+              width: '100vw',
+              height: '100vh',
               overflow: 'hidden',
-              opacity: 0,
+              visibility: 'hidden',
               pointerEvents: 'none',
-              zIndex: -1,
-              contain: 'strict',
-              contentVisibility: 'hidden',
+              zIndex: -9999,
             }}
           >
             <Suspense fallback={isActive ? (

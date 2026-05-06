@@ -25,8 +25,8 @@ import { resolvePurchasesQueries } from './modules/purchasesModule';
 import { resolveCrmQueries } from './modules/crmModule';
 import { resolveHrQueries } from './modules/hrModule';
 
-// 🖥️ LOCAL MODE: skip heavy engine loading — data is on localhost (~5ms fetch)
-// 🌐 REMOTE SELFHOSTED: keep engine loading (network latency makes preloading valuable)
+// 🖥️ LOCAL MODE: still preload — even localhost has HTTP overhead (PostgREST → SQL → JSON)
+// The difference is we start slightly later to let the local services warm up
 const isLocalMode = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 
 // ── Context ─────────────────────────────────────────────────────
@@ -55,9 +55,8 @@ export function DataEngineProvider({ children }: { children: React.ReactNode }) 
   const isRestoring = useIsRestoring();
   const hasStarted = useRef(false);
 
-  // 🖥️ In local mode, start with 'done' immediately — no loading bar
   const [progress, setProgress] = useState<DataEngineProgress>(
-    isLocalMode ? DONE_PROGRESS : { status: 'idle', total: 0, loaded: 0, percent: 0, currentModule: '' }
+    { status: 'idle', total: 0, loaded: 0, percent: 0, currentModule: '' }
   );
 
   // Set QueryClient on the engine
@@ -65,10 +64,9 @@ export function DataEngineProvider({ children }: { children: React.ReactNode }) 
     dataEngine.setQueryClient(queryClient);
   }, [queryClient]);
 
-  // Register modules (skip in local mode — not needed)
+  // Register modules for ALL modes (cloud + local)
   useEffect(() => {
-    if (!companyId || isLocalMode) return;
-    // Register all modules with resolved company ID
+    if (!companyId) return;
     dataEngine.registerModule(resolveAccountingQueries(companyId));
     dataEngine.registerModule(resolveWarehouseQueries(companyId));
     dataEngine.registerModule(resolveSalesQueries(companyId));
@@ -77,31 +75,29 @@ export function DataEngineProvider({ children }: { children: React.ReactNode }) 
     dataEngine.registerModule(resolveHrQueries(companyId));
   }, [companyId]);
 
-  // Subscribe to progress updates (skip in local mode)
+  // Subscribe to progress updates
   useEffect(() => {
-    if (isLocalMode) return;
     const unsubscribe = dataEngine.subscribe(setProgress);
     return unsubscribe;
   }, []);
 
   // ── Start loading when ready ──────────────────────────────
   useEffect(() => {
-    // 🖥️ Local mode: skip heavy engine loading entirely
-    if (isLocalMode) {
-      console.log('⚡ [DataEngine] Local mode — skipping heavy preload, on-demand fetch is fast enough');
-      return;
-    }
-
     // Wait for: auth, RBAC, IndexedDB restoration
     if (!companyId || rbacLoading || isRestoring || hasStarted.current) return;
     if (!user?.id) return;
 
     hasStarted.current = true;
 
-    // Small delay to let UI render first → non-blocking experience
+    // Local mode: slightly longer delay (800ms) to let PostgREST warm up
+    // Cloud mode: shorter delay (300ms) — network is the bottleneck anyway
+    const startDelay = isLocalMode ? 800 : 300;
+    
+    console.log(`⚡ [DataEngine] Starting preload in ${startDelay}ms (${isLocalMode ? 'local' : 'cloud'} mode)`);
+
     const timer = setTimeout(() => {
       dataEngine.loadAll(companyId, visibleModules, language);
-    }, 300);
+    }, startDelay);
 
     return () => clearTimeout(timer);
   }, [companyId, rbacLoading, isRestoring, user?.id, visibleModules, language]);

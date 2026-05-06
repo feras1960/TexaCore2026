@@ -115,9 +115,17 @@ export default function LicensingTab() {
 
   const formatDate = (d: string) => {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', {
+    return new Date(d).toLocaleDateString('en-GB', {
       year: 'numeric', month: 'short', day: 'numeric',
     });
+  };
+
+  const formatDateTime = (d: string) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    const date = dt.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+    const time = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `${date} ${time}`;
   };
 
   const isExpired = (d: string) => new Date(d) < new Date();
@@ -239,7 +247,8 @@ export default function LicensingTab() {
                     <th className="text-start p-3 font-medium">{isAr ? 'الدومين' : 'Domain'}</th>
                     <th className="text-start p-3 font-medium">{isAr ? 'الجهاز' : 'Device'}</th>
                     <th className="text-start p-3 font-medium">{isAr ? 'آخر اتصال' : 'Last Seen'}</th>
-                    <th className="text-start p-3 font-medium">{isAr ? 'ينتهي' : 'Expires'}</th>
+                    <th className="text-start p-3 font-medium">{isAr ? 'بداية الترخيص' : 'Start'}</th>
+                    <th className="text-start p-3 font-medium">{isAr ? 'تاريخ الانتهاء' : 'Expires'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -317,8 +326,11 @@ export default function LicensingTab() {
                             </span>
                           ) : '—'}
                         </td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {formatDateTime(license.activated_at || license.created_at)}
+                        </td>
                         <td className={`p-3 text-xs ${expired ? 'text-red-600 font-medium' : ''}`}>
-                          {formatDate(license.expires_at)}
+                          {formatDateTime(license.expires_at)}
                         </td>
                       </motion.tr>
                     );
