@@ -39,10 +39,12 @@ export default function MainLayout() {
   useEffect(() => {
     const isLocalhost = window.location.hostname === 'localhost';
 
-    // 🖥️ Localhost: skip IndexedDB-related features (not used)
-    if (!isLocalhost) {
-      initStoragePersistence();
+    // 💾 IndexedDB cache persistence — enabled for ALL modes (cloud + local)
+    // This ensures React Query cache survives page refresh → instant load
+    initStoragePersistence();
 
+    // 🖥️ Localhost: skip Service Worker & integrity checks (cloud-only features)
+    if (!isLocalhost) {
       // ⚡ Register Service Worker (background sync)
       import('@/lib/serviceWorker/register').then(({ registerServiceWorker }) => {
         registerServiceWorker();

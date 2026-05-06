@@ -89,11 +89,22 @@ export function DataEngineProvider({ children }: { children: React.ReactNode }) 
 
     hasStarted.current = true;
 
-    // Local mode: slightly longer delay (800ms) to let PostgREST warm up
-    // Cloud mode: shorter delay (300ms) — network is the bottleneck anyway
+    // ⚡ Check if React Query cache is already warm (restored from IndexedDB)
+    // If cache has data, skip the heavy preload — user sees instant results
+    const cachedQueries = queryClient.getQueryCache().getAll();
+    const hasCachedData = cachedQueries.some(q => 
+      q.state.status === 'success' && q.state.data != null
+    );
+
+    if (hasCachedData) {
+      console.log(`⚡ [DataEngine] Cache warm from IndexedDB (${cachedQueries.filter(q => q.state.status === 'success').length} queries) — skipping preload`);
+      setProgress(DONE_PROGRESS);
+      return;
+    }
+
+    // Cache is empty → first load, run DataEngine preload
     const startDelay = isLocalMode ? 800 : 300;
-    
-    console.log(`⚡ [DataEngine] Starting preload in ${startDelay}ms (${isLocalMode ? 'local' : 'cloud'} mode)`);
+    console.log(`⚡ [DataEngine] Cold start — preloading in ${startDelay}ms (${isLocalMode ? 'local' : 'cloud'} mode)`);
 
     const timer = setTimeout(() => {
       dataEngine.loadAll(companyId, visibleModules, language);
