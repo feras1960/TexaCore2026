@@ -46,11 +46,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: 'index.html',
         // 🔐 Exclude OAuth callbacks & auth redirects from SW navigateFallback
-        // Without this, SW intercepts /?code=... from Google OAuth → ERR_FAILED
+        // Without this, SW intercepts /?code=... from Google OAuth causing ERR_FAILED
         navigateFallbackDenylist: [
-          /^\\/api/,
-          /[?&](code|access_token|refresh_token|token|error|error_description)=/,
-          /[#](access_token|refresh_token|token_type|expires_in)=/,
+          new RegExp('^\\/api'),
+          new RegExp('[?&](code|access_token|refresh_token|token|error|error_description)='),
+          new RegExp('[#](access_token|refresh_token|token_type|expires_in)='),
         ],
         runtimeCaching: [
           {
@@ -61,8 +61,8 @@ export default defineConfig({
               // Skip SW for auth callback URLs — prevents ERR_FAILED on OAuth redirect
               const search = url.search || '';
               const hash = url.hash || '';
-              if (/[?&](code|access_token|refresh_token|token|error)=/.test(search)) return false;
-              if (/[#](access_token|refresh_token|token_type)=/.test(hash)) return false;
+              if (search.includes('code=') || search.includes('access_token=') || search.includes('error=')) return false;
+              if (hash.includes('access_token=') || hash.includes('token_type=')) return false;
               return true;
             },
             handler: 'NetworkFirst',
@@ -77,7 +77,7 @@ export default defineConfig({
           },
           {
             // Cache Supabase storage files (images, documents)
-            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
+            urlPattern: new RegExp('^https://.*\\.supabase\\.co/storage/.*', 'i'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'supabase-storage-cache',
@@ -92,7 +92,7 @@ export default defineConfig({
           },
           {
             // Cache Google Fonts
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            urlPattern: new RegExp('^https://fonts\\.googleapis\\.com/.*', 'i'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-fonts-cache',
@@ -104,7 +104,7 @@ export default defineConfig({
           },
           {
             // Cache font files
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            urlPattern: new RegExp('^https://fonts\\.gstatic\\.com/.*', 'i'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'gstatic-fonts-cache',
