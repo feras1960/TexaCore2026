@@ -18,6 +18,7 @@ import { DataEngineIndicator } from '@/engine/DataEngineIndicator';
 import { useGlobalRealtime } from '@/hooks/useGlobalRealtime';
 import { initStoragePersistence } from '@/lib/storage/storagePersistence';
 import { stockCountOfflineStore } from '@/features/warehouse/services/stockCountOfflineStore';
+// ⚡ useDataPreloader removed — DataEngine is the sole data loading system
 
 export default function MainLayout() {
   const { direction, language } = useLanguage();
@@ -34,6 +35,9 @@ export default function MainLayout() {
 
   // 🌐 Real-time sync: auto-update cache when other users make changes
   useGlobalRealtime();
+
+  // ⚡ Data preloading handled by DataEngine (via DataEngineProvider above)
+  // useDataPreloader removed — was duplicating 27+ queries with DataEngine
 
   // 💾 Initialize storage, service worker, integrity checks, offline listener (once)
   useEffect(() => {

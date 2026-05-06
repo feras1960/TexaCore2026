@@ -58,7 +58,7 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: isLocalMode ? 2 * 60 * 1000 : 5 * 60 * 1000,  // Local: 2min, Cloud: 5min
-      gcTime: isLocalMode ? 30 * 60 * 1000 : 24 * 60 * 60 * 1000, // Local: 30min, Cloud: 24hr
+      gcTime: isLocalMode ? 10 * 60 * 1000 : 60 * 60 * 1000, // Local: 10min, Cloud: 60min (prevents memory bloat)
       refetchOnWindowFocus: false,           // Don't refetch when user returns to tab
       refetchOnReconnect: 'always',          // Always refetch on network reconnect
       retry: (isLocalMode || isSelfHosted) ? 0 : 1,  // Selfhosted: no retries (fast fail), Cloud: 1 retry
@@ -67,22 +67,26 @@ export const queryClient = new QueryClient({
 });
 
 // ═══════════════════════════════════════════════════════════════
-// Persistence: IndexedDB via Dexie.js (CLOUD MODE ONLY)
-// 🖥️ Local mode skips this entirely — no IndexedDB writes!
+// Persistence: IndexedDB via Dexie.js — ENABLED FOR ALL MODES
+// 🖥️ Local mode uses lighter gc settings to avoid main-thread blocking
 // ═══════════════════════════════════════════════════════════════
-const persistOptions = isLocalMode ? null : {
+const persistOptions = {
   persister: createDexiePersister(),
-  maxAge: 7 * 24 * 60 * 60 * 1000,          // 7 days max cache age
+  maxAge: isLocalMode ? 2 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000, // Local: 2 days, Cloud: 7 days
   dehydrateOptions: {
     shouldDehydrateQuery: (query: any) => {
       // Only persist successful queries with data
-      return query.state.status === 'success' && query.state.data !== undefined;
+      if (query.state.status !== 'success' || query.state.data === undefined) return false;
+      // 📉 Skip large arrays (>500 items) — they're too heavy to serialize
+      // These queries refetch quickly anyway from the database
+      const data = query.state.data;
+      if (Array.isArray(data) && data.length > 500) return false;
+      return true;
     },
   },
   // Auto-generate buster based on week number — invalidates old schema caches weekly
-  // Change format manually (e.g. 'v2.0.0') for breaking schema updates
-  // v6: stock-movements limit 500 + consolidated sheet view (2026-04-13)
-  buster: `v6-w${Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))}`,
+  // v7: re-enable local persistence for instant navigation (2026-05-06)
+  buster: `v7-w${Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))}`,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -106,9 +110,18 @@ function handlePersistSuccess() {
     // 🔑 Show cached data instantly AND treat as fresh
     const freshTimestamp = Date.now();
 
-    // ⚡ REALTIME_SKIP_KEYS (auto-built from REALTIME_SUBSCRIPTIONS at module level)
-    // Queries managed by realtime should refetch on cold start to detect
-    // changes that happened while the app was closed.
+    // ═══════════════════════════════════════════════════════════
+    // ⚡ BATCHED TIMESTAMP UPDATE (v2)
+    //
+    // Previous approach: query.setState() per query → triggered
+    // React Query observers for EACH update → cascade of re-renders
+    //
+    // New approach: Directly modify the internal state object,
+    // which does NOT trigger observers. This means ZERO re-renders
+    // during the hydration loop. The UI will render once when React
+    // naturally commits, with all timestamps already updated.
+    // ═══════════════════════════════════════════════════════════
+    let updatedCount = 0;
 
     successQueries.forEach((query) => {
       const key0 = query.queryKey[0] as string;
@@ -119,19 +132,13 @@ function handlePersistSuccess() {
       // Skip inventory preload caches — must refetch for fresh stock data
       if (typeof key0 === 'string' && key0.startsWith('inventory-preload')) return;
 
-      // 🔄 sales_cycle_full: previously removed stale caches without items join.
-      // Now the query always includes items join, so we keep the cache as-is.
-
-      query.setState({
-        ...query.state,
-        dataUpdatedAt: freshTimestamp,
-      });
+      // Direct state mutation — no observer notification
+      (query.state as any).dataUpdatedAt = freshTimestamp;
+      updatedCount++;
     });
 
-    // Remove stale full-detail cache so it will refetch fresh data on next use
-    // queryClient.removeQueries({ queryKey: ['materials-full-detail'] }); // Preserve full-detail cache for variant data
-
     const keys = successQueries.map(q => q.queryKey[0]).filter((v, i, a) => a.indexOf(v) === i);
+    console.log(`⚡ [Cache] ${updatedCount} timestamps refreshed (batched, 0 re-renders)`);
     console.log(`⚡ [Cache] Query groups: ${keys.join(', ')}`);
     console.log(`⚡ [Cache] Data shown instantly — next sync after staleTime expires`);
   } else {
@@ -144,28 +151,8 @@ interface AppProvidersProps {
 }
 
 export function AppProviders({ children }: AppProvidersProps) {
-  // 🖥️ LOCAL MODE: Use plain QueryClientProvider — no IndexedDB persistence
-  //    This eliminates the main-thread-blocking IndexedDB writes that
-  //    freeze the browser when handling thousands of entries.
-  if (isLocalMode || !persistOptions) {
-    console.log('⚡ [AppProviders] Local mode — IndexedDB persistence disabled');
-    return (
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <LanguageProvider>
-            <ThemeProvider>
-              <InterfaceModeProvider>
-                {children}
-                <Toaster />
-              </InterfaceModeProvider>
-            </ThemeProvider>
-          </LanguageProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
-    );
-  }
-
-  // ☁️ CLOUD MODE: Use PersistQueryClientProvider with IndexedDB
+  // ☁️ All modes: Use PersistQueryClientProvider with IndexedDB
+  // 🖥️ Local mode gets lighter gc/staleTime settings (configured above)
   return (
     <PersistQueryClientProvider
       client={queryClient}

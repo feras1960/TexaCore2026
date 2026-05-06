@@ -1,14 +1,14 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * ⚡ KeepAliveOutlet — Keep ALL Pages Mounted + Background Prefetch
+ * ⚡ KeepAliveOutlet — Keep Visited Pages Mounted + Code-Only Prefetch
  * ════════════════════════════════════════════════════════════════
  *
  * Strategy:
  * 1. User visits a page → it loads and stays mounted (hidden via CSS)
- * 2. After 1.5s idle, background prefetch starts loading critical pages
- *    in rapid succession (300ms apart) using requestIdleCallback
- * 3. Result: within ~5s of login, ALL key pages are pre-loaded
- *    and switching between them is INSTANT (0ms)
+ * 2. After 5s idle, background prefetch downloads JS bundles ONLY
+ *    (via import()) — NO component mounting, NO useQuery triggers
+ * 3. DataEngine handles data loading independently
+ * 4. Result: instant code loading on navigation + data already in cache
  *
  * ════════════════════════════════════════════════════════════════
  */
@@ -54,8 +54,8 @@ const ROUTE_MAP: Record<string, () => Promise<{ default: ComponentType<any> }>> 
   '/dev/charts-lab': () => import('@/pages/ChartsLab'),
 };
 
-// ═══ Prefetch Tiers — Parallel Loading Strategy ═══
-// Tier 1: Data-heavy, daily-use pages → load ALL in parallel (1.5s)
+// ═══ Code Prefetch Tiers — JS Bundle Only (No Mounting!) ═══
+// Tier 1: Core daily-use pages — download JS code after 5s
 const TIER_1_CRITICAL = [
   '/accounting',  // شجرة الحسابات + لوحة المحاسبة
   '/sales',       // المبيعات
@@ -65,7 +65,7 @@ const TIER_1_CRITICAL = [
   '/crm',         // العملاء والموردين
 ];
 
-// Tier 2: Important but less frequent → load in parallel (4s)
+// Tier 2: Important but less frequent — download after 15s
 const TIER_2_IMPORTANT = [
   '/hr',                  // الموارد البشرية
   '/ecommerce',           // المتجر الإلكتروني
@@ -77,7 +77,7 @@ const TIER_2_IMPORTANT = [
   '/exchange',            // الصرافة
 ];
 
-// Tier 3: Secondary — sequential loading to save resources (8s)
+// Tier 3: Secondary — download after 30s
 const TIER_3_SECONDARY = [
   '/saas', '/fabric', '/pharmacy', '/healthcare',
   '/doctors', '/restaurant', '/gold', '/website',
@@ -100,7 +100,7 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
   const location = useLocation();
   const currentKey = getRouteKey(location.pathname);
 
-  // Track mounted routes (includes prefetched ones)
+  // Track MOUNTED routes — only pages the user has actually visited
   const [mountedRoutes, setMountedRoutes] = useState<Set<string>>(() => {
     return currentKey ? new Set([currentKey]) : new Set();
   });
@@ -109,50 +109,63 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
   const [componentCache] = useState<Map<string, ComponentType<any>>>(() => new Map());
   const prefetchStarted = useRef(false);
 
-  // Mount current route
+  // Track which JS bundles have been preloaded (code only, no mount)
+  const preloadedCode = useRef<Set<string>>(new Set());
+
+  // Mount current route (only when user actually visits)
   useEffect(() => {
     if (currentKey && !mountedRoutes.has(currentKey)) {
       setMountedRoutes(prev => new Set(prev).add(currentKey));
     }
   }, [currentKey]);
 
-  // ⚡ 3-Tier Staggered Prefetch — Non-blocking background loading
+  // ⚡ Code-Only Prefetch — Download JS bundles WITHOUT mounting
+  // This ensures the browser caches the JS code, so when the user
+  // navigates to a page, there's no network delay for the JS bundle.
+  // But since components are NOT mounted, no useQuery hooks fire,
+  // and no data requests are made. DataEngine handles data separately.
   useEffect(() => {
     if (prefetchStarted.current) return;
     prefetchStarted.current = true;
 
     const timeouts: ReturnType<typeof setTimeout>[] = [];
 
-    // Helper: mount a single route (light — one component at a time)
-    const mountOne = (routeKey: string) => {
-      if (!ROUTE_MAP[routeKey] || mountedRoutes.has(routeKey)) return;
-      setMountedRoutes(prev => new Set(prev).add(routeKey));
-    };
+    // Helper: preload JS code only (import() downloads the chunk, nothing mounts)
+    const preloadCode = (routeKey: string) => {
+      if (!ROUTE_MAP[routeKey] || preloadedCode.current.has(routeKey)) return;
+      preloadedCode.current.add(routeKey);
 
-    // Helper: mount routes sequentially with gaps
-    const mountSequential = (routes: string[], gapMs: number, startDelay: number) => {
-      const toMount = routes.filter(r => ROUTE_MAP[r] && !mountedRoutes.has(r));
-      toMount.forEach((routeKey, idx) => {
-        timeouts.push(setTimeout(() => {
-          const schedule = (window as any).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 16));
-          schedule(() => mountOne(routeKey));
-        }, startDelay + idx * gapMs));
+      // Just call import() — downloads the JS chunk, browser caches it
+      // No React mounting, no useQuery, no side effects
+      const schedule = (window as any).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 50));
+      schedule(() => {
+        ROUTE_MAP[routeKey]().catch(() => {
+          // Non-critical: if code preload fails, page will load normally on visit
+        });
       });
-      return toMount.length;
     };
 
-    // 🔴 Tier 1: Critical — staggered 300ms apart, starting after 1.5s
-    //    Start fast: user often navigates to these within first few seconds
-    const t1Count = mountSequential(TIER_1_CRITICAL, 300, 1500);
-    console.log(`⚡ [KeepAlive] Tier 1: ${t1Count} critical pages queued (staggered, 1.5s delay)`);
+    // Helper: preload routes sequentially with gaps
+    const preloadSequential = (routes: string[], gapMs: number, startDelay: number): number => {
+      const toPreload = routes.filter(r => ROUTE_MAP[r] && !preloadedCode.current.has(r));
+      toPreload.forEach((routeKey, idx) => {
+        timeouts.push(setTimeout(() => preloadCode(routeKey), startDelay + idx * gapMs));
+      });
+      return toPreload.length;
+    };
 
-    // 🟡 Tier 2: Important — staggered 500ms apart, starting after 5s
-    const t2Count = mountSequential(TIER_2_IMPORTANT, 500, 5000);
-    console.log(`⚡ [KeepAlive] Tier 2: ${t2Count} important pages queued`);
+    // 🔴 Tier 1: Critical pages — preload JS code after 5s (one every 1s)
+    //    DataEngine loads DATA during this time, no conflict
+    const t1Count = preloadSequential(TIER_1_CRITICAL, 1000, 5000);
+    console.log(`📦 [KeepAlive] Tier 1: ${t1Count} critical page bundles queued (code-only, 5s delay)`);
 
-    // 🟢 Tier 3: Secondary — staggered 600ms apart, starting after 15s
-    const t3Count = mountSequential(TIER_3_SECONDARY, 600, 15000);
-    console.log(`⚡ [KeepAlive] Tier 3: ${t3Count} secondary pages queued`);
+    // 🟡 Tier 2: Important — preload after 15s (one every 2s)
+    const t2Count = preloadSequential(TIER_2_IMPORTANT, 2000, 15000);
+    console.log(`📦 [KeepAlive] Tier 2: ${t2Count} important page bundles queued`);
+
+    // 🟢 Tier 3: Secondary — preload after 30s (one every 2s)
+    const t3Count = preloadSequential(TIER_3_SECONDARY, 2000, 30000);
+    console.log(`📦 [KeepAlive] Tier 3: ${t3Count} secondary page bundles queued`);
 
     return () => timeouts.forEach(clearTimeout);
   }, []);

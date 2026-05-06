@@ -56,7 +56,7 @@ export const CACHE_TIMES = {
   STATIC:      30 * 60 * 1000,   // 30 min — settings, account tree
   SEMI_STATIC: 10 * 60 * 1000,   // 10 min — funds, parties, materials
   DYNAMIC:      5 * 60 * 1000,   //  5 min — journal entries, invoices
-  GC:          24 * 60 * 60 * 1000, // 24 hours — keep for IndexedDB
+  GC:          60 * 60 * 1000,   // 60 min — prevents memory bloat (was 24hr)
 } as const;
 
 // ── DataEngine class ────────────────────────────────────────────

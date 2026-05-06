@@ -58,18 +58,13 @@ function formatNumber(num: number, decimals = 2): string {
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-// ── Main Component ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// 🛡️ Shell Component — LIGHTWEIGHT
+//    Only listens for Ctrl+E. Does NOT load exchange rate hooks.
+//    The heavy CurrencyCalculatorInner only mounts when isOpen=true.
+// ═══════════════════════════════════════════════════════════════════
 export function CurrencyCalculator() {
   const [isOpen, setIsOpen] = useState(false);
-  const [amount, setAmount] = useState('1000');
-  const [fromCurrency, setFromCurrency] = useState('USD');
-  const [copiedCurrency, setCopiedCurrency] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const { lookupRate, lookupRateDetails, rates, isLoading, refreshRates } = useExchangeRateLookup();
-  const { currencyOptions } = useViewCurrency();
-  const { language, direction } = useLanguage();
-  const isAr = language === 'ar';
 
   // ── Global keyboard shortcut: Ctrl+E / ⌘+E ──
   useEffect(() => {
@@ -86,12 +81,31 @@ export function CurrencyCalculator() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  // ── Focus input when dialog opens ──
+  // Only mount the heavy component when actually open
+  if (!isOpen) return null;
+
+  return <CurrencyCalculatorInner onClose={() => setIsOpen(false)} />;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 💱 Inner Component — HEAVY (only mounted when open)
+//    Loads exchange rates, view currency, etc. only on demand
+// ═══════════════════════════════════════════════════════════════════
+function CurrencyCalculatorInner({ onClose }: { onClose: () => void }) {
+  const [amount, setAmount] = useState('1000');
+  const [fromCurrency, setFromCurrency] = useState('USD');
+  const [copiedCurrency, setCopiedCurrency] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const { lookupRate, lookupRateDetails, rates, isLoading, refreshRates } = useExchangeRateLookup();
+  const { currencyOptions } = useViewCurrency();
+  const { language, direction } = useLanguage();
+  const isAr = language === 'ar';
+
+  // ── Focus input on mount ──
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [isOpen]);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
 
   // ── Parse input amount ──
   const parsedAmount = useMemo(() => {
@@ -144,8 +158,6 @@ export function CurrencyCalculator() {
   const handleSelectFromCurrency = useCallback((currency: string) => {
     setFromCurrency(currency);
   }, []);
-
-  if (!isOpen) return null;
 
   const fromMeta = getCurrencyMeta(fromCurrency);
 

@@ -478,61 +478,52 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                     let typeIcon = '📋';
 
                     // ═══ Reverse Lookup: when refId is missing, find the original document via journal_entry_id ═══
+                    // ⚡ All lookups run in PARALLEL for instant response
                     if (!refId && entry.entryId) {
-                        // Check entry_type or entryType to determine which table to reverse-lookup
                         const jeType = entryType || '';
+                        const needsPurchase = jeType.includes('purchase') || jeType === 'invoice';
+                        const needsSales = jeType.includes('sales') || jeType === 'invoice';
+                        const needsContainer = jeType.includes('container');
 
-                        if (jeType.includes('purchase') || jeType === 'invoice') {
-                            // Reverse lookup: purchase_transactions → journal_entry_id
-                            const { data: ptRow } = await supabase
-                                .from('purchase_transactions')
-                                .select('id, invoice_no, stage, container_id')
-                                .eq('journal_entry_id', entry.entryId)
-                                .maybeSingle();
-                            if (ptRow) {
-                                refId = ptRow.id;
-                                refType = 'purchase_invoice';
-                                mdiDocType = 'trade_invoice';
-                                tradeModeExt = 'purchase';
-                                docId = ptRow.id;
-                                typeIcon = '📦';
-                                docTitle = language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice';
-                            }
-                        }
+                        const [ptResult, stResult, cResult] = await Promise.all([
+                            needsPurchase
+                                ? supabase.from('purchase_transactions').select('id, invoice_no, stage, container_id').eq('journal_entry_id', entry.entryId).maybeSingle()
+                                : Promise.resolve({ data: null }),
+                            needsSales
+                                ? supabase.from('sales_transactions').select('id, invoice_no, stage').eq('journal_entry_id', entry.entryId).maybeSingle()
+                                : Promise.resolve({ data: null }),
+                            needsContainer
+                                ? supabase.from('containers').select('id, container_number').eq('journal_entry_id', entry.entryId).maybeSingle()
+                                : Promise.resolve({ data: null }),
+                        ]);
 
-                        if (!refId && (jeType.includes('sales') || jeType === 'invoice')) {
-                            // Reverse lookup: sales_transactions → journal_entry_id
-                            const { data: stRow } = await supabase
-                                .from('sales_transactions')
-                                .select('id, invoice_no, stage')
-                                .eq('journal_entry_id', entry.entryId)
-                                .maybeSingle();
-                            if (stRow) {
-                                refId = stRow.id;
-                                refType = 'sales_invoice';
-                                mdiDocType = 'trade_invoice';
-                                tradeModeExt = 'sales';
-                                docId = stRow.id;
-                                typeIcon = '🧾';
-                                docTitle = language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice';
-                            }
-                        }
+                        const ptRow = (ptResult as any)?.data;
+                        const stRow = (stResult as any)?.data;
+                        const cRow = (cResult as any)?.data;
 
-                        if (!refId && jeType.includes('container')) {
-                            // Reverse lookup: containers
-                            const { data: cRow } = await supabase
-                                .from('containers')
-                                .select('id, container_number')
-                                .eq('journal_entry_id', entry.entryId)
-                                .maybeSingle();
-                            if (cRow) {
-                                refId = cRow.id;
-                                refType = 'container';
-                                mdiDocType = 'trade_container';
-                                docId = cRow.id;
-                                typeIcon = '🚢';
-                                docTitle = language === 'ar' ? 'كونتينر' : 'Container';
-                            }
+                        if (ptRow) {
+                            refId = ptRow.id;
+                            refType = 'purchase_invoice';
+                            mdiDocType = 'trade_invoice';
+                            tradeModeExt = 'purchase';
+                            docId = ptRow.id;
+                            typeIcon = '📦';
+                            docTitle = language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice';
+                        } else if (stRow) {
+                            refId = stRow.id;
+                            refType = 'sales_invoice';
+                            mdiDocType = 'trade_invoice';
+                            tradeModeExt = 'sales';
+                            docId = stRow.id;
+                            typeIcon = '🧾';
+                            docTitle = language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice';
+                        } else if (cRow) {
+                            refId = cRow.id;
+                            refType = 'container';
+                            mdiDocType = 'trade_container';
+                            docId = cRow.id;
+                            typeIcon = '🚢';
+                            docTitle = language === 'ar' ? 'كونتينر' : 'Container';
                         }
                     }
 

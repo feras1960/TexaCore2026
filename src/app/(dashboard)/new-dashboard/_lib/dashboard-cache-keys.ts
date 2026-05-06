@@ -11,6 +11,8 @@ export const dashboardKeys = {
     [...dashboardKeys.byCompany(companyId), 'attention'] as const,
   topCustomers: (companyId: string) =>
     [...dashboardKeys.byCompany(companyId), 'top-customers'] as const,
+  topSuppliers: (companyId: string) =>
+    [...dashboardKeys.byCompany(companyId), 'top-suppliers'] as const,
   recentActivity: (companyId: string) =>
     [...dashboardKeys.byCompany(companyId), 'recent-activity'] as const,
   currencyExposure: (companyId: string) =>

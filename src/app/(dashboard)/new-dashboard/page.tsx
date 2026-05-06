@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
-import { useKpiSummary, useNetPosition, useCashFlowSeries, useAttentionItems, useTopCustomers, useRecentActivity, useCurrencyExposure } from './_hooks/useDashboardData';
+import { useKpiSummary, useNetPosition, useCashFlowSeries, useAttentionItems, useTopCustomers, useTopSuppliers, useRecentActivity, useCurrencyExposure } from './_hooks/useDashboardData';
 
 import { DashboardHeader } from './_components/DashboardHeader';
 import { NetPositionHero } from './_components/NetPositionHero';
@@ -11,6 +11,7 @@ import { KpiGrid } from './_components/KpiGrid';
 import { CashFlowChart } from './_components/CashFlowChart';
 import { AttentionPanel } from './_components/AttentionPanel';
 import { TopCustomersPanel } from './_components/TopCustomersPanel';
+import { TopSuppliersPanel } from './_components/TopSuppliersPanel';
 import { RecentActivityPanel } from './_components/RecentActivityPanel';
 import { CurrencyExposurePanel } from './_components/CurrencyExposurePanel';
 import { QuickActionsBar } from './_components/QuickActionsBar';
@@ -63,6 +64,7 @@ export default function DashboardPage() {
   const flowQuery = useCashFlowSeries(companyId, currency, 30);
   const attnQuery = useAttentionItems(companyId);
   const custQuery = useTopCustomers(companyId, currency);
+  const suppQuery = useTopSuppliers(companyId, currency);
   const actQuery = useRecentActivity(companyId);
   const curQuery = useCurrencyExposure(companyId);
 
@@ -72,6 +74,7 @@ export default function DashboardPage() {
     flowQuery.isFetching ||
     attnQuery.isFetching ||
     custQuery.isFetching ||
+    suppQuery.isFetching ||
     actQuery.isFetching ||
     curQuery.isFetching;
 
@@ -128,11 +131,18 @@ export default function DashboardPage() {
             <QuickActionsBar />
           </div>
           
-          {/* The smaller panels will flow naturally into the remaining grid slots */}
+          {/* Side panel */}
           <OnboardingChecklist />
+
+          {/* Row 2: 3 panels — Attention + Customers + Suppliers */}
           <AttentionPanel items={attnQuery.data} loading={attnQuery.isLoading} />
           <TopCustomersPanel items={custQuery.data} loading={custQuery.isLoading} />
-          <RecentActivityPanel items={actQuery.data} loading={actQuery.isLoading} />
+          <TopSuppliersPanel items={suppQuery.data} loading={suppQuery.isLoading} />
+
+          {/* Row 3: Activity (wide) + Funds/Banks */}
+          <div className="md:col-span-2">
+            <RecentActivityPanel items={actQuery.data} loading={actQuery.isLoading} />
+          </div>
           <CurrencyExposurePanel items={curQuery.data} loading={curQuery.isLoading} />
         </div>
       </main>

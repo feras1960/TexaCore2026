@@ -7,7 +7,8 @@
  * يحمّل البنية التحتية بالتوازي في الخلفية:
  *
  * 🔴 Tier 1 (فوري): الحسابات، المواد، المستودعات، العملات
- * 🟡 Tier 2 (بعد 1s): إحصائيات، شجرة الفروع، الأطراف
+ * 🟡 Tier 2 (بعد 5s): الداشبورد، شجرة الفروع، الأطراف
+ * 🟣 Tier 3 (بعد 15s): القيود، الفواتير، الكونتينرات
  *
  * ─── لا يؤثر على سرعة العرض ─── كل شيء في الخلفية ───
  * ─── لا تكرار ─── يحترم React Query caching ───
@@ -34,7 +35,7 @@ import { format } from 'date-fns';
 // ═══════════════════════════════════════════════
 const SEMI_STATIC = 10 * 60 * 1000;  // 10 min
 const DYNAMIC     = 2  * 60 * 1000;  //  2 min
-const GC_TIME     = 24 * 60 * 60 * 1000;  // 24 hours (matches persistence)
+const GC_TIME     = 60 * 60 * 1000;  // 60 min (prevents memory bloat)
 
 // ═══════════════════════════════════════════════
 // 🖥️ LOCAL MODE: Is the app running against a local database on same machine?
@@ -60,31 +61,15 @@ export function useDataPreloader() {
         const t0 = performance.now();
 
         // ═══════════════════════════════════════════════════════════════
-        // 🖥️ LOCAL/SELFHOSTED: Lightweight preload — data is on localhost
-        //    so on-demand fetching is fast (~5ms). Only load essentials.
-        //    This avoids 40+ concurrent HTTP requests choking PostgREST.
+        // 🖥️ NOTE: Local mode now uses the SAME full preloading as cloud.
+        //    The 10-second throttle in queryPersistence.ts prevents the
+        //    IndexedDB write freezes that originally motivated a lighter
+        //    preload. Full preloading = instant navigation everywhere.
         // ═══════════════════════════════════════════════════════════════
-        if (isLocalMode) {
-            Promise.allSettled([
-                // 1. Chart of Accounts — needed by almost every page
-                queryClient.prefetchQuery({
-                    queryKey: ['accounts', companyId, 'all'],
-                    queryFn: () => accountsService.getAll(companyId!, { includePartyAccounts: true }),
-                    staleTime: SEMI_STATIC,
-                    gcTime: GC_TIME,
-                }),
-                // 2-4. Inline lookups (small & fast)
-                Promise.resolve(preloadAccounts(companyId!)),
-                Promise.resolve(preloadCurrencies(companyId!)),
-                Promise.resolve(preloadExchangeRates(companyId!)),
-            ]).then(() => {
-                console.log(`⚡ [DataPreloader] Local mode — essentials loaded in ${Math.round(performance.now() - t0)}ms`);
-            });
-            return; // Skip Tier 1/2/3 heavy loading
-        }
 
         // ═══════════════════════════════════════════════
         // 🔴 Tier 1: Critical — Load immediately in parallel
+        //    (Cloud/Remote selfhosted mode only)
         // ═══════════════════════════════════════════════
         const tier1 = Promise.allSettled([
             // 1. Chart of Accounts (all)
@@ -289,7 +274,9 @@ export function useDataPreloader() {
         });
 
         // ═══════════════════════════════════════════════
-        // 🟡 Tier 2: Important — Load after 1 second delay
+        // 🟡 Tier 2: Important — Load after 5 seconds
+        //    Delayed to let Tier 1 + page queries finish
+        //    and avoid bulk re-render waves
         // ═══════════════════════════════════════════════
         const tier2Timeout = setTimeout(() => {
             // ─── Resolve dashboard currency for preload ───
@@ -352,6 +339,18 @@ export function useDataPreloader() {
                     queryKey: ['dashboard-v11', companyId, 'top-customers'],
                     queryFn: async () => {
                         const { data, error } = await supabase.rpc('get_dashboard_top_customers', { p_company_id: companyId, p_base_currency: dashCurrency });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 5b. Top Suppliers
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'top-suppliers'],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_top_suppliers', { p_company_id: companyId, p_base_currency: dashCurrency });
                         if (error) throw error;
                         return data;
                     },
@@ -517,12 +516,13 @@ export function useDataPreloader() {
                 const t2 = performance.now();
                 console.log(`⚡ [DataPreloader] Tier 2 complete in ${Math.round(t2 - t0)}ms`);
             });
-        }, 1000);
+        }, 5000);
 
         // ═══════════════════════════════════════════════
-        // 🟣 Tier 3: Background — Load after 3 seconds
+        // 🟣 Tier 3: Background — Load after 15 seconds
         //    القيود، الفواتير، الكونتينرات، أذون التسليم
         //    كل هذه البيانات ستكون جاهزة للفتح الفوري
+        //    Delayed 15s to avoid overlapping with Tier 2 responses
         // ═══════════════════════════════════════════════
         // 🔑 Build default date filters matching JournalEntries.tsx defaults
         // JournalEntries uses: from=Jan 1 of current year, to=today
@@ -848,7 +848,7 @@ export function useDataPreloader() {
                 const t3 = performance.now();
                 console.log(`⚡ [DataPreloader] Tier 3 complete in ${Math.round(t3 - t0)}ms — All data ready! 🚀`);
             });
-        }, 3000);
+        }, 15000);
 
         return () => {
             clearTimeout(tier2Timeout);

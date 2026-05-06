@@ -81,14 +81,14 @@ export function useTopCustomers(companyId: string, currency: string = 'USD') {
   });
 }
 
-// 6. Recent Activity
-export function useRecentActivity(companyId: string) {
+// 5b. Top Suppliers
+export function useTopSuppliers(companyId: string, currency: string = 'USD') {
   return useCachedQuery({
-    queryKey: dashboardKeys.recentActivity(companyId),
-    queryFn: async (): Promise<ActivityItem[]> => {
-      const { data, error } = await supabase.rpc('get_dashboard_recent_activity', { p_company_id: companyId });
+    queryKey: dashboardKeys.topSuppliers(companyId),
+    queryFn: async (): Promise<TopCustomer[]> => {
+      const { data, error } = await supabase.rpc('get_dashboard_top_suppliers', { p_company_id: companyId, p_base_currency: currency });
       if (error) throw error;
-      return (data as any) || [];
+      return ((data as any) || []).slice(0, 10);
     },
     enabled: Boolean(companyId && companyId !== 'default-company'),
     staleTime: STALE_TIME,
@@ -96,20 +96,36 @@ export function useRecentActivity(companyId: string) {
   });
 }
 
-// 7. Currency Exposure
+// 6. Recent Activity
+export function useRecentActivity(companyId: string) {
+  return useCachedQuery({
+    queryKey: dashboardKeys.recentActivity(companyId),
+    queryFn: async (): Promise<ActivityItem[]> => {
+      const { data, error } = await supabase.rpc('get_dashboard_recent_activity', { p_company_id: companyId });
+      if (error) throw error;
+      // Safety: RPC returns max 10, but stale cache might have old data with 50+
+      return ((data as any) || []).slice(0, 10);
+    },
+    enabled: Boolean(companyId && companyId !== 'default-company'),
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+  });
+}
+
+// 7. Currency Exposure (أرصدة الصناديق والبنوك)
 export function useCurrencyExposure(companyId: string) {
   return useCachedQuery({
     queryKey: dashboardKeys.currencyExposure(companyId),
     queryFn: async (): Promise<CurrencyBreakdown[]> => {
       const { data, error } = await supabase.rpc('get_dashboard_currency_exposure', { p_company_id: companyId });
       if (error) throw error;
-      // RPC returns [{currency, valueBase, pct, ...}] — map to CurrencyBreakdown format
+      // RPC returns [{accountCode, accountName, currency, balance}]
       const raw = (data as any) || [];
       return (Array.isArray(raw) ? raw : [raw]).map((item: any) => ({
-        accountCode: item.account_code || item.accountCode || item.currency || '',
-        accountName: item.account_name || item.accountName || item.currency || '',
+        accountCode: item.accountCode || item.account_code || '',
+        accountName: item.accountName || item.account_name || '',
         currency: item.currency || 'UAH',
-        balance: item.valueBase ?? item.value_base ?? item.balance ?? 0,
+        balance: item.balance ?? item.valueBase ?? item.value_base ?? 0,
       }));
     },
     enabled: Boolean(companyId && companyId !== 'default-company'),

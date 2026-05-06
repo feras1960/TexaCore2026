@@ -387,40 +387,46 @@ export async function fetchPartyDocDetails(entry: ExtendedLedgerEntry, currency:
             material_id: item.material_id || undefined,
         }));
 
+        // ═══ PARALLEL: Fetch warehouse, movements, and rolls all at once ═══
+        const materialIds = [...new Set((items || []).map((i: any) => i.material_id).filter(Boolean))] as string[];
+        const whId = summaryData?.warehouse_id || summaryData?.stock_warehouse_id;
+
+        const [warehouseResult, movCountResult, rollsResult] = await Promise.all([
+            // 1. Warehouse name lookup
+            whId
+                ? safeQuery(supabase.from('warehouses').select('id, name_ar, name_en').eq('id', whId).maybeSingle())
+                : Promise.resolve({ data: null }),
+            // 2. Inventory movements count
+            refId
+                ? safeQuery(supabase.from('inventory_movements').select('id', { count: 'exact', head: true }).eq('reference_id', refId))
+                : Promise.resolve({ data: null, count: 0 }),
+            // 3. Fabric rolls for material items
+            (materialIds.length > 0 && summaryData)
+                ? safeQuery(supabase.from('fabric_rolls').select('id, roll_number, current_length, status, material_id, color_name').in('material_id', materialIds).in('status', ['sold', 'delivered']))
+                : Promise.resolve({ data: null }),
+        ]);
+
         if (summaryData) {
-            const whId = summaryData.warehouse_id || summaryData.stock_warehouse_id;
-            if (whId) {
-                try {
-                    const { data: wh } = await supabase.from('warehouses').select('id, name_ar, name_en').eq('id', whId).maybeSingle();
-                    if (wh) {
-                        summaryData.warehouse_name_ar = wh.name_ar || null;
-                        summaryData.warehouse_name_en = wh.name_en || null;
-                    }
-                } catch { /* ignore */ }
+            const wh = (warehouseResult as any)?.data;
+            if (wh) {
+                summaryData.warehouse_name_ar = wh.name_ar || null;
+                summaryData.warehouse_name_en = wh.name_en || null;
             }
             invoiceSummary = { ...summaryData };
         }
 
         if (refId) {
-            try {
-                const { count: movCount } = await supabase.from('inventory_movements').select('id', { count: 'exact', head: true }).eq('reference_id', refId);
-                rollMovements = { total: movCount || 0 };
-            } catch { /* ignore */ }
+            rollMovements = { total: (movCountResult as any)?.count || 0 };
         }
 
-        const materialIds = [...new Set((items || []).map((i: any) => i.material_id).filter(Boolean))] as string[];
-        if (materialIds.length > 0 && summaryData) {
-            try {
-                const { data: rollsData } = await supabase.from('fabric_rolls').select('id, roll_number, current_length, status, material_id, color_name').in('material_id', materialIds).in('status', ['sold', 'delivered']);
-                if (rollsData && rollsData.length > 0) {
-                    const rollMap: Record<string, any[]> = {};
-                    for (const r of rollsData) {
-                        if (!rollMap[r.material_id]) rollMap[r.material_id] = [];
-                        rollMap[r.material_id].push({ roll_id: r.id, roll_number: r.roll_number, length: r.current_length || 0, status: r.status, color_name: r.color_name || undefined });
-                    }
-                    itemRollsMap = rollMap;
-                }
-            } catch { /* ignore */ }
+        const rollsData = (rollsResult as any)?.data;
+        if (rollsData && rollsData.length > 0) {
+            const rollMap: Record<string, any[]> = {};
+            for (const r of rollsData) {
+                if (!rollMap[r.material_id]) rollMap[r.material_id] = [];
+                rollMap[r.material_id].push({ roll_id: r.id, roll_number: r.roll_number, length: r.current_length || 0, status: r.status, color_name: r.color_name || undefined });
+            }
+            itemRollsMap = rollMap;
         }
 
     } else if ((entry.type === 'payment' || entry.type === 'receipt') && refId) {
@@ -432,24 +438,31 @@ export async function fetchPartyDocDetails(entry: ExtendedLedgerEntry, currency:
 
         if (txnErr) throw txnErr;
 
-        let contraName = '';
-        if (txn?.contra_account_id) {
-            const { data: acct } = await supabase.from('chart_of_accounts').select('name_ar, name_en').eq('id', txn.contra_account_id).single();
-            contraName = acct?.name_ar || acct?.name_en || '';
-        }
+        // ═══ PARALLEL: Fetch contra account name + linked invoice at once ═══
+        const payRefType = txn?.reference_type || '';
+        const [contraResult, purchaseInvResult, salesInvResult] = await Promise.all([
+            // 1. Contra account name
+            txn?.contra_account_id
+                ? safeQuery(supabase.from('chart_of_accounts').select('name_ar, name_en').eq('id', txn.contra_account_id).single())
+                : Promise.resolve({ data: null }),
+            // 2. Purchase invoice link
+            (txn?.reference_id && payRefType.includes('purchase'))
+                ? safeQuery(supabase.from('purchase_invoices').select('id, invoice_number').eq('id', txn.reference_id).maybeSingle())
+                : Promise.resolve({ data: null }),
+            // 3. Sales invoice link
+            (txn?.reference_id && !payRefType.includes('purchase') && (payRefType.includes('invoice') || payRefType.includes('sales')))
+                ? safeQuery(supabase.from('sales_transactions').select('id, invoice_no').eq('id', txn.reference_id).maybeSingle())
+                : Promise.resolve({ data: null }),
+        ]);
 
+        const contraName = (contraResult as any)?.data?.name_ar || (contraResult as any)?.data?.name_en || '';
         let linkedInvoiceNo = '';
         let linkedInvoiceId = '';
-        const payRefType = txn?.reference_type || '';
-        if (txn?.reference_id) {
-            if (payRefType.includes('purchase')) {
-                const { data: inv } = await supabase.from('purchase_invoices').select('id, invoice_number').eq('id', txn.reference_id).maybeSingle();
-                if (inv) { linkedInvoiceNo = inv.invoice_number || ''; linkedInvoiceId = inv.id || ''; }
-            }
-            if (!linkedInvoiceId && (payRefType.includes('invoice') || payRefType.includes('sales'))) {
-                const { data: inv } = await supabase.from('sales_transactions').select('id, invoice_no').eq('id', txn.reference_id).maybeSingle();
-                if (inv) { linkedInvoiceNo = inv.invoice_no || ''; linkedInvoiceId = inv.id || ''; }
-            }
+        const piData = (purchaseInvResult as any)?.data;
+        if (piData) { linkedInvoiceNo = piData.invoice_number || ''; linkedInvoiceId = piData.id || ''; }
+        if (!linkedInvoiceId) {
+            const siData = (salesInvResult as any)?.data;
+            if (siData) { linkedInvoiceNo = siData.invoice_no || ''; linkedInvoiceId = siData.id || ''; }
         }
 
         paymentDetail = {

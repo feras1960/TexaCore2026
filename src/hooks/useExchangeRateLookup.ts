@@ -47,7 +47,41 @@ let _loadingRatesPromise: Promise<ExchangeRate[]> | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // ── Online rates in-memory cache (populated by async lookups) ──
-const _onlineRatesCache: Record<string, number> = {};
+// TTL + size-limited to prevent memory leak in long sessions
+const _onlineRatesCache: Record<string, { rate: number; timestamp: number }> = {};
+const ONLINE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const ONLINE_CACHE_MAX_SIZE = 100;
+
+function _getOnlineRate(key: string): number | null {
+    const entry = _onlineRatesCache[key];
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > ONLINE_CACHE_TTL_MS) {
+        delete _onlineRatesCache[key];
+        return null;
+    }
+    return entry.rate;
+}
+
+function _setOnlineRate(key: string, rate: number): void {
+    // Evict oldest entries if cache is full
+    const keys = Object.keys(_onlineRatesCache);
+    if (keys.length >= ONLINE_CACHE_MAX_SIZE) {
+        let oldestKey = keys[0];
+        let oldestTime = _onlineRatesCache[keys[0]].timestamp;
+        for (const k of keys) {
+            if (_onlineRatesCache[k].timestamp < oldestTime) {
+                oldestTime = _onlineRatesCache[k].timestamp;
+                oldestKey = k;
+            }
+        }
+        delete _onlineRatesCache[oldestKey];
+    }
+    _onlineRatesCache[key] = { rate, timestamp: Date.now() };
+}
+
+// ── Warn-once tracker (prevents console spam on repeated lookups) ──
+const _warnedPairs = new Set<string>();
+let _warnedCompanyId: string | null = null;
 
 /**
  * Read company_id from localStorage Supabase auth token — no network needed!
@@ -166,6 +200,11 @@ export function useExchangeRateLookup(): ExchangeRateLookupReturn {
 
     useEffect(() => {
         if (!companyId) return;
+        // Clear warn-once tracker when company changes
+        if (_warnedCompanyId !== companyId) {
+            _warnedPairs.clear();
+            _warnedCompanyId = companyId;
+        }
         // Trigger preload for this company (no-op if already loading/cached)
         preloadExchangeRates(companyId);
         if (!fetchedRef.current) {
@@ -259,16 +298,25 @@ export function useExchangeRateLookup(): ExchangeRateLookupReturn {
 
         // Check in-memory online cache (populated by lookupRateAsync)
         const onlineKey = `${fromCurrency}->${to}`;
-        if (_onlineRatesCache[onlineKey]) return _onlineRatesCache[onlineKey];
+        const cachedOnline = _getOnlineRate(onlineKey);
+        if (cachedOnline !== null) return cachedOnline;
 
         // Check inverse in online cache
         const inverseKey = `${to}->${fromCurrency}`;
-        if (_onlineRatesCache[inverseKey] && _onlineRatesCache[inverseKey] > 0) {
-            return 1 / _onlineRatesCache[inverseKey];
+        const cachedInverse = _getOnlineRate(inverseKey);
+        if (cachedInverse !== null && cachedInverse > 0) {
+            return 1 / cachedInverse;
         }
 
-        // No rate found — return 1
-        console.warn(`[lookupRate] ⚠️ No rate found for ${fromCurrency}→${to}. rates.length=${rates.length}, baseCurrency=${baseCurrency}`);
+        // No rate found — return 1 (warn once per pair to avoid console spam)
+        const warnKey = `${fromCurrency}->${to}`;
+        if (!_warnedPairs.has(warnKey)) {
+            _warnedPairs.add(warnKey);
+            // Only show in dev mode to keep production console clean
+            if (import.meta.env.DEV) {
+                console.debug(`[lookupRate] No rate found for ${fromCurrency}→${to}. rates.length=${rates.length}, baseCurrency=${baseCurrency}`);
+            }
+        }
         return 1;
     }, [lookupFromDB, baseCurrency]);
 
@@ -300,17 +348,18 @@ export function useExchangeRateLookup(): ExchangeRateLookupReturn {
 
         // 2) Check online cache
         const onlineKey = `${fromCurrency}->${to}`;
-        if (_onlineRatesCache[onlineKey]) return _onlineRatesCache[onlineKey];
+        const cachedOnlineAsync = _getOnlineRate(onlineKey);
+        if (cachedOnlineAsync !== null) return cachedOnlineAsync;
 
         // 3) Fetch from Online API
-        console.log(`[ExchangeRateLookup] 🌐 No DB rate for ${fromCurrency}→${to}, fetching from online API...`);
+        if (import.meta.env.DEV) console.debug(`[ExchangeRateLookup] 🌐 No DB rate for ${fromCurrency}→${to}, fetching from online API...`);
         try {
             // Use USD as intermediary base for cross-rate calculation
             const onlineRate = await ExchangeRateOnlineService.getRate(fromCurrency, to, 'USD');
             if (onlineRate && onlineRate > 0) {
-                // Cache for future sync lookups
-                _onlineRatesCache[onlineKey] = onlineRate;
-                console.log(`[ExchangeRateLookup] ✅ Online rate: 1 ${fromCurrency} = ${onlineRate.toFixed(4)} ${to}`);
+                // Cache for future sync lookups (with TTL)
+                _setOnlineRate(onlineKey, onlineRate);
+                if (import.meta.env.DEV) console.debug(`[ExchangeRateLookup] ✅ Online rate: 1 ${fromCurrency} = ${onlineRate.toFixed(4)} ${to}`);
                 return onlineRate;
             }
         } catch (err) {
@@ -355,11 +404,12 @@ export function useExchangeRateLookup(): ExchangeRateLookupReturn {
 
         // Check online cache for details
         const onlineKey = `${fromCurrency}->${to}`;
-        if (_onlineRatesCache[onlineKey]) {
+        const cachedDetail = _getOnlineRate(onlineKey);
+        if (cachedDetail !== null) {
             return {
-                rate: _onlineRatesCache[onlineKey],
-                buyRate: _onlineRatesCache[onlineKey],
-                sellRate: _onlineRatesCache[onlineKey],
+                rate: cachedDetail,
+                buyRate: cachedDetail,
+                sellRate: cachedDetail,
                 source: 'online (ExchangeRate-API)',
             };
         }

@@ -24,6 +24,9 @@ import { resolveSalesQueries } from './modules/salesModule';
 import { resolvePurchasesQueries } from './modules/purchasesModule';
 import { resolveCrmQueries } from './modules/crmModule';
 import { resolveHrQueries } from './modules/hrModule';
+import { preloadAccounts } from '@/components/ui/InlineAccountCell';
+import { preloadCurrencies } from '@/features/accounting/hooks/useViewCurrency';
+import { preloadExchangeRates } from '@/hooks/useExchangeRateLookup';
 
 // 🖥️ LOCAL MODE: still preload — even localhost has HTTP overhead (PostgREST → SQL → JSON)
 // The difference is we start slightly later to let the local services warm up
@@ -99,6 +102,13 @@ export function DataEngineProvider({ children }: { children: React.ReactNode }) 
     if (hasCachedData) {
       console.log(`⚡ [DataEngine] Cache warm from IndexedDB (${cachedQueries.filter(q => q.state.status === 'success').length} queries) — skipping preload`);
       setProgress(DONE_PROGRESS);
+      // ⚡ Still run lightweight preloaders — they populate in-memory lookup maps
+      //    that don't survive IndexedDB persistence (runtime-only maps)
+      Promise.allSettled([
+        preloadAccounts(companyId),
+        preloadCurrencies(companyId),
+        preloadExchangeRates(companyId),
+      ]).catch(() => { /* non-critical */ });
       return;
     }
 
@@ -108,6 +118,12 @@ export function DataEngineProvider({ children }: { children: React.ReactNode }) 
 
     const timer = setTimeout(() => {
       dataEngine.loadAll(companyId, visibleModules, language);
+      // ⚡ Run lightweight preloaders alongside DataEngine
+      Promise.allSettled([
+        preloadAccounts(companyId),
+        preloadCurrencies(companyId),
+        preloadExchangeRates(companyId),
+      ]).catch(() => { /* non-critical */ });
     }, startDelay);
 
     return () => clearTimeout(timer);

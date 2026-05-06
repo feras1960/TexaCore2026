@@ -273,6 +273,56 @@ export const warehouseModule: DataModule = {
       gcTime: CACHE_TIMES.GC,
     },
 
+    // ─── 14a. Inventory Filters: Colors + Batches ─────────────────
+    // (Was only in useDataPreloader — needed for inventory filter dropdowns)
+    {
+      queryKey: ['inventory-preload-filters', null],
+      queryFn: async (companyId: string) => {
+        const [colorsRes, batchesRes] = await Promise.all([
+          supabase.from('fabric_colors').select('id, name_ar, name_en, hex_code').eq('company_id', companyId).eq('is_active', true),
+          supabase.from('batches').select('id, batch_number').eq('company_id', companyId).order('created_at', { ascending: false }),
+        ]);
+        return { colors: colorsRes.data || [], batches: batchesRes.data || [] };
+      },
+      staleTime: CACHE_TIMES.SEMI_STATIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 14b. Inventory Stock per Warehouse ─────────────────────
+    // (Was only in useDataPreloader — needed for material card instant display)
+    {
+      queryKey: ['inventory-preload-stock', null],
+      queryFn: async (companyId: string) => {
+        const { data, error } = await supabase
+          .from('inventory_stock')
+          .select('material_id, warehouse_id, quantity_on_hand, updated_at')
+          .eq('company_id', companyId)
+          .gt('quantity_on_hand', 0);
+        if (error) throw error;
+        return data || [];
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 14c. Materials Full Detail (for variant lookup) ────────
+    // (Was only in useDataPreloader — ensures parent_material_id is available
+    //  even after stale cache restore, used by useMaterialSearch.fetchVariantChildren)
+    {
+      queryKey: ['materials-full-detail', null],
+      queryFn: async (companyId: string) => {
+        const { data, error } = await supabase
+          .from('fabric_materials')
+          .select('*')
+          .eq('company_id', companyId)
+          .eq('status', 'active');
+        if (error) throw error;
+        return data || [];
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
     // ─── 14. Completed Receipts (current month) ──────────────────
     {
       queryKey: ['warehouse', 'completed-receipts', null],
