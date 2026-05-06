@@ -45,15 +45,30 @@ export default defineConfig({
         // Exclude HTML from precache — always fetch fresh from network
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/],
+        // 🔐 Exclude OAuth callbacks & auth redirects from SW navigateFallback
+        // Without this, SW intercepts /?code=... from Google OAuth → ERR_FAILED
+        navigateFallbackDenylist: [
+          /^\\/api/,
+          /[?&](code|access_token|refresh_token|token|error|error_description)=/,
+          /[#](access_token|refresh_token|token_type|expires_in)=/,
+        ],
         runtimeCaching: [
           {
             // HTML navigation — Network First (always try server first)
-            urlPattern: ({ request }) => request.mode === 'navigate',
+            // 🔐 Exclude OAuth callback URLs — let browser handle natively
+            urlPattern: ({ request, url }) => {
+              if (request.mode !== 'navigate') return false;
+              // Skip SW for auth callback URLs — prevents ERR_FAILED on OAuth redirect
+              const search = url.search || '';
+              const hash = url.hash || '';
+              if (/[?&](code|access_token|refresh_token|token|error)=/.test(search)) return false;
+              if (/[#](access_token|refresh_token|token_type)=/.test(hash)) return false;
+              return true;
+            },
             handler: 'NetworkFirst',
             options: {
               cacheName: 'html-cache',
-              networkTimeoutSeconds: 3,
+              networkTimeoutSeconds: 5,
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60, // 1 hour max
