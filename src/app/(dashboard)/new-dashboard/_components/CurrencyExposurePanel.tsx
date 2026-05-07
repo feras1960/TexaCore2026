@@ -42,9 +42,11 @@ function getAccountIcon(code: string, name?: string) {
 export function CurrencyExposurePanel({
   items,
   loading,
+  onAccountClick,
 }: {
   items?: CurrencyBreakdown[];
   loading: boolean;
+  onAccountClick?: (account: CurrencyBreakdown) => void;
 }) {
   return (
     <SectionCard
@@ -75,14 +77,20 @@ export function CurrencyExposurePanel({
           {items.map((account) => {
             const Icon = getAccountIcon(account.accountCode, account.accountName);
             const hasBalance = account.balance !== 0;
+            const isClickable = Boolean(onAccountClick);
             return (
               <li
                 key={account.accountCode}
-                className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
+                onClick={() => onAccountClick?.(account)}
+                className={`flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 rounded-lg transition-all duration-150 ${
+                  isClickable
+                    ? 'cursor-pointer hover:bg-teal-50/60 dark:hover:bg-teal-900/20 hover:shadow-sm active:scale-[0.99]'
+                    : ''
+                }`}
               >
                 {/* Icon */}
                 <span
-                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${
+                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors ${
                     hasBalance
                       ? 'bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400'
                       : 'bg-stone-50 text-stone-400 dark:bg-stone-800 dark:text-stone-500'

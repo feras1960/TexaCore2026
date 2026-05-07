@@ -46,17 +46,25 @@ export interface TopCustomer {
   daysOverdue?: number;
 }
 
+export type ActivityType = 'sale' | 'purchase' | 'payment' | 'receipt' | 'journal' | 'delivery' | 'purchase_order' | 'sales_order' | 'inventory';
+
 export interface ActivityItem {
   id: string;
-  type: 'sale' | 'payment' | 'receipt' | 'journal' | 'inventory';
-  title: string;
+  type: ActivityType;
+  typeLabel: string;
+  docNumber: string;
+  partyName: string;
   amount?: number;
   currency?: string;
+  status?: string;
   actorName: string;
   timestamp: string;
+  /** @deprecated use typeLabel + docNumber instead */
+  title?: string;
 }
 
 export interface CurrencyBreakdown {
+  accountId: string;
   accountCode: string;
   accountName: string;
   currency: string;

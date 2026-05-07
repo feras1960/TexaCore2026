@@ -103,8 +103,20 @@ export function useRecentActivity(companyId: string) {
     queryFn: async (): Promise<ActivityItem[]> => {
       const { data, error } = await supabase.rpc('get_dashboard_recent_activity', { p_company_id: companyId });
       if (error) throw error;
-      // Safety: RPC returns max 10, but stale cache might have old data with 50+
-      return ((data as any) || []).slice(0, 10);
+      const raw = (data as any) || [];
+      return raw.slice(0, 15).map((item: any) => ({
+        id: item.id,
+        type: item.type || 'journal',
+        typeLabel: item.typeLabel || item.type_label || 'نشاط',
+        docNumber: item.docNumber || item.doc_number || '',
+        partyName: item.partyName || item.party_name || '',
+        amount: item.amount ?? undefined,
+        currency: item.currency ?? undefined,
+        status: item.status ?? undefined,
+        actorName: item.actorName || item.actor_name || 'النظام',
+        timestamp: item.timestamp || new Date().toISOString(),
+        title: item.title,
+      }));
     },
     enabled: Boolean(companyId && companyId !== 'default-company'),
     staleTime: STALE_TIME,
@@ -122,6 +134,7 @@ export function useCurrencyExposure(companyId: string) {
       // RPC returns [{accountCode, accountName, currency, balance}]
       const raw = (data as any) || [];
       return (Array.isArray(raw) ? raw : [raw]).map((item: any) => ({
+        accountId: item.accountId || item.account_id || '',
         accountCode: item.accountCode || item.account_code || '',
         accountName: item.accountName || item.account_name || '',
         currency: item.currency || 'UAH',

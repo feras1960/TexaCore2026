@@ -8,10 +8,14 @@ import { formatCurrency } from '../_lib/formatters';
 export function TopSuppliersPanel({
   items,
   loading,
+  onSupplierClick,
 }: {
   items?: TopCustomer[];
   loading: boolean;
+  onSupplierClick?: (supplier: TopCustomer) => void;
 }) {
+  const isClickable = Boolean(onSupplierClick);
+
   return (
     <SectionCard
       title="أعلى الموردين مديونية"
@@ -40,7 +44,12 @@ export function TopSuppliersPanel({
             return (
               <li
                 key={s.id}
-                className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                onClick={() => onSupplierClick?.(s)}
+                className={`flex items-center justify-between py-2 first:pt-0 last:pb-0 rounded-md transition-all duration-150 ${
+                  isClickable
+                    ? 'cursor-pointer hover:bg-rose-50/50 dark:hover:bg-rose-900/15 hover:shadow-sm px-1.5 -mx-1.5 active:scale-[0.99]'
+                    : ''
+                }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span

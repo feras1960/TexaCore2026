@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 5173 --mode cloud",
     "dev:local": "node scripts/api-proxy.cjs & vite --port 5174 --mode selfhosted",
+    "start:hybrid": "bash scripts/start-local-services.sh",
     "build": "vite build",
     "build:only": "vite build",
     "build:check": "tsc && vite build",
