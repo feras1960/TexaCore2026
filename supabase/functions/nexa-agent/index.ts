@@ -310,88 +310,51 @@ serve(async (req) => {
     let responseText = lastParsedResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
     const finishReason = lastParsedResult?.candidates?.[0]?.finishReason || 'UNKNOWN';
 
-    // ═══ Server-Side Retry: 4-tier strategy with strongest models ═══
+    // ═══ Server-Side Retry: Smart 2-tier strategy ═══
     if (!responseText) {
-      console.warn('[NexaPro] ⚠️ Empty response. finishReason:', finishReason, '— Retrying server-side...');
+      console.warn('[NexaPro] ⚠️ Empty response. finishReason:', finishReason, '— Smart retry...');
 
-      // Strategy 1: 🧠 Pro model (strongest)
+      // Strategy 1: Try Flash-Lite WITHOUT tools and WITHOUT SQL context (clean slate)
+      try {
+        console.log('[NexaPro] Retry 1/2: gemini-3.1-flash-lite-preview (clean, no tools)...');
+        const liteUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
+        const cleanBody = {
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: message }] }],
+          generationConfig: { temperature: 0.5, maxOutputTokens: 4096 },
+        };
+        const liteResp = await fetch(liteUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cleanBody) });
+        if (liteResp.ok) {
+          const liteResult = await liteResp.json();
+          responseText = liteResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
+          if (responseText) { console.log('[NexaPro] ✅ Flash-lite retry succeeded!'); usedModel = 'flash-lite-retry'; }
+        }
+      } catch (e) { console.warn('[NexaPro] Flash-lite retry failed:', e); }
+
+      // Strategy 2: Ultimate fallback - minimal prompt, different model
       if (!responseText) {
         try {
-          console.log('[NexaPro] Retry 1/4: gemini-3.1-pro-preview (strongest)...');
-          const proUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${apiKey}`;
-          const proBody = {
-            system_instruction: { parts: [{ text: systemPrompt + selfHostedHint }] },
-            contents: [{ role: 'user', parts: [{ text: message }] }],
-            generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
+          await new Promise(r => setTimeout(r, 1500));
+          console.log('[NexaPro] Retry 2/2: gemini-3.1-flash-lite-preview (minimal prompt)...');
+          const fallbackPrompt = 'أنت مستشار أعمال ذكي متخصص في تجارة الأقمشة. أجب على السؤال التالي بناءً على معرفتك العامة وخبرتك. قدّم إجابة مفيدة وعملية.\n\nالسؤال: ' + message;
+          const minBody = {
+            contents: [{ role: 'user', parts: [{ text: fallbackPrompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
           };
-          const proResp = await fetch(proUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proBody) });
-          if (proResp.ok) {
-            const proResult = await proResp.json();
-            responseText = proResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
-            if (responseText) { console.log('[NexaPro] ✅ Pro retry succeeded!'); usedModel = 'pro-retry'; }
-          }
-        } catch (e) { console.warn('[NexaPro] Pro retry failed:', e); }
-      }
-
-      // Strategy 2: ⚡ Flash without SQL tools
-      if (!responseText) {
-        try {
-          console.log('[NexaPro] Retry 2/4: gemini-3-flash-preview (no tools)...');
-          const retryUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-          const retryBody = {
-            system_instruction: { parts: [{ text: systemPrompt + selfHostedHint }] },
-            contents: [{ role: 'user', parts: [{ text: message }] }],
-            generationConfig: { temperature: 0.5, maxOutputTokens: 4096 },
-          };
-          const retryResp = await fetch(retryUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(retryBody) });
-          if (retryResp.ok) {
-            const retryResult = await retryResp.json();
-            responseText = retryResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
-            if (responseText) { console.log('[NexaPro] ✅ Flash no-tools retry succeeded!'); usedModel = 'flash-retry'; }
-          }
-        } catch (retryErr) { console.warn('[NexaPro] Flash retry failed:', retryErr); }
-      }
-
-      // Strategy 3: 🔒 Flash with safety bypass
-      if (!responseText && (finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'OTHER')) {
-        try {
-          console.log('[NexaPro] Retry 3/4: gemini-3-flash-preview (safety bypass)...');
-          const safeContents = [{ role: 'user', parts: [{ text: `${message}\n\n(أجب بأسلوب تحليلي محايد ومهني. التزم بالبيانات المتوفرة فقط.)` }] }];
-          const safeUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-          const safeResp = await fetch(safeUrl, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ system_instruction: { parts: [{ text: systemPrompt }] }, contents: safeContents, generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }),
+          const minResp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=' + apiKey, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(minBody),
           });
-          if (safeResp.ok) {
-            const safeResult = await safeResp.json();
-            responseText = safeResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
-            if (responseText) { console.log('[NexaPro] ✅ Safety-bypass retry succeeded!'); usedModel = 'flash-safe-retry'; }
+          if (minResp.ok) {
+            const minResult = await minResp.json();
+            responseText = minResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
+            if (responseText) { console.log('[NexaPro] ✅ Minimal fallback succeeded!'); usedModel = 'lite-fallback'; }
           }
-        } catch (e) { console.warn('[NexaPro] Safety retry failed:', e); }
+        } catch (e) { console.warn('[NexaPro] Minimal fallback failed:', e); }
       }
 
-      // Strategy 4: 💨 Flash-Lite (last resort)
       if (!responseText) {
-        try {
-          console.log('[NexaPro] Retry 4/4: gemini-3.1-flash-lite-preview (last resort)...');
-          const liteUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
-          const liteBody = {
-            contents: [{ role: 'user', parts: [{ text: `أنت مستشار أعمال ذكي. أجب على هذا السؤال بناءً على معرفتك:\n\n${message}` }] }],
-            generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
-          };
-          const liteResp = await fetch(liteUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(liteBody) });
-          if (liteResp.ok) {
-            const liteResult = await liteResp.json();
-            responseText = liteResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
-            if (responseText) { console.log('[NexaPro] ✅ Flash-lite last-resort succeeded!'); usedModel = 'flash-lite-fallback'; }
-          }
-        } catch (e) { console.warn('[NexaPro] Flash-lite last-resort failed:', e); }
+        responseText = language === 'ar' ? 'لم أتمكن من توليد رد الآن. حاول مرة أخرى أو أعد صياغة سؤالك. 🔄' : "I couldn't generate a response right now. Please try again. 🔄";
       }
-    }
-
-    if (!responseText) {
-      console.warn('[NexaPro] ⚠️ Empty response after ALL retries. finishReason was:', finishReason);
-      responseText = language === 'ar' ? 'لم أتمكن من توليد رد الآن. حاول مرة أخرى أو أعد صياغة سؤالك. 🔄' : "I couldn't generate a response right now. Please try again. 🔄";
     }
 
     // ═══ 📝 Audit Log ═══

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart, Calculator, Bot, Users, FileText, Wallet, Layers, ShoppingBag } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { CommandPalette } from './CommandPalette';
+import { BackupIndicator } from './BackupIndicator';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -145,6 +146,9 @@ export function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          {/* 💾 Backup Status Indicator (local mode only) */}
+          <BackupIndicator />
+
           {/* 💱 Currency Calculator Quick Access */}
           <Tooltip>
             <TooltipTrigger asChild>

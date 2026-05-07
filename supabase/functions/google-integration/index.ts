@@ -12,6 +12,7 @@
  * - import_sheet: Import data from Google Sheets
  * - create_event: Create Calendar event (with Meet link)
  * - list_events: List Calendar events
+ * - upload_backup: Upload .tcdb backup to Google Drive (write-only sync)
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -808,6 +809,73 @@ async function listCalendarEvents(
     }));
 }
 
+async function updateCalendarEvent(
+    accessToken: string,
+    eventId: string,
+    event: {
+        summary: string;
+        description?: string;
+        start: string;
+        end?: string;
+        colorId?: string;
+    }
+): Promise<any> {
+    const isAllDay = event.start.length === 10;
+
+    const body: any = {
+        summary: event.summary,
+        description: event.description || '',
+        start: isAllDay
+            ? { date: event.start }
+            : { dateTime: event.start, timeZone: 'UTC' },
+        end: isAllDay
+            ? { date: event.end || event.start }
+            : { dateTime: event.end || new Date(new Date(event.start).getTime() + 3600000).toISOString(), timeZone: 'UTC' },
+    };
+
+    if (event.colorId) body.colorId = event.colorId;
+
+    const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+        {
+            method: 'PATCH',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Failed to update event: ${err}`);
+    }
+
+    const updated = await res.json();
+    return {
+        id: updated.id,
+        meetLink: updated.hangoutLink || updated.conferenceData?.entryPoints?.[0]?.uri || null,
+    };
+}
+
+async function deleteCalendarEventById(
+    accessToken: string,
+    eventId: string
+): Promise<void> {
+    const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+        {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${accessToken}` },
+        }
+    );
+    // 404 = already deleted, that's fine
+    if (!res.ok && res.status !== 404) {
+        throw new Error(`Failed to delete event: ${res.status}`);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Main Handler
 // ═══════════════════════════════════════════════════════════════
@@ -826,19 +894,30 @@ serve(async (req: Request) => {
     // ═══ All other actions (POST) ═══
     try {
         const authHeader = req.headers.get('Authorization');
-        const supabaseAnon = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
-            global: { headers: { Authorization: authHeader || '' } },
-        });
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-        // Verify user
-        const { data: { user } } = await supabaseAnon.auth.getUser();
-        if (!user) {
-            return jsonResponse({ error: 'Unauthorized' }, 401);
-        }
-
+        // Parse body early so we can check action for auth bypass
         const body = await req.json();
         const { action, company_id } = body;
+
+        // Actions that can work with just company_id (for hybrid/local mode)
+        const BACKUP_ACTIONS = ['upload_backup', 'list_drive_files', 'list_drive_folders', 'sync_task_to_calendar', 'delete_calendar_event', 'list_events'];
+        
+        let userId: string | null = null;
+        
+        // Try user auth first
+        if (authHeader) {
+            const supabaseAnon = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
+                global: { headers: { Authorization: authHeader } },
+            });
+            const { data: { user } } = await supabaseAnon.auth.getUser();
+            userId = user?.id || null;
+        }
+
+        // For backup actions: allow if company_id is provided (service-level access)
+        if (!userId && !BACKUP_ACTIONS.includes(action)) {
+            return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
 
         if (!company_id) {
             return jsonResponse({ error: 'company_id required' }, 400);
@@ -1043,6 +1122,247 @@ serve(async (req: Request) => {
                 max_results || 50
             );
             return jsonResponse({ success: true, events });
+        }
+
+        // ─── SYNC_TASK_TO_CALENDAR: Create or update Calendar event from task ───
+        if (action === 'sync_task_to_calendar') {
+            const { task_id, title, description, start_time, end_time, color_id, add_meet, event_id } = body;
+            if (!title || !start_time) {
+                return jsonResponse({ error: 'title and start_time required' }, 400);
+            }
+
+            if (event_id) {
+                // Update existing event
+                const updated = await updateCalendarEvent(accessToken, event_id, {
+                    summary: title,
+                    description: description || '',
+                    start: start_time,
+                    end: end_time || start_time,
+                    colorId: color_id,
+                });
+                return jsonResponse({ 
+                    success: true, 
+                    google_event_id: updated.id,
+                    meet_link: updated.meetLink,
+                });
+            } else {
+                // Create new event
+                const created = await createCalendarEvent(accessToken, {
+                    summary: title,
+                    description: description || `Task ID: ${task_id || 'N/A'}`,
+                    start: start_time,
+                    end: end_time || start_time,
+                    addMeetLink: add_meet === true,
+                });
+                return jsonResponse({
+                    success: true,
+                    google_event_id: created.id,
+                    meet_link: created.meetLink,
+                    html_link: created.htmlLink,
+                });
+            }
+        }
+
+        // ─── DELETE_CALENDAR_EVENT: Remove event from Calendar ───
+        if (action === 'delete_calendar_event') {
+            const { event_id: delEventId } = body;
+            if (!delEventId) {
+                return jsonResponse({ error: 'event_id required' }, 400);
+            }
+            await deleteCalendarEventById(accessToken, delEventId);
+            return jsonResponse({ success: true });
+        }
+
+        // ─── UPLOAD_BACKUP: Upload .tcdb backup to Google Drive (write-only sync) ───
+        if (action === 'upload_backup') {
+            const { file_data, file_name, file_size, folder_id } = body;
+            if (!file_data || !file_name) {
+                return jsonResponse({ error: 'file_data (base64) and file_name required' }, 400);
+            }
+
+            console.log(`☁️ Uploading backup to Drive: ${file_name} (${file_size || '?'} bytes)`);
+
+            // 1. Use specified folder or find/create default "TexaCore Backups" folder
+            let targetFolderId = folder_id;
+            if (!targetFolderId) {
+                const FOLDER_NAME = 'TexaCore Backups';
+                const searchRes = await fetch(
+                    `https://www.googleapis.com/drive/v3/files?q=name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                const searchData = await searchRes.json();
+
+                if (searchData.files?.length > 0) {
+                    targetFolderId = searchData.files[0].id;
+                } else {
+                    const createFolderRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+                        method: 'POST',
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: FOLDER_NAME,
+                            mimeType: 'application/vnd.google-apps.folder',
+                        }),
+                    });
+                    const folderData = await createFolderRes.json();
+                    targetFolderId = folderData.id;
+                    console.log(`📁 Created Drive folder: ${targetFolderId}`);
+                }
+            }
+
+            // 2. Decode base64 file data
+            const binaryStr = atob(file_data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+            }
+
+            // 3. Upload file using multipart upload
+            const metadata = JSON.stringify({
+                name: file_name,
+                parents: [targetFolderId],
+                description: `TexaCore ERP backup — ${new Date().toISOString()}`,
+            });
+
+            const boundary = '---texacore-backup-boundary---';
+            const metadataPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`;
+            const filePart = `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`;
+            const endPart = `\r\n--${boundary}--`;
+
+            const metadataBytes = new TextEncoder().encode(metadataPart);
+            const filePartBytes = new TextEncoder().encode(filePart);
+            const endPartBytes = new TextEncoder().encode(endPart);
+
+            const totalLength = metadataBytes.length + filePartBytes.length + bytes.length + endPartBytes.length;
+            const multipartBody = new Uint8Array(totalLength);
+            let offset = 0;
+            multipartBody.set(metadataBytes, offset); offset += metadataBytes.length;
+            multipartBody.set(filePartBytes, offset); offset += filePartBytes.length;
+            multipartBody.set(bytes, offset); offset += bytes.length;
+            multipartBody.set(endPartBytes, offset);
+
+            const uploadRes = await fetch(
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,webViewLink,createdTime',
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': `multipart/related; boundary=${boundary}`,
+                    },
+                    body: multipartBody,
+                }
+            );
+
+            if (!uploadRes.ok) {
+                const err = await uploadRes.text();
+                console.error('Drive upload failed:', err);
+                return jsonResponse({ error: `Drive upload failed: ${err}` }, 500);
+            }
+
+            const uploadData = await uploadRes.json();
+            console.log(`✅ Backup uploaded to Drive: ${uploadData.id} (${uploadData.size} bytes)`);
+
+            // 4. Cleanup: keep only last 10 backups in this folder
+            const MAX_BACKUPS = 10;
+            const listRes = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q='${targetFolderId}' in parents and trashed=false&fields=files(id,name,createdTime,size)&orderBy=createdTime desc&pageSize=50`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            const listData = await listRes.json();
+            const allBackups = listData.files || [];
+
+            if (allBackups.length > MAX_BACKUPS) {
+                const toDelete = allBackups.slice(MAX_BACKUPS);
+                for (const file of toDelete) {
+                    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                    });
+                    console.log(`🗑️ Deleted old backup: ${file.name}`);
+                }
+            }
+
+            return jsonResponse({
+                success: true,
+                fileId: uploadData.id,
+                fileName: uploadData.name,
+                fileSize: parseInt(uploadData.size || '0'),
+                webViewLink: uploadData.webViewLink,
+                createdTime: uploadData.createdTime,
+                folderId: targetFolderId,
+                totalBackups: Math.min(allBackups.length, MAX_BACKUPS),
+            });
+        }
+
+        // ─── LIST_DRIVE_FOLDERS: Browse Google Drive folders ───
+        if (action === 'list_drive_folders') {
+            const parentId = body.parent_id || 'root';
+            
+            const res = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q='${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name,modifiedTime)&orderBy=name&pageSize=100`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+
+            if (!res.ok) {
+                const err = await res.text();
+                return jsonResponse({ error: `Failed to list folders: ${err}` }, 500);
+            }
+
+            const data = await res.json();
+            return jsonResponse({
+                success: true,
+                parentId,
+                folders: (data.files || []).map((f: any) => ({
+                    id: f.id,
+                    name: f.name,
+                    modifiedTime: f.modifiedTime,
+                })),
+            });
+        }
+
+        // ─── LIST_DRIVE_FILES: List backup files in a Drive folder ───
+        if (action === 'list_drive_files') {
+            const { folder_id } = body;
+            
+            // If no folder_id, try to find the default "TexaCore Backups" folder
+            let targetFolderId = folder_id;
+            if (!targetFolderId) {
+                const searchRes = await fetch(
+                    `https://www.googleapis.com/drive/v3/files?q=name='TexaCore Backups' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                const searchData = await searchRes.json();
+                targetFolderId = searchData.files?.[0]?.id;
+            }
+
+            if (!targetFolderId) {
+                return jsonResponse({ success: true, files: [], message: 'No backup folder found' });
+            }
+
+            const res = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q='${targetFolderId}' in parents and trashed=false&fields=files(id,name,size,modifiedTime,webViewLink,iconLink)&orderBy=modifiedTime desc&pageSize=50`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+
+            if (!res.ok) {
+                const err = await res.text();
+                return jsonResponse({ error: `Failed to list files: ${err}` }, 500);
+            }
+
+            const data = await res.json();
+            return jsonResponse({
+                success: true,
+                folderId: targetFolderId,
+                files: (data.files || []).map((f: any) => ({
+                    id: f.id,
+                    name: f.name,
+                    size: parseInt(f.size || '0'),
+                    modifiedTime: f.modifiedTime,
+                    webViewLink: f.webViewLink,
+                })),
+            });
         }
 
         return jsonResponse({ error: `Unknown action: ${action}` }, 400);

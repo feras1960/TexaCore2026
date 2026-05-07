@@ -1205,11 +1205,13 @@ export const warehouseService = {
 
         const purPartyMap: Record<string, string> = {};
         if (purRefIds.length > 0) {
-            // purchase_receipts: تحتوي invoice_id و container_id (ليس supplier_id مباشرة)
+            // ── مسار 1: reference_id → purchase_receipts (GRN workflow) ──
             const { data: rcpts } = await supabase
                 .from('purchase_receipts')
                 .select('id, invoice_id, container_id')
                 .in('id', purRefIds);
+
+            const resolvedIds = new Set<string>();
 
             if (rcpts && rcpts.length > 0) {
                 // 1) invoice_id → purchase_invoices / purchase_transactions → supplier_name
@@ -1240,7 +1242,39 @@ export const warehouseService = {
 
                 rcpts.forEach((r: any) => {
                     purPartyMap[r.id] = supplierByInvId[r.invoice_id] || supplierByContId[r.container_id] || '';
+                    resolvedIds.add(r.id);
                 });
+            }
+
+            // ── مسار 2: reference_id → purchase_invoices مباشرة (RSF import) ──
+            // الاستيراد من الرشيد يربط inventory_movements.reference_id مباشرة بـ purchase_invoices.id
+            const unresolvedIds = purRefIds.filter(id => !resolvedIds.has(id));
+            if (unresolvedIds.length > 0) {
+                const { data: directInvs } = await supabase
+                    .from('purchase_invoices')
+                    .select('id, supplier_name, supplier_id')
+                    .in('id', unresolvedIds);
+                if (directInvs) {
+                    // Batch resolve supplier names for invoices without supplier_name
+                    const needSupIds = [...new Set(
+                        directInvs.filter((i: any) => !i.supplier_name && i.supplier_id)
+                            .map((i: any) => i.supplier_id)
+                    )] as string[];
+                    const supNameMap: Record<string, string> = {};
+                    if (needSupIds.length > 0) {
+                        const { data: sups } = await supabase
+                            .from('suppliers')
+                            .select('id, name_ar, name_en, company_name')
+                            .in('id', needSupIds);
+                        sups?.forEach((s: any) => {
+                            supNameMap[s.id] = s.name_ar || s.name_en || s.company_name || '';
+                        });
+                    }
+                    directInvs.forEach((inv: any) => {
+                        purPartyMap[inv.id] = inv.supplier_name || supNameMap[inv.supplier_id] || '';
+                        resolvedIds.add(inv.id);
+                    });
+                }
             }
         }
 

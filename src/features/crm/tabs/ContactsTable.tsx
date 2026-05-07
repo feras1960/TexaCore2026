@@ -32,11 +32,19 @@ import {
     Star, ArrowUpDown, PhoneIncoming, PhoneOutgoing,
     Globe, MessageSquare, Filter, X,
     Sparkles, AlertCircle, Target, Archive,
+    Video, Calendar, Loader2,
 } from 'lucide-react';
 
 import { contactsService, getContactName, type Contact, type ContactFilters, type LifecycleStage, type ContactSource } from '@/services/contactsService';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import type { SheetMode } from '@/features/accounting/components/unified/types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/lib/supabase';
+import { createTask, type TaskCategory } from '@/services/taskService';
+import { useToast } from '@/components/ui/use-toast';
 
 // === Stage Badge Config ===
 const STAGE_CONFIG: Record<string, { color: string; icon: React.ElementType; labelAr: string; labelEn: string }> = {
@@ -104,6 +112,26 @@ export default function ContactsTable() {
     const [sheetMode, setSheetMode] = useState<SheetMode>('view');
     const [filters, setFilters] = useState<ContactFilters>({});
     const [showFilters, setShowFilters] = useState(false);
+
+    // Meeting dialog state
+    const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+    const [meetingContact, setMeetingContact] = useState<Contact | null>(null);
+    const [meetingTitle, setMeetingTitle] = useState('');
+    const [meetingDate, setMeetingDate] = useState('');
+    const [meetingDesc, setMeetingDesc] = useState('');
+    const [meetingAddMeet, setMeetingAddMeet] = useState(true);
+    const [meetingCreating, setMeetingCreating] = useState(false);
+    const [cloudCompanyId, setCloudCompanyId] = useState<string | null>(null);
+    const { toast: toastHook } = useToast();
+
+    // Load cloud company ID for calendar sync
+    React.useEffect(() => {
+        if (!companyId) return;
+        supabase.from('companies').select('integrations, tenant_id').eq('id', companyId).single()
+            .then(({ data }) => {
+                setCloudCompanyId(data?.integrations?.google?.cloud_company_id || null);
+            });
+    }, [companyId]);
 
     // Fetch Contacts
     const { data: contacts = [], isPending: _contactsPending } = useCachedQuery({
@@ -275,6 +303,31 @@ export default function ContactsTable() {
                 );
             },
             size: 120,
+        },
+        {
+            id: 'actions',
+            header: '',
+            cell: (info: any) => {
+                const row = info.row.original as Contact;
+                return (
+                    <Button
+                        variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:bg-green-50"
+                        title={isRTL ? 'جدولة اجتماع' : 'Schedule Meeting'}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setMeetingContact(row);
+                            setMeetingTitle(isRTL ? `اجتماع مع ${getContactName(row, language)}` : `Meeting with ${getContactName(row, language)}`);
+                            setMeetingDate('');
+                            setMeetingDesc('');
+                            setMeetingAddMeet(true);
+                            setShowMeetingDialog(true);
+                        }}
+                    >
+                        <Video className="w-4 h-4" />
+                    </Button>
+                );
+            },
+            size: 50,
         },
     ], [t, language, isRTL]);
 
@@ -517,6 +570,82 @@ export default function ContactsTable() {
                 }}
                 onModeChange={(mode) => setSheetMode(mode as SheetMode)}
             />
+
+            {/* ═══ Schedule Meeting Dialog ═══ */}
+            <Dialog open={showMeetingDialog} onOpenChange={setShowMeetingDialog}>
+                <DialogContent className="sm:max-w-[440px]" aria-describedby="meeting-desc">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Video className="w-5 h-5 text-green-600" />
+                            {isRTL ? 'جدولة اجتماع' : 'Schedule Meeting'}
+                        </DialogTitle>
+                        <DialogDescription id="meeting-desc">
+                            {meetingContact ? (isRTL ? `اجتماع مع ${getContactName(meetingContact, language)}` : `Meeting with ${getContactName(meetingContact, language)}`) : ''}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        <div>
+                            <Label>{isRTL ? 'العنوان' : 'Title'}</Label>
+                            <Input value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)} />
+                        </div>
+                        <div>
+                            <Label>{isRTL ? 'الموعد' : 'Date & Time'}</Label>
+                            <Input type="datetime-local" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} />
+                        </div>
+                        <div>
+                            <Label>{isRTL ? 'ملاحظات' : 'Notes'}</Label>
+                            <Textarea value={meetingDesc} onChange={e => setMeetingDesc(e.target.value)} rows={2}
+                                placeholder={isRTL ? 'تفاصيل الاجتماع...' : 'Meeting details...'} />
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" checked={meetingAddMeet} onChange={e => setMeetingAddMeet(e.target.checked)} className="rounded" />
+                            <Video className="w-3.5 h-3.5 text-blue-500" />
+                            {isRTL ? 'إنشاء رابط Google Meet' : 'Create Google Meet link'}
+                        </label>
+                        <Button className="w-full bg-green-600 hover:bg-green-700 gap-1.5"
+                            disabled={meetingCreating || !meetingTitle.trim() || !meetingDate}
+                            onClick={async () => {
+                                if (!companyId) return;
+                                setMeetingCreating(true);
+                                try {
+                                    // Get tenant_id
+                                    const { data: comp } = await supabase.from('companies').select('tenant_id').eq('id', companyId).single();
+                                    const task = await createTask(companyId, comp?.tenant_id || '', {
+                                        title: meetingTitle,
+                                        description: meetingDesc,
+                                        task_category: 'meeting' as TaskCategory,
+                                        priority: 'medium',
+                                        due_date: new Date(meetingDate).toISOString(),
+                                        contact_id: meetingContact?.id,
+                                        sync_to_calendar: true,
+                                        add_meet_link: meetingAddMeet,
+                                    }, cloudCompanyId || undefined);
+
+                                    const msg = task.meet_link
+                                        ? (isRTL ? `✅ تم إنشاء الاجتماع مع رابط Meet` : `✅ Meeting created with Meet link`)
+                                        : (isRTL ? '✅ تم جدولة الاجتماع' : '✅ Meeting scheduled');
+                                    toastHook({
+                                        title: msg,
+                                        description: task.meet_link ? (
+                                            <a href={task.meet_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">
+                                                {task.meet_link}
+                                            </a>
+                                        ) : undefined,
+                                    });
+                                    setShowMeetingDialog(false);
+                                } catch (err: any) {
+                                    toastHook({ title: '❌ Error', description: err.message, variant: 'destructive' });
+                                } finally {
+                                    setMeetingCreating(false);
+                                }
+                            }}
+                        >
+                            {meetingCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                            {isRTL ? 'جدولة الاجتماع' : 'Schedule Meeting'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

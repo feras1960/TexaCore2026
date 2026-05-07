@@ -236,7 +236,19 @@ export async function executeSQLAgentLoop(
             queryResult = { error: error.message };
             console.log('[SQLAgent] Query error:', error.message);
           } else {
-            queryResult = { rows: data || [], count: Array.isArray(data) ? data.length : 0 };
+            // Truncate results to avoid context overflow
+            const rawRows = data || [];
+            const totalCount = Array.isArray(rawRows) ? rawRows.length : 0;
+            // Limit to 50 rows max, and truncate each row's string values
+            const truncatedRows = rawRows.slice(0, 50).map((row: any) => {
+              const clean: any = {};
+              for (const [k, v] of Object.entries(row)) {
+                if (typeof v === 'string' && v.length > 200) clean[k] = v.substring(0, 200) + '...';
+                else clean[k] = v;
+              }
+              return clean;
+            });
+            queryResult = { rows: truncatedRows, count: totalCount, truncated: totalCount > 50 };
             console.log('[SQLAgent] Query returned:', queryResult.count, 'rows');
           }
         } catch (err: any) {

@@ -100,6 +100,17 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
   const location = useLocation();
   const currentKey = getRouteKey(location.pathname);
 
+  // ⚡ EPHEMERAL ROUTES — These pages unmount when you navigate away.
+  // They are heavy (system-config has 10+ tab components with polling/effects)
+  // and don't benefit from keep-alive since users rarely switch back quickly.
+  const EPHEMERAL_ROUTES = new Set([
+    '/system-config',
+    '/users-permissions',
+    '/activity-log',
+    '/profile',
+    '/dev/charts-lab',
+  ]);
+
   // Track MOUNTED routes — only pages the user has actually visited
   const [mountedRoutes, setMountedRoutes] = useState<Set<string>>(() => {
     return currentKey ? new Set([currentKey]) : new Set();
@@ -113,10 +124,23 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
   const preloadedCode = useRef<Set<string>>(new Set());
 
   // Mount current route (only when user actually visits)
+  // For ephemeral routes: unmount them when navigating away
   useEffect(() => {
     if (currentKey && !mountedRoutes.has(currentKey)) {
       setMountedRoutes(prev => new Set(prev).add(currentKey));
     }
+    // Clean up ephemeral routes that are no longer active
+    setMountedRoutes(prev => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const route of prev) {
+        if (EPHEMERAL_ROUTES.has(route) && route !== currentKey) {
+          next.delete(route);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, [currentKey]);
 
   // ⚡ Code-Only Prefetch — Download JS bundles WITHOUT mounting

@@ -43,20 +43,20 @@ import {
     type LucideIcon
 } from 'lucide-react';
 
-// Tab Components
+// Tab Components — Eagerly loaded (small/critical)
 import CompanyProfileTab from './components/CompanyProfileTab';
 import TaxSystemTab from './components/TaxSystemTab';
 
-// Module settings
-import AccountingSettings from '@/features/accounting/AccountingSettings';
-import WarehouseSettingsPage from '@/features/warehouse/pages/WarehouseSettingsPage';
-import SalesWorkflowSettings from '@/features/sales/pages/SalesWorkflowSettings';
-import IntegrationsTab from './components/IntegrationsTab';
-import NotificationsSettingsTab from './components/NotificationsSettingsTab';
-import PrintSettingsTab from './components/PrintSettingsTab';
-import AILanguageSettingsTab from './components/AILanguageSettingsTab';
-import UsersPermissionsSettingsTab from './components/UsersPermissionsSettingsTab';
-import CompanyAnnouncementsTab from './tabs/CompanyAnnouncementsTab';
+// Module settings — Lazy loaded (heavy components)
+const AccountingSettings = React.lazy(() => import('@/features/accounting/AccountingSettings'));
+const WarehouseSettingsPage = React.lazy(() => import('@/features/warehouse/pages/WarehouseSettingsPage'));
+const SalesWorkflowSettings = React.lazy(() => import('@/features/sales/pages/SalesWorkflowSettings'));
+const IntegrationsTab = React.lazy(() => import('./components/IntegrationsTab'));
+const NotificationsSettingsTab = React.lazy(() => import('./components/NotificationsSettingsTab'));
+const PrintSettingsTab = React.lazy(() => import('./components/PrintSettingsTab'));
+const AILanguageSettingsTab = React.lazy(() => import('./components/AILanguageSettingsTab'));
+const UsersPermissionsSettingsTab = React.lazy(() => import('./components/UsersPermissionsSettingsTab'));
+const CompanyAnnouncementsTab = React.lazy(() => import('./tabs/CompanyAnnouncementsTab'));
 import { ImportWizard } from '@/features/import';
 import { useLanguage as useImportLang } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -519,7 +519,13 @@ export default function SystemConfigPage() {
                                 contentVisibility: isActive ? 'visible' : 'hidden',
                             }}
                         >
-                            <TabComponent />
+                            <React.Suspense fallback={
+                                <div className="flex items-center justify-center py-20">
+                                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                                </div>
+                            }>
+                                <TabComponent />
+                            </React.Suspense>
                         </div>
                     );
                 })}

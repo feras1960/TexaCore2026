@@ -20,6 +20,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import DriveBackupSection from './DriveBackupSection';
 import {
     Truck, Save, CheckCircle2, AlertCircle,
     Loader2, Eye, EyeOff, ExternalLink,
@@ -71,6 +72,7 @@ interface IntegrationConfig {
     connected_name?: string;
     connected_picture?: string;
     scopes?: string[];
+    cloud_company_id?: string;
     // Nova Poshta
     api_key?: string;
     sender_ref?: string;
@@ -582,7 +584,7 @@ export default function IntegrationsTab() {
             </Card>
 
             {/* ═══ Google Special Section (if connected, show scopes) ═══ */}
-            {integrations.google?.connected && (
+            {(integrations.google?.connected || integrations.google?.enabled) && (
                 <Card className="border-green-200 dark:border-green-900/30">
                     <CardContent className="pt-4 pb-3">
                         <div className="flex items-center justify-between">
@@ -591,8 +593,12 @@ export default function IntegrationsTab() {
                                     <img src={integrations.google.connected_picture} alt="" className="w-8 h-8 rounded-full" />
                                 )}
                                 <div>
-                                    <p className="text-sm font-medium text-green-700 dark:text-green-300">{integrations.google.connected_name}</p>
-                                    <p className="text-xs text-green-500">{integrations.google.connected_email}</p>
+                                    <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                                        {integrations.google.connected_name || 'Google Workspace'}
+                                    </p>
+                                    <p className="text-xs text-green-500">
+                                        {integrations.google.connected_email || (isAr ? 'متصل' : 'Connected')}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
@@ -604,6 +610,11 @@ export default function IntegrationsTab() {
                         </div>
                     </CardContent>
                 </Card>
+            )}
+
+            {/* ═══ Google Drive Backup Section ═══ */}
+            {(integrations.google?.connected || integrations.google?.enabled) && companyId && (
+                <DriveBackupSection companyId={companyId} cloudCompanyId={integrations.google?.cloud_company_id} isAr={isAr} />
             )}
 
             {/* ═══ Add/Edit Wizard Dialog ═══ */}

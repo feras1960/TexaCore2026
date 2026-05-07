@@ -15,6 +15,7 @@ import { TopSuppliersPanel } from './_components/TopSuppliersPanel';
 import { RecentActivityPanel } from './_components/RecentActivityPanel';
 import { CurrencyExposurePanel } from './_components/CurrencyExposurePanel';
 import { QuickActionsBar } from './_components/QuickActionsBar';
+import { CalendarWidget } from './_components/CalendarWidget';
 import { OnboardingChecklist } from '@/components/onboarding/OnboardingWizard';
 
 import type { ActivityItem, CurrencyBreakdown, TopCustomer, NetPosition } from './_lib/dashboard-types';
@@ -522,7 +523,7 @@ export default function DashboardPage() {
           <AttentionPanel items={attnQuery.data} loading={attnQuery.isLoading} />
         </div>
 
-        {/* ═══ Section 4: Top Partners + Onboarding ═══ */}
+        {/* ═══ Section 4: Top Partners + Calendar ═══ */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           <TopCustomersPanel
             items={convertedCustomers}
@@ -534,8 +535,11 @@ export default function DashboardPage() {
             loading={suppQuery.isLoading}
             onSupplierClick={handleSupplierClick}
           />
-          <OnboardingChecklist />
+          <CalendarWidget companyId={companyId} />
         </div>
+
+        {/* ═══ Onboarding ═══ */}
+        <OnboardingChecklist />
       </main>
 
       {/* ═══ Interactive Sheet — Opens on click from any dashboard panel ═══ */}

@@ -377,21 +377,21 @@ export default function StockMovementsPage() {
                 setReceiptViewDialog({ open: true, billType, reference, receiptId });
             };
 
-            // ── Helper: fallback - open purchase invoice directly ──
+            // ── Helper: fallback - open purchase invoice directly (no receipt) ──
             const openById = async (id: string) => {
                 const { data: inv } = await supabase.from('purchase_invoices').select('*').eq('id', id).maybeSingle();
-                if (inv) { openReceiptView('purchase_local', inv.id); return true; }
+                if (inv) { setLinkedInvoiceSheet({ open: true, invoiceData: inv }); return true; }
                 const { data: leg } = await supabase.from('purchase_transactions').select('*').eq('id', id).maybeSingle();
-                if (leg) { openReceiptView('purchase_local', leg.id); return true; }
+                if (leg) { setLinkedInvoiceSheet({ open: true, invoiceData: leg }); return true; }
                 return false;
             };
 
             // ── Helper: try to open by reference number ──
             const openByNumber = async (num: string) => {
-                const { data: inv } = await supabase.from('purchase_invoices').select('id').eq('invoice_number', num).maybeSingle();
-                if (inv) { openReceiptView('purchase_local', inv.id); return true; }
-                const { data: leg } = await supabase.from('purchase_transactions').select('id').eq('invoice_no', num).maybeSingle();
-                if (leg) { openReceiptView('purchase_local', leg.id); return true; }
+                const { data: inv } = await supabase.from('purchase_invoices').select('*').eq('invoice_number', num).maybeSingle();
+                if (inv) { setLinkedInvoiceSheet({ open: true, invoiceData: inv }); return true; }
+                const { data: leg } = await supabase.from('purchase_transactions').select('*').eq('invoice_no', num).maybeSingle();
+                if (leg) { setLinkedInvoiceSheet({ open: true, invoiceData: leg }); return true; }
                 return false;
             };
 
