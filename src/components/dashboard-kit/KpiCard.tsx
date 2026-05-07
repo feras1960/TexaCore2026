@@ -64,6 +64,12 @@ export function KpiCard({ kpi, index = 0 }: { kpi: KpiItem; index?: number }) {
             <CountUp end={kpi.value} duration={0.7} separator="," />
           </span>
         )}
+        {/* Secondary currency line */}
+        {(kpi as any)._originalValue != null && (kpi as any)._originalCurrency && (kpi as any)._originalCurrency !== kpi.currency && (
+          <p className="mt-0.5 text-[11px] tabular-nums text-stone-400 dark:text-stone-500">
+            ≈ {formatCurrency((kpi as any)._originalValue, (kpi as any)._originalCurrency)}
+          </p>
+        )}
       </div>
 
       {/* Row 3: Sparkline (optional) */}

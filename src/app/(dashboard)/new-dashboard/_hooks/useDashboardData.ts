@@ -6,6 +6,36 @@ import type { KpiItem, CashFlowPoint, TopCustomer, ActivityItem, NetPosition, At
 const GC_TIME = 24 * 60 * 60 * 1000; // 24 hours
 const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 
+// 0. Exchange Rate — fetches latest rate for currency conversion
+export function useExchangeRate(companyId: string) {
+  return useCachedQuery({
+    queryKey: ['exchange-rate', companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('exchange_rates')
+        .select('from_currency, to_currency, mid_rate')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .order('effective_from', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      // Build a lookup map: { "USD/UAH": 41.5, "UAH/USD": 0.0241 }
+      const rateMap: Record<string, number> = {};
+      for (const r of (data || [])) {
+        if (r.mid_rate && r.mid_rate > 0) {
+          rateMap[`${r.from_currency}/${r.to_currency}`] = r.mid_rate;
+          rateMap[`${r.to_currency}/${r.from_currency}`] = 1 / r.mid_rate;
+        }
+      }
+      return rateMap;
+    },
+    enabled: Boolean(companyId && companyId !== 'default-company'),
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: GC_TIME,
+  });
+}
+
+
 // 1. KPI Summary
 export function useKpiSummary(companyId: string, currency: string) {
   return useCachedQuery({

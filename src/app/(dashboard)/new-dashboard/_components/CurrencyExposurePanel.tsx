@@ -120,9 +120,15 @@ export function CurrencyExposurePanel({
                   >
                     {formatCurrency(account.balance, account.currency)}
                   </p>
-                  <p className="text-[11px] text-stone-400 dark:text-stone-500 text-left">
-                    {CURRENCY_FLAGS[account.currency] ?? '💱'} {account.currency}
-                  </p>
+                  {(account as any)._originalCurrency && (account as any)._originalCurrency !== account.currency ? (
+                    <p className="text-[10px] tabular-nums text-stone-400 dark:text-stone-500 text-left">
+                      ≈ {formatCurrency((account as any)._originalBalance, (account as any)._originalCurrency)}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-stone-400 dark:text-stone-500 text-left">
+                      {CURRENCY_FLAGS[account.currency] ?? '💱'} {account.currency}
+                    </p>
+                  )}
                 </div>
               </li>
             );

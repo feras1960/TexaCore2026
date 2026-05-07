@@ -82,6 +82,12 @@ export function NetPositionHero({
               />
             </span>
           </div>
+          {/* Secondary currency */}
+          {(data as any)?._originalValue != null && (data as any)?._originalCurrency !== baseCurrency && (
+            <p className="mt-1 text-sm tabular-nums text-stone-500">
+              ≈ {(data as any)._originalCurrency === 'USD' ? '$' : ''}{Math.round((data as any)._originalValue).toLocaleString()}{(data as any)._originalCurrency !== 'USD' ? ` ${(data as any)._originalCurrency}` : ''}
+            </p>
+          )}
           <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
             <span
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium ${
@@ -94,7 +100,7 @@ export function NetPositionHero({
               {Math.abs(deltaPct7d).toFixed(1)}%
             </span>
             <span className="text-stone-400">
-              {positive ? '+' : '−'}${Math.abs(deltaAbs7d).toLocaleString()} آخر 7 أيام
+              {positive ? '+' : '−'}{baseCurrency === 'USD' ? '$' : ''}{Math.abs(deltaAbs7d).toLocaleString()}{baseCurrency !== 'USD' ? ` ${baseCurrency}` : ''} آخر 7 أيام
             </span>
           </div>
         </div>
@@ -103,7 +109,7 @@ export function NetPositionHero({
         <div className="border-stone-700 lg:border-e lg:pe-6">
           <p className="text-xs uppercase tracking-wider text-stone-400">حركة اليوم</p>
           <p className="mt-2 text-2xl font-medium tabular-nums">
-            ${todayMovement.toLocaleString()}
+            {baseCurrency === 'USD' ? '$' : ''}{todayMovement.toLocaleString()}{baseCurrency !== 'USD' ? ` ${baseCurrency}` : ''}
           </p>
           <p className="mt-1 text-xs text-stone-400">{todayTxCount} معاملات</p>
         </div>

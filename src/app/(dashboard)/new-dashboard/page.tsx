@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
-import { useKpiSummary, useNetPosition, useCashFlowSeries, useAttentionItems, useTopCustomers, useTopSuppliers, useRecentActivity, useCurrencyExposure } from './_hooks/useDashboardData';
+import { useKpiSummary, useNetPosition, useCashFlowSeries, useAttentionItems, useTopCustomers, useTopSuppliers, useRecentActivity, useCurrencyExposure, useExchangeRate } from './_hooks/useDashboardData';
 
 import { DashboardHeader } from './_components/DashboardHeader';
 import { NetPositionHero } from './_components/NetPositionHero';
@@ -94,14 +94,44 @@ export default function DashboardPage() {
   };
 
   const companyId = settings?.company_id || 'default-company';
+  const systemBaseCurrency = baseCurrency || 'UAH';
 
-  // Real Queries (Cached locally & connected to Supabase)
-  const netQuery = useNetPosition(companyId, currency);
-  const kpiQuery = useKpiSummary(companyId, currency);
-  const flowQuery = useCashFlowSeries(companyId, currency, 30);
+  // Exchange Rate for currency conversion
+  const rateQuery = useExchangeRate(companyId);
+  const rateMap = rateQuery.data || {};
+
+  // Convert amount from base currency to display currency
+  const convertAmount = useCallback((amount: number, fromCur?: string): number => {
+    const from = fromCur || systemBaseCurrency;
+    if (from === currency) return amount; // same currency
+    const key = `${from}/${currency}`;
+    const rate = rateMap[key];
+    if (rate) return amount * rate;
+    // Try reverse
+    const reverseKey = `${currency}/${from}`;
+    const reverseRate = rateMap[reverseKey];
+    if (reverseRate && reverseRate > 0) return amount / reverseRate;
+    // Fallback: no rate found — return as is
+    return amount;
+  }, [currency, systemBaseCurrency, rateMap]);
+
+  // Get the display rate for showing secondary currency
+  const displayRate = useMemo(() => {
+    if (currency === systemBaseCurrency) {
+      const key = `USD/${systemBaseCurrency}`;
+      return rateMap[key] || null;
+    }
+    const key = `${systemBaseCurrency}/${currency}`;
+    return rateMap[key] ? (1 / rateMap[key]) : null;
+  }, [currency, systemBaseCurrency, rateMap]);
+
+  // Real Queries — ALWAYS fetch in system base currency (UAH)
+  const netQuery = useNetPosition(companyId, systemBaseCurrency);
+  const kpiQuery = useKpiSummary(companyId, systemBaseCurrency);
+  const flowQuery = useCashFlowSeries(companyId, systemBaseCurrency, 30);
   const attnQuery = useAttentionItems(companyId);
-  const custQuery = useTopCustomers(companyId, currency);
-  const suppQuery = useTopSuppliers(companyId, currency);
+  const custQuery = useTopCustomers(companyId, systemBaseCurrency);
+  const suppQuery = useTopSuppliers(companyId, systemBaseCurrency);
   const actQuery = useRecentActivity(companyId);
   const curQuery = useCurrencyExposure(companyId);
 
@@ -130,17 +160,92 @@ export default function DashboardPage() {
     }
   }, [isFetchingAny]);
 
-  // Inject icon & color into KPI items so dashboard-kit KpiCard renders correctly
+  // Convert Net Position to display currency
+  const convertedNet = useMemo(() => {
+    if (!netQuery.data) return undefined;
+    const d = netQuery.data;
+    return {
+      ...d,
+      valueBase: convertAmount(d.valueBase),
+      baseCurrency: currency,
+      deltaAbs7d: convertAmount(d.deltaAbs7d),
+      todayMovement: convertAmount(d.todayMovement),
+      // Keep secondary info for dual display
+      _originalValue: d.valueBase,
+      _originalCurrency: systemBaseCurrency,
+    } as NetPosition & { _originalValue?: number; _originalCurrency?: string };
+  }, [netQuery.data, convertAmount, currency, systemBaseCurrency]);
+
+  // Convert & enrich KPI items with real currency conversion
   const enrichedKpis: KpiItem[] | undefined = useMemo(() => {
     if (!kpiQuery.data) return undefined;
-    return kpiQuery.data.map((kpi: any) => ({
-      ...kpi,
-      value: kpi.value ?? kpi.valueBase ?? 0,
-      icon: KPI_ICONS[kpi.id] ?? Wallet,
-      color: KPI_COLORS[kpi.id] ?? '#0ea5e9',
-      deltaPct: kpi.deltaPct7d ?? kpi.deltaPct ?? 0,
+    return kpiQuery.data.map((kpi: any) => {
+      const rawValue = kpi.value ?? kpi.valueBase ?? 0;
+      const isInventoryCount = kpi.id === 'inventory';
+      return {
+        ...kpi,
+        value: isInventoryCount ? rawValue : convertAmount(rawValue),
+        _originalValue: rawValue,
+        _originalCurrency: systemBaseCurrency,
+        currency: isInventoryCount ? '' : currency,
+        icon: KPI_ICONS[kpi.id] ?? Wallet,
+        color: KPI_COLORS[kpi.id] ?? '#0ea5e9',
+        deltaPct: kpi.deltaPct7d ?? kpi.deltaPct ?? 0,
+      };
+    });
+  }, [kpiQuery.data, convertAmount, currency, systemBaseCurrency]);
+
+  // Convert Top Customers to display currency
+  const convertedCustomers = useMemo(() => {
+    if (!custQuery.data) return undefined;
+    return custQuery.data.map((c: any) => ({
+      ...c,
+      outstanding: convertAmount(c.outstanding, c.currency),
+      currency: currency,
     }));
-  }, [kpiQuery.data]);
+  }, [custQuery.data, convertAmount, currency]);
+
+  // Convert Top Suppliers to display currency
+  const convertedSuppliers = useMemo(() => {
+    if (!suppQuery.data) return undefined;
+    return suppQuery.data.map((s: any) => ({
+      ...s,
+      outstanding: convertAmount(s.outstanding, s.currency),
+      currency: currency,
+    }));
+  }, [suppQuery.data, convertAmount, currency]);
+
+  // Convert Funds/Banks to display currency
+  const convertedFunds = useMemo(() => {
+    if (!curQuery.data) return undefined;
+    return curQuery.data.map((f: any) => ({
+      ...f,
+      balance: convertAmount(f.balance, f.currency),
+      _originalBalance: f.balance,
+      _originalCurrency: f.currency,
+      currency: currency,
+    }));
+  }, [curQuery.data, convertAmount, currency]);
+
+  // Convert Cash Flow to display currency
+  const convertedCashFlow = useMemo(() => {
+    if (!flowQuery.data) return undefined;
+    return flowQuery.data.map((p: any) => ({
+      ...p,
+      income: convertAmount(p.income),
+      expense: convertAmount(p.expense),
+    }));
+  }, [flowQuery.data, convertAmount]);
+
+  // Convert Recent Activity amounts to display currency
+  const convertedActivity = useMemo(() => {
+    if (!actQuery.data) return undefined;
+    return actQuery.data.map((a: any) => ({
+      ...a,
+      amount: a.amount != null ? convertAmount(a.amount, a.currency || systemBaseCurrency) : a.amount,
+      currency: a.amount != null ? currency : a.currency,
+    }));
+  }, [actQuery.data, convertAmount, currency, systemBaseCurrency]);
 
   // ═══ Interactive Sheet State ═══
   const [sheetState, setSheetState] = useState<SheetState>(INITIAL_SHEET);
@@ -367,8 +472,9 @@ export default function DashboardPage() {
       />
 
       <main className="mt-6 flex flex-col gap-6">
+        {/* ═══ Section 1: Financial Overview ═══ */}
         <NetPositionHero
-          data={netQuery.data}
+          data={convertedNet}
           loading={netQuery.isLoading}
           lastSync={lastSync}
           isFetching={isFetchingAny}
@@ -376,42 +482,44 @@ export default function DashboardPage() {
 
         <KpiGrid kpis={enrichedKpis} loading={kpiQuery.isLoading} />
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {/* Main Content (Chart + Actions) takes up full width on mobile/tablet, 2/3 on desktop */}
-          <div className="md:col-span-2 flex flex-col gap-6">
-            <CashFlowChart data={flowQuery.data} loading={flowQuery.isLoading} />
-            <QuickActionsBar />
-          </div>
-          
-          {/* Side panel */}
-          <OnboardingChecklist />
+        {/* ═══ Quick Actions — Always visible ═══ */}
+        <QuickActionsBar />
 
-          {/* Row 2: 3 panels — Attention + Customers + Suppliers */}
+        {/* ═══ Section 2: Daily Operations — Activity + Funds (equal halves) ═══ */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <RecentActivityPanel
+            items={actQuery.data}
+            loading={actQuery.isLoading}
+            onActivityClick={handleActivityClick}
+          />
+          <CurrencyExposurePanel
+            items={convertedFunds}
+            loading={curQuery.isLoading}
+            onAccountClick={handleAccountClick}
+          />
+        </div>
+
+        {/* ═══ Section 3: Analytics + Attention ═══ */}
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2">
+            <CashFlowChart data={convertedCashFlow} loading={flowQuery.isLoading} />
+          </div>
           <AttentionPanel items={attnQuery.data} loading={attnQuery.isLoading} />
+        </div>
+
+        {/* ═══ Section 4: Top Partners + Onboarding ═══ */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           <TopCustomersPanel
-            items={custQuery.data}
+            items={convertedCustomers}
             loading={custQuery.isLoading}
             onCustomerClick={handleCustomerClick}
           />
           <TopSuppliersPanel
-            items={suppQuery.data}
+            items={convertedSuppliers}
             loading={suppQuery.isLoading}
             onSupplierClick={handleSupplierClick}
           />
-
-          {/* Row 3: Activity (wide) + Funds/Banks */}
-          <div className="md:col-span-2">
-            <RecentActivityPanel
-              items={actQuery.data}
-              loading={actQuery.isLoading}
-              onActivityClick={handleActivityClick}
-            />
-          </div>
-          <CurrencyExposurePanel
-            items={curQuery.data}
-            loading={curQuery.isLoading}
-            onAccountClick={handleAccountClick}
-          />
+          <OnboardingChecklist />
         </div>
       </main>
 
