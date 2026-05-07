@@ -43,6 +43,8 @@ export interface SearchResult {
   entityType?: EntityType;
   /** معرف الكيان — لفتح الشيت مباشرة */
   entityId?: string;
+  /** Hidden field: all language variants for cross-language search */
+  _searchTerms?: string[];
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -89,6 +91,7 @@ function getNavigationItems(lang: string): SearchResult[] {
       subtitle: isAr ? 'انتقال سريع' : 'Quick navigation',
       path: m.path,
       priority: 90,
+      _searchTerms: [m.name_ar, m.name_en, m.name_ru, m.name_uk, m.name_tr].filter(Boolean),
     }));
 
   // Settings sub-pages (deep links to system-config tabs)
@@ -141,89 +144,94 @@ function getNavigationItems(lang: string): SearchResult[] {
     subtitle: isAr ? 'الإعدادات' : 'Settings',
     path: s.path,
     priority: s.id.startsWith('nav-alias') ? 83 : 85,
+    _searchTerms: [s.titleAr, s.titleEn],
   }));
 
   // Accounting sub-sections (paths match Accounting.tsx getActiveTab)
   const accountingNav: SearchResult[] = [
-    { id: 'nav-acc-dashboard', titleAr: 'لوحة المحاسبة', titleEn: 'Accounting Dashboard', path: '/accounting' },
-    { id: 'nav-acc-chart', titleAr: 'شجرة الحسابات', titleEn: 'Chart of Accounts', path: '/accounting/chart-of-accounts' },
-    { id: 'nav-acc-journal', titleAr: 'القيود المحاسبية', titleEn: 'Journal Entries', path: '/accounting/journal-entries' },
-    { id: 'nav-acc-ledger', titleAr: 'دفتر الأستاذ', titleEn: 'General Ledger', path: '/accounting/general-ledger' },
-    { id: 'nav-acc-funds', titleAr: 'الصناديق والبنوك', titleEn: 'Funds & Banks', path: '/accounting/funds' },
-    { id: 'nav-acc-parties', titleAr: 'الجهات', titleEn: 'Parties', path: '/accounting/parties' },
-    { id: 'nav-acc-partners', titleAr: 'الشركاء', titleEn: 'Equity Partners', path: '/accounting/equity-partners' },
-    { id: 'nav-acc-budget', titleAr: 'الموازنة', titleEn: 'Budget', path: '/accounting/budget' },
-    { id: 'nav-acc-recurring', titleAr: 'القيود المتكررة', titleEn: 'Recurring Entries', path: '/accounting/recurring' },
-    { id: 'nav-acc-settings', titleAr: 'إعدادات المحاسبة', titleEn: 'Accounting Settings', path: '/accounting/settings' },
-    { id: 'nav-acc-reports', titleAr: 'التقارير', titleEn: 'Reports', path: '/accounting/reports' },
+    { id: 'nav-acc-dashboard', titleAr: 'لوحة المحاسبة', titleEn: 'Accounting Dashboard', titleRu: 'Панель бухгалтерии', titleUk: 'Панель бухгалтерії', path: '/accounting' },
+    { id: 'nav-acc-chart', titleAr: 'شجرة الحسابات', titleEn: 'Chart of Accounts', titleRu: 'План счетов', titleUk: 'План рахунків', path: '/accounting/chart-of-accounts' },
+    { id: 'nav-acc-journal', titleAr: 'القيود المحاسبية', titleEn: 'Journal Entries', titleRu: 'Проводки', titleUk: 'Проводки', path: '/accounting/journal-entries' },
+    { id: 'nav-acc-ledger', titleAr: 'دفتر الأستاذ', titleEn: 'General Ledger', titleRu: 'Главная книга', titleUk: 'Головна книга', path: '/accounting/general-ledger' },
+    { id: 'nav-acc-funds', titleAr: 'الصناديق والبنوك', titleEn: 'Funds & Banks', titleRu: 'Кассы и банки', titleUk: 'Каси і банки', path: '/accounting/funds' },
+    { id: 'nav-acc-parties', titleAr: 'الجهات', titleEn: 'Parties', titleRu: 'Контрагенты', titleUk: 'Контрагенти', path: '/accounting/parties' },
+    { id: 'nav-acc-partners', titleAr: 'الشركاء', titleEn: 'Equity Partners', titleRu: 'Партнёры', titleUk: 'Партнери', path: '/accounting/equity-partners' },
+    { id: 'nav-acc-budget', titleAr: 'الموازنة', titleEn: 'Budget', titleRu: 'Бюджет', titleUk: 'Бюджет', path: '/accounting/budget' },
+    { id: 'nav-acc-recurring', titleAr: 'القيود المتكررة', titleEn: 'Recurring Entries', titleRu: 'Повторяющиеся', titleUk: 'Повторювані', path: '/accounting/recurring' },
+    { id: 'nav-acc-settings', titleAr: 'إعدادات المحاسبة', titleEn: 'Accounting Settings', titleRu: 'Настройки', titleUk: 'Налаштування', path: '/accounting/settings' },
+    { id: 'nav-acc-reports', titleAr: 'التقارير', titleEn: 'Reports', titleRu: 'Отчёты', titleUk: 'Звіти', path: '/accounting/reports' },
   ].map(s => ({
     id: s.id,
     category: 'navigation' as const,
     icon: Calculator,
-    title: isAr ? s.titleAr : s.titleEn,
+    title: lang === 'ar' ? s.titleAr : lang === 'ru' ? s.titleRu : lang === 'uk' ? s.titleUk : s.titleEn,
     subtitle: isAr ? 'المحاسبة' : 'Accounting',
     path: s.path,
     priority: 85,
+    _searchTerms: [s.titleAr, s.titleEn, s.titleRu, s.titleUk, 'المحاسبة', 'Accounting', 'Бухгалтерія', 'Бухгалтерия'],
   }));
 
   // Sales sub-sections (paths match SalesPage.tsx getActiveTab)
   const salesNav: SearchResult[] = [
-    { id: 'nav-sales-dashboard', titleAr: 'لوحة المبيعات', titleEn: 'Sales Dashboard', path: '/sales' },
-    { id: 'nav-sales-customers', titleAr: 'الزبائن', titleEn: 'Customers', path: '/sales/customers' },
-    { id: 'nav-sales-cycle', titleAr: 'دورة المبيعات', titleEn: 'Sales Cycle', path: '/sales/cycle' },
-    { id: 'nav-sales-invoices', titleAr: 'فواتير المبيعات', titleEn: 'Sales Invoices', path: '/sales/cycle' },
-    { id: 'nav-sales-payments', titleAr: 'سندات القبض', titleEn: 'Payment Receipts', path: '/sales/payments' },
-    { id: 'nav-sales-reports', titleAr: 'تقارير المبيعات', titleEn: 'Sales Reports', path: '/sales/reports' },
-    { id: 'nav-sales-settings', titleAr: 'إعدادات المبيعات', titleEn: 'Sales Settings', path: '/sales/settings' },
+    { id: 'nav-sales-dashboard', titleAr: 'لوحة المبيعات', titleEn: 'Sales Dashboard', titleRu: 'Панель продаж', titleUk: 'Панель продажів', path: '/sales' },
+    { id: 'nav-sales-customers', titleAr: 'الزبائن', titleEn: 'Customers', titleRu: 'Клиенты', titleUk: 'Клієнти', path: '/sales/customers' },
+    { id: 'nav-sales-cycle', titleAr: 'دورة المبيعات', titleEn: 'Sales Cycle', titleRu: 'Цикл продаж', titleUk: 'Цикл продажів', path: '/sales/cycle' },
+    { id: 'nav-sales-invoices', titleAr: 'فواتير المبيعات', titleEn: 'Sales Invoices', titleRu: 'Счета продаж', titleUk: 'Рахунки продажів', path: '/sales/cycle' },
+    { id: 'nav-sales-payments', titleAr: 'سندات القبض', titleEn: 'Payment Receipts', titleRu: 'Квитанции об оплате', titleUk: 'Квитанції про оплату', path: '/sales/payments' },
+    { id: 'nav-sales-reports', titleAr: 'تقارير المبيعات', titleEn: 'Sales Reports', titleRu: 'Отчёты по продажам', titleUk: 'Звіти з продажів', path: '/sales/reports' },
+    { id: 'nav-sales-settings', titleAr: 'إعدادات المبيعات', titleEn: 'Sales Settings', titleRu: 'Настройки продаж', titleUk: 'Налаштування продажів', path: '/sales/settings' },
   ].map(s => ({
     id: s.id,
     category: 'navigation' as const,
     icon: ShoppingCart,
-    title: isAr ? s.titleAr : s.titleEn,
+    title: lang === 'ar' ? s.titleAr : lang === 'ru' ? s.titleRu : lang === 'uk' ? s.titleUk : s.titleEn,
     subtitle: isAr ? 'المبيعات' : 'Sales',
     path: s.path,
     priority: 85,
+    _searchTerms: [s.titleAr, s.titleEn, s.titleRu, s.titleUk, 'المبيعات', 'Sales', 'Продажі', 'Продажи'],
   }));
 
   // Purchase sub-sections (paths match PurchasesPage.tsx getActiveTab)
   const purchaseNav: SearchResult[] = [
-    { id: 'nav-purch-dashboard', titleAr: 'لوحة المشتريات', titleEn: 'Purchases Dashboard', path: '/purchases' },
-    { id: 'nav-purch-suppliers', titleAr: 'الموردون', titleEn: 'Suppliers', path: '/purchases/suppliers' },
-    { id: 'nav-purch-cycle', titleAr: 'دورة المشتريات', titleEn: 'Purchase Cycle', path: '/purchases/cycle' },
-    { id: 'nav-purch-invoices', titleAr: 'فواتير المشتريات', titleEn: 'Purchase Invoices', path: '/purchases/cycle' },
-    { id: 'nav-purch-payments', titleAr: 'سندات الصرف', titleEn: 'Payment Vouchers', path: '/purchases/payments' },
-    { id: 'nav-purch-containers', titleAr: 'الكونتينرات', titleEn: 'Containers', path: '/purchases/containers' },
-    { id: 'nav-purch-settings', titleAr: 'إعدادات المشتريات', titleEn: 'Purchase Settings', path: '/purchases/settings' },
+    { id: 'nav-purch-dashboard', titleAr: 'لوحة المشتريات', titleEn: 'Purchases Dashboard', titleRu: 'Панель закупок', titleUk: 'Панель закупівель', path: '/purchases' },
+    { id: 'nav-purch-suppliers', titleAr: 'الموردون', titleEn: 'Suppliers', titleRu: 'Поставщики', titleUk: 'Постачальники', path: '/purchases/suppliers' },
+    { id: 'nav-purch-cycle', titleAr: 'دورة المشتريات', titleEn: 'Purchase Cycle', titleRu: 'Цикл закупок', titleUk: 'Цикл закупівель', path: '/purchases/cycle' },
+    { id: 'nav-purch-invoices', titleAr: 'فواتير المشتريات', titleEn: 'Purchase Invoices', titleRu: 'Счета закупок', titleUk: 'Рахунки закупівель', path: '/purchases/cycle' },
+    { id: 'nav-purch-payments', titleAr: 'سندات الصرف', titleEn: 'Payment Vouchers', titleRu: 'Платёжные документы', titleUk: 'Платіжні документи', path: '/purchases/payments' },
+    { id: 'nav-purch-containers', titleAr: 'الكونتينرات', titleEn: 'Containers', titleRu: 'Контейнеры', titleUk: 'Контейнери', path: '/purchases/containers' },
+    { id: 'nav-purch-settings', titleAr: 'إعدادات المشتريات', titleEn: 'Purchase Settings', titleRu: 'Настройки закупок', titleUk: 'Налаштування закупівель', path: '/purchases/settings' },
   ].map(s => ({
     id: s.id,
     category: 'navigation' as const,
     icon: ShoppingBag,
-    title: isAr ? s.titleAr : s.titleEn,
+    title: lang === 'ar' ? s.titleAr : lang === 'ru' ? s.titleRu : lang === 'uk' ? s.titleUk : s.titleEn,
     subtitle: isAr ? 'المشتريات' : 'Purchases',
     path: s.path,
     priority: 85,
+    _searchTerms: [s.titleAr, s.titleEn, s.titleRu, s.titleUk, 'المشتريات', 'Purchases', 'Закупівлі', 'Закупки'],
   }));
 
   // Warehouse sub-sections (paths match WarehouseModule.tsx getActiveTab)
   const warehouseNav: SearchResult[] = [
-    { id: 'nav-wh-dashboard', titleAr: 'لوحة المستودعات', titleEn: 'Warehouse Dashboard', path: '/warehouse' },
-    { id: 'nav-wh-warehouses', titleAr: 'المستودعات والمواقع', titleEn: 'Warehouses & Locations', path: '/warehouse/warehouses' },
-    { id: 'nav-wh-materials', titleAr: 'المواد والمنتجات', titleEn: 'Materials & Products', path: '/warehouse/materials' },
-    { id: 'nav-wh-inventory', titleAr: 'المخزون', titleEn: 'Inventory', path: '/warehouse/inventory' },
-    { id: 'nav-wh-movements', titleAr: 'حركات المخزون', titleEn: 'Stock Movements', path: '/warehouse/stockMovements' },
-    { id: 'nav-wh-transfers', titleAr: 'المناقلات', titleEn: 'Transfers', path: '/warehouse/transfers' },
-    { id: 'nav-wh-receipts', titleAr: 'أذون الاستلام والتسليم', titleEn: 'Receipts & Deliveries', path: '/warehouse/receiptsDeliveries' },
-    { id: 'nav-wh-stockcount', titleAr: 'الجرد المخزني', titleEn: 'Stock Count', path: '/warehouse/stockCount' },
-    { id: 'nav-wh-reservations', titleAr: 'الحجوزات', titleEn: 'Reservations', path: '/warehouse/reservations' },
-    { id: 'nav-wh-reports', titleAr: 'تقارير المستودعات', titleEn: 'Warehouse Reports', path: '/warehouse/reports' },
+    { id: 'nav-wh-dashboard', titleAr: 'لوحة المستودعات', titleEn: 'Warehouse Dashboard', titleRu: 'Панель складов', titleUk: 'Панель складів', path: '/warehouse' },
+    { id: 'nav-wh-warehouses', titleAr: 'المستودعات والمواقع', titleEn: 'Warehouses & Locations', titleRu: 'Склады и местоположения', titleUk: 'Склади та місця', path: '/warehouse/warehouses' },
+    { id: 'nav-wh-materials', titleAr: 'المواد والمنتجات', titleEn: 'Materials & Products', titleRu: 'Материалы и продукция', titleUk: 'Матеріали та продукція', path: '/warehouse/materials' },
+    { id: 'nav-wh-inventory', titleAr: 'المخزون', titleEn: 'Inventory', titleRu: 'Запасы', titleUk: 'Запаси', path: '/warehouse/inventory' },
+    { id: 'nav-wh-movements', titleAr: 'حركات المخزون', titleEn: 'Stock Movements', titleRu: 'Движение запасов', titleUk: 'Рух запасів', path: '/warehouse/stockMovements' },
+    { id: 'nav-wh-transfers', titleAr: 'المناقلات', titleEn: 'Transfers', titleRu: 'Перемещения', titleUk: 'Переміщення', path: '/warehouse/transfers' },
+    { id: 'nav-wh-receipts', titleAr: 'أذون الاستلام والتسليم', titleEn: 'Receipts & Deliveries', titleRu: 'Приём и отгрузка', titleUk: 'Прийом та відвантаження', path: '/warehouse/receiptsDeliveries' },
+    { id: 'nav-wh-stockcount', titleAr: 'الجرد المخزني', titleEn: 'Stock Count', titleRu: 'Инвентаризация', titleUk: 'Інвентаризація', path: '/warehouse/stockCount' },
+    { id: 'nav-wh-reservations', titleAr: 'الحجوزات', titleEn: 'Reservations', titleRu: 'Резервирование', titleUk: 'Резервування', path: '/warehouse/reservations' },
+    { id: 'nav-wh-reports', titleAr: 'تقارير المستودعات', titleEn: 'Warehouse Reports', titleRu: 'Отчёты по складам', titleUk: 'Звіти по складах', path: '/warehouse/reports' },
   ].map(s => ({
     id: s.id,
     category: 'navigation' as const,
     icon: Package,
-    title: isAr ? s.titleAr : s.titleEn,
+    title: lang === 'ar' ? s.titleAr : lang === 'ru' ? s.titleRu : lang === 'uk' ? s.titleUk : s.titleEn,
     subtitle: isAr ? 'المستودعات' : 'Warehouse',
     path: s.path,
     priority: 85,
+    _searchTerms: [s.titleAr, s.titleEn, s.titleRu, s.titleUk, 'المستودعات', 'Warehouse', 'Склади', 'Склады'],
   }));
 
   return [...moduleNav, ...settingsNav, ...accountingNav, ...salesNav, ...purchaseNav, ...warehouseNav];
@@ -256,6 +264,7 @@ function getQuickActions(lang: string): SearchResult[] {
     badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     path: a.path,
     priority: 80,
+    _searchTerms: [a.titleAr, a.titleEn],
   }));
 }
 
@@ -300,7 +309,7 @@ export function useCommandPalette() {
     // 1. Filter static items (navigation + actions)
     if (!q || q.length <= 20) {
       const filteredStatic = staticItems.filter(item =>
-        matches(q, item.title, item.subtitle)
+        matches(q, item.title, item.subtitle, ...(item._searchTerms || []))
       );
       results.push(...filteredStatic);
     }
