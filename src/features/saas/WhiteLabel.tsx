@@ -294,7 +294,7 @@ export default function WhiteLabel() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-blue-600 dark:text-blue-400">
-                  {language === 'ar' ? 'إجمالي العملاء' : 'Total Tenants'}
+                  {language === 'ar' ? 'إجمالي الزبائن' : 'Total Tenants'}
                 </p>
                 <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-1">
                   {stats.totalTenants}
@@ -328,7 +328,7 @@ export default function WhiteLabel() {
                 <TableHead>{language === 'ar' ? 'الوكيل' : 'Agent'}</TableHead>
                 <TableHead>{language === 'ar' ? 'الدومين' : 'Domain'}</TableHead>
                 <TableHead>{language === 'ar' ? 'العلامة التجارية' : 'Brand'}</TableHead>
-                <TableHead className="text-center">{language === 'ar' ? 'العملاء' : 'Tenants'}</TableHead>
+                <TableHead className="text-center">{language === 'ar' ? 'الزبائن' : 'Tenants'}</TableHead>
                 <TableHead className="text-center">{language === 'ar' ? 'العمولة' : 'Commission'}</TableHead>
                 <TableHead>{t('common.status._')}</TableHead>
                 <TableHead>{language === 'ar' ? 'الدفع' : 'Payment'}</TableHead>

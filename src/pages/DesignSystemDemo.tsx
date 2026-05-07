@@ -317,7 +317,7 @@ export default function DesignSystemDemo() {
             delay={0}
           />
           <StatsCard
-            title={language === 'ar' ? 'العملاء الجدد' : 'New Customers'}
+            title={language === 'ar' ? 'الزبائن الجدد' : 'New Customers'}
             value="1,234"
             change="+8.2%"
             changeType="positive"
@@ -362,7 +362,7 @@ export default function DesignSystemDemo() {
               {[
                 { icon: CheckCircle, text: language === 'ar' ? 'مراجعة التقارير المالية' : 'Review financial reports', color: 'text-[#2d5a4c]' },
                 { icon: Clock, text: language === 'ar' ? 'اجتماع مع فريق المبيعات' : 'Meeting with sales team', color: 'text-amber-500' },
-                { icon: Mail, text: language === 'ar' ? 'الرد على رسائل العملاء' : 'Reply to customer emails', color: 'text-sky-500' },
+                { icon: Mail, text: language === 'ar' ? 'الرد على رسائل الزبائن' : 'Reply to customer emails', color: 'text-sky-500' },
                 { icon: Package, text: language === 'ar' ? 'تحديث المخزون' : 'Update inventory', color: 'text-slate-500' },
                 { icon: Truck, text: language === 'ar' ? 'متابعة الشحنات' : 'Track shipments', color: 'text-erp-navy dark:text-gray-400' },
               ].map((item, index) => (

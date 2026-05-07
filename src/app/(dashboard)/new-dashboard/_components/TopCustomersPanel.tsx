@@ -4,6 +4,7 @@ import { Users } from 'lucide-react';
 import { TopCustomer } from '../_lib/dashboard-types';
 import { EmptyState } from './shared/EmptyState';
 import { formatCurrency } from '../_lib/formatters';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 export function TopCustomersPanel({
   items,
@@ -14,17 +15,18 @@ export function TopCustomersPanel({
   loading: boolean;
   onCustomerClick?: (customer: TopCustomer) => void;
 }) {
+  const { t } = useLanguage();
   const isClickable = Boolean(onCustomerClick);
 
   return (
     <SectionCard
-      title="أعلى العملاء مديونية"
+      title={t('dashboard.topCustomers')}
       action={
         <a
           href="/customers?sort=outstanding"
           className="text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400"
         >
-          عرض الكل ←
+          {t('dashboard.viewAll')} →
         </a>
       }
     >
@@ -35,7 +37,7 @@ export function TopCustomersPanel({
           ))}
         </div>
       ) : !items || items.length === 0 ? (
-        <EmptyState icon={Users} title="لا يوجد عملاء" />
+        <EmptyState icon={Users} title={t('dashboard.noCustomers')} />
       ) : (
         <ul className="divide-y divide-stone-50 dark:divide-stone-800/50">
           {items.map((c, i) => {

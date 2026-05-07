@@ -46,7 +46,7 @@ const ROUTE_MAP: Record<string, { type: string; label_ar: string; label_en: stri
   '/accounting': { type: 'accounting', label_ar: 'المحاسبة', label_en: 'Accounting' },
   '/inventory': { type: 'inventory', label_ar: 'المخزون', label_en: 'Inventory' },
   '/materials': { type: 'materials', label_ar: 'الأقمشة', label_en: 'Materials' },
-  '/customers': { type: 'customers', label_ar: 'العملاء', label_en: 'Customers' },
+  '/customers': { type: 'customers', label_ar: 'الزبائن', label_en: 'Customers' },
   '/suppliers': { type: 'suppliers', label_ar: 'الموردين', label_en: 'Suppliers' },
   '/hr': { type: 'hr', label_ar: 'الموارد البشرية', label_en: 'HR' },
   '/containers': { type: 'containers', label_ar: 'الكونتينرات', label_en: 'Containers' },

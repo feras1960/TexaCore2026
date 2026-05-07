@@ -1,6 +1,6 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * 🤝 CRM Module — تعريف بيانات إدارة العملاء لـ DataEngine
+ * 🤝 CRM Module — تعريف بيانات إدارة الزبائن لـ DataEngine
  * ════════════════════════════════════════════════════════════════
  *
  * يُعرّف كل الـ queries الخاصة بقسم CRM.
@@ -16,7 +16,7 @@ import { CACHE_TIMES } from '../DataEngine';
 
 export const crmModule: DataModule = {
   code: 'crm',
-  label: { ar: 'إدارة العملاء', en: 'CRM' },
+  label: { ar: 'إدارة الزبائن', en: 'CRM' },
   queries: [
     // ─── 1. Contacts List (no filters — base list) ──────────
     {

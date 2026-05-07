@@ -1,8 +1,10 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart, Calculator, Bot } from 'lucide-react';
+import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart, Calculator, Bot, Users, FileText, Wallet, Layers, ShoppingBag } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
+import { CommandPalette } from './CommandPalette';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -30,9 +32,18 @@ import { useNexaContext } from '@/providers/NexaContextProvider';
 
 export function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, language, setLanguage, direction, supportedLanguages } = useLanguage();
   const { resolvedTheme, setTheme } = useTheme();
   const { user, logout } = useAuth();
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Listen for global open-command-palette event
+  useEffect(() => {
+    const handler = () => setCommandPaletteOpen(true);
+    window.addEventListener('open-command-palette', handler);
+    return () => window.removeEventListener('open-command-palette', handler);
+  }, []);
 
   // Enable keyboard shortcuts for language switching
   useLanguageShortcuts({ menuTriggerId: 'language-menu-trigger' });
@@ -57,23 +68,80 @@ export function Header() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        {/* Search */}
-        <div className="flex-1 max-w-md">
-          <div className="relative">
-            <Search className={cn(
-              "absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400",
-              direction === 'rtl' ? "right-3" : "left-3"
-            )} />
-            <Input
-              type="search"
-              placeholder={t('header.search')}
-              className={cn(
-                "h-10 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700",
-                direction === 'rtl' ? "pr-10" : "pl-10"
-              )}
-            />
-          </div>
+        {/* Search — Compact Icon + Cmd+K */}
+        <div className="flex items-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className={cn(
+                  "flex items-center gap-2.5 h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 transition-all duration-200 cursor-pointer",
+                  "hover:border-erp-teal hover:bg-white dark:hover:bg-gray-750 hover:shadow-sm group"
+                )}
+              >
+                <Search className="h-4 w-4 text-gray-400 group-hover:text-erp-teal transition-colors" />
+                <span className="hidden sm:block text-sm text-gray-400 dark:text-gray-500 font-tajawal">
+                  {direction === 'rtl' ? 'بحث...' : 'Search...'}
+                </span>
+                <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-gray-400 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 ms-2">
+                  {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+K
+                </kbd>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <div className="flex items-center gap-2">
+                <span>{direction === 'rtl' ? 'بحث شامل' : 'Global Search'}</span>
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-gray-100 dark:bg-gray-700 rounded">
+                  {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+K
+                </kbd>
+              </div>
+            </TooltipContent>
+          </Tooltip>
         </div>
+
+        {/* Command Palette Modal */}
+        <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+
+        {/* ⚡ Quick Module Shortcuts — Center Icons */}
+        <nav className="hidden md:flex items-center gap-1">
+          {[
+            { id: 'materials', path: '/warehouse/materials', icon: Layers, labelKey: 'header.shortcuts.materials', color: 'text-orange-500' },
+            { id: 'sales', path: '/sales/cycle', icon: ShoppingCart, labelKey: 'header.shortcuts.sales', color: 'text-emerald-500' },
+            { id: 'purchases', path: '/purchases/cycle', icon: ShoppingBag, labelKey: 'header.shortcuts.purchases', color: 'text-purple-500' },
+            { id: 'funds', path: '/accounting/funds', icon: Wallet, labelKey: 'header.shortcuts.funds', color: 'text-cyan-500' },
+            { id: 'journal', path: '/accounting/journal-entries', icon: FileText, labelKey: 'header.shortcuts.journal', color: 'text-blue-500' },
+            { id: 'customers', path: '/sales/customers', icon: Users, labelKey: 'header.shortcuts.customers', color: 'text-teal-500' },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname.startsWith(item.path);
+            return (
+              <Tooltip key={item.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => navigate(item.path)}
+                    className={cn(
+                      'flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-lg transition-all duration-200 group min-w-[52px]',
+                      isActive
+                        ? 'bg-gray-100 dark:bg-gray-800'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                    )}
+                  >
+                    <Icon className={cn('w-5 h-5 transition-colors', isActive ? item.color : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300')} />
+                    <span className={cn(
+                      'text-[10px] font-tajawal leading-tight transition-colors',
+                      isActive ? 'text-gray-800 dark:text-gray-200 font-medium' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300'
+                    )}>
+                      {t(item.labelKey)}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {t(item.labelKey)}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </nav>
 
         {/* Actions */}
         <div className="flex items-center gap-2">

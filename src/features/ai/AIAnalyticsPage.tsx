@@ -137,7 +137,7 @@ function AnalyticsColumn({ companyId, language, isAr, userName, userRole }: { co
 تحليل المبيعات: إجمالي الإيرادات، عدد الفواتير، أفضل المواد مبيعاً، اتجاه المبيعات. توصيات لزيادة المبيعات.
 
 [CUSTOMERS]
-تحليل العملاء والموردين: المديونيات، التحصيل، أفضل العملاء، الموردين الموثوقين. توصيات لإدارة العلاقات.
+تحليل الزبائن والموردين: المديونيات، التحصيل، أفضل الزبائن، الموردين الموثوقين. توصيات لإدارة العلاقات.
 
 [CONTAINERS]
 تحليل الكونتينرات والتكاليف الواصلة: المصاريف، توزيع التكاليف، الضرائب المرتجعة. توصيات لتقليل التكاليف.
@@ -213,7 +213,7 @@ Be concise and actionable (3-5 lines per section).`;
             } else {
                 // Show welcome message when no data or error
                 const welcomeMsg = isAr
-                    ? `مرحباً ${userName}! 👋\n\nيبدو أن شركتك جديدة ولم تتم إضافة بيانات بعد.\n\n🚀 **ابدأ الآن:**\n• أضف المواد والمنتجات من قسم المخزون\n• سجّل العملاء والموردين\n• أنشئ أول فاتورة مبيعات\n\nبمجرد إضافة بياناتك، سأقدم لك تحليلات ذكية وتوصيات مخصصة لنجاح أعمالك! 💪`
+                    ? `مرحباً ${userName}! 👋\n\nيبدو أن شركتك جديدة ولم تتم إضافة بيانات بعد.\n\n🚀 **ابدأ الآن:**\n• أضف المواد والمنتجات من قسم المخزون\n• سجّل الزبائن والموردين\n• أنشئ أول فاتورة مبيعات\n\nبمجرد إضافة بياناتك، سأقدم لك تحليلات ذكية وتوصيات مخصصة لنجاح أعمالك! 💪`
                     : `Welcome ${userName}! 👋\n\nYour company is new and has no data yet.\n\n🚀 **Get Started:**\n• Add materials from Inventory\n• Register customers & suppliers\n• Create your first sales invoice\n\nOnce you add data, I'll provide smart analytics and personalized recommendations! 💪`;
                 setInsights({
                     summary: welcomeMsg,
@@ -320,7 +320,7 @@ Be concise and actionable (3-5 lines per section).`;
             </SmartCard>
 
             {/* 👥 Customers & Suppliers */}
-            <SmartCard title={isAr ? '👥 العملاء والموردين' : '👥 Customers & Suppliers'} icon={<Users className="w-4 h-4 text-white" />}
+            <SmartCard title={isAr ? '👥 الزبائن والموردين' : '👥 Customers & Suppliers'} icon={<Users className="w-4 h-4 text-white" />}
                 iconColor="bg-gradient-to-br from-violet-500 to-purple-600"
                 summaryLeft={isAr ? 'المديونيات والتحصيل وإدارة العلاقات' : 'Balances, collections & relationships'}
                 isOpen={activeCard === 'customers'} onToggle={() => setActiveCard(activeCard === 'customers' ? null : 'customers')}>

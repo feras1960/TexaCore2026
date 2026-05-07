@@ -4,6 +4,7 @@ import { Wallet, Landmark, HelpCircle } from 'lucide-react';
 import { CurrencyBreakdown } from '../_lib/dashboard-types';
 import { EmptyState } from './shared/EmptyState';
 import { formatCurrency } from '../_lib/formatters';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 const CURRENCY_FLAGS: Record<string, string> = {
   USD: '🇺🇸',
@@ -48,13 +49,14 @@ export function CurrencyExposurePanel({
   loading: boolean;
   onAccountClick?: (account: CurrencyBreakdown) => void;
 }) {
+  const { t } = useLanguage();
+
   return (
     <SectionCard
-      title="أرصدة الصناديق والبنوك"
+      title={t('dashboard.fundsAndBanks')}
       action={
         <span
           className="inline-flex h-4 w-4 items-center justify-center rounded-full text-stone-400 cursor-help"
-          title="رصيد كل صندوق وحساب بنكي مسجّل في شجرة الحسابات (111-112)"
         >
           <HelpCircle className="h-3.5 w-3.5" />
         </span>
@@ -69,8 +71,8 @@ export function CurrencyExposurePanel({
       ) : !items || items.length === 0 ? (
         <EmptyState
           icon={Wallet}
-          title="لا توجد صناديق مُسجّلة"
-          description="أضف حسابات صندوق أو بنك في شجرة الحسابات."
+          title={t('dashboard.noFunds')}
+          description={t('dashboard.noFundsDesc')}
         />
       ) : (
         <ul className="divide-y divide-stone-100 dark:divide-stone-800">

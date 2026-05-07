@@ -33,7 +33,7 @@ type ContentSection = 'announcements' | 'testimonials' | 'contact' | 'hero';
 
 const CONTENT_SECTIONS: { id: ContentSection; labelAr: string; labelEn: string; icon: LucideIcon }[] = [
     { id: 'announcements', labelAr: 'الإعلانات', labelEn: 'Announcements', icon: Megaphone },
-    { id: 'testimonials', labelAr: 'آراء العملاء', labelEn: 'Testimonials', icon: MessageSquareQuote },
+    { id: 'testimonials', labelAr: 'آراء الزبائن', labelEn: 'Testimonials', icon: MessageSquareQuote },
     { id: 'contact', labelAr: 'معلومات الاتصال', labelEn: 'Contact Info', icon: Phone },
     { id: 'hero', labelAr: 'القسم الرئيسي', labelEn: 'Hero Section', icon: Layout },
 ];
@@ -336,7 +336,7 @@ function TestimonialsManager({ siteId, isAr }: { siteId: string; isAr: boolean }
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-sm flex items-center gap-2">
                         <MessageSquareQuote className="w-4 h-4 text-yellow-500" />
-                        {isAr ? 'آراء العملاء' : 'Testimonials'}
+                        {isAr ? 'آراء الزبائن' : 'Testimonials'}
                         <Badge variant="secondary" className="text-[10px]">{items.length}</Badge>
                     </CardTitle>
                     <div className="flex gap-1 items-center">

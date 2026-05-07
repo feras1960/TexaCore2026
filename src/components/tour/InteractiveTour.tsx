@@ -81,12 +81,12 @@ export const TOUR_STEPS: TourStep[] = [
     color: '#10b981',
     phase: 'accounting',
   },
-  // ── Phase 4: العملاء والموردين ──
+  // ── Phase 4: الزبائن والموردين ──
   {
     id: 'nav-customers',
     target: '[data-tour="nav-customers"]',
     route: '/',
-    title: { ar: '👥 إدارة العملاء', en: '👥 Customer Management' },
+    title: { ar: '👥 إدارة الزبائن', en: '👥 Customer Management' },
     desc: {
       ar: 'أضف عملاءك ومورديك لإنشاء الفواتير وتتبع الأرصدة والحسابات.',
       en: 'Add customers and suppliers to create invoices and track accounts.'

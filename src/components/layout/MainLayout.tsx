@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { QuickAddButton } from './QuickAddButton';
+import { QuickAccessBar } from './QuickAccessBar';
 import { TopTickerBar } from './TopTickerBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { CartProvider } from '@/contexts/CartContext';
@@ -12,6 +13,7 @@ import { CartFloatingWidget } from '@/components/cart/CartFloatingWidget';
 import { CurrencyCalculator } from '@/components/common/CurrencyCalculator';
 import { NexaContextProvider } from '@/providers/NexaContextProvider';
 import { NexaProAgent } from '@/components/ai/NexaProAgent';
+import { GlobalSheetProvider } from '@/contexts/GlobalSheetContext';
 import { CompanySidebar } from './CompanySidebar';
 import { DataEngineProvider } from '@/engine/DataEngineProvider';
 import { DataEngineIndicator } from '@/engine/DataEngineIndicator';
@@ -71,6 +73,7 @@ export default function MainLayout() {
     <DataEngineProvider>
       <CartProvider>
         <NexaContextProvider isAr={isAr}>
+         <GlobalSheetProvider>
           <div className="h-screen bg-erp-cream dark:bg-gray-950 font-tajawal flex overflow-hidden" dir={direction}>
             {/* Sidebar */}
             <Sidebar className="shrink-0" />
@@ -88,6 +91,7 @@ export default function MainLayout() {
                   <DataEngineIndicator />
                 </div>
               </div>
+
 
               {/* Main Content */}
               <motion.main
@@ -126,6 +130,7 @@ export default function MainLayout() {
 
           {/* 💱 Currency Calculator — Ctrl+E / ⌘+E from anywhere */}
           <CurrencyCalculator />
+         </GlobalSheetProvider>
         </NexaContextProvider>
       </CartProvider>
     </DataEngineProvider>

@@ -4,6 +4,7 @@ import { AlertCircle } from 'lucide-react';
 import { AttentionItem } from '../_lib/dashboard-types';
 import { EmptyState } from './shared/EmptyState';
 import { motion } from 'framer-motion';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 const SEVERITY_STYLES: Record<string, { dot: string; ring: string; label: string }> = {
   danger:  { dot: 'bg-rose-500',   ring: 'ring-rose-500/20',   label: 'عاجل' },
@@ -18,9 +19,11 @@ export function AttentionPanel({
   items?: AttentionItem[];
   loading: boolean;
 }) {
+  const { t } = useLanguage();
+
   return (
     <SectionCard
-      title="يتطلب انتباهك"
+      title={t('dashboard.attentionNeeded')}
       action={
         items && items.length > 0 ? (
           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-50 px-1.5 text-xs font-medium text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">

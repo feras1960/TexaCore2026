@@ -34,7 +34,7 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
     entity_type: 'customers',
     file_name: 'customers_import_template',
     display_name: {
-      ar: 'العملاء', en: 'Customers', tr: 'Müşteriler', ru: 'Клиенты', uk: 'Клієнти'
+      ar: 'الزبائن', en: 'Customers', tr: 'Müşteriler', ru: 'Клиенты', uk: 'Клієнти'
     },
     instructions: {
       ar: [
@@ -71,7 +71,7 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
     columns: [
       {
         field: 'code', required: true, example: 'CUST001',
-        label: { ar: 'كود العميل *', en: 'Customer Code *', tr: 'Müşteri Kodu *', ru: 'Код клиента *', uk: 'Код клієнта *' },
+        label: { ar: 'كود الزبون *', en: 'Customer Code *', tr: 'Müşteri Kodu *', ru: 'Код клиента *', uk: 'Код клієнта *' },
         description: { ar: 'كود فريد', en: 'Unique code', tr: 'Benzersiz kod', ru: 'Уникальный код', uk: 'Унікальний код' }
       },
       {
@@ -391,7 +391,7 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
       {
         field: 'special_price', required: false, example: 42,
         label: { ar: 'السعر الخاص', en: 'Special Price', tr: 'Özel Fiyat', ru: 'Специальная цена', uk: 'Спеціальна ціна' },
-        description: { ar: 'السعر الخاص (لكبار العملاء)', en: 'Special price', tr: 'Özel fiyat', ru: 'Специальная цена', uk: 'Спеціальна ціна' }
+        description: { ar: 'السعر الخاص (لكبار الزبائن)', en: 'Special price', tr: 'Özel fiyat', ru: 'Специальная цена', uk: 'Спеціальна ціна' }
       },
       {
         field: 'currency', required: false, example: 'USD',

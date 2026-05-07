@@ -238,7 +238,7 @@ export function PaymentFormDialog({
       toast.success(`${language === 'ar' ? 'تم تحميل' : 'Loaded'} ${tenantsWithDetails.length} ${language === 'ar' ? 'عميل' : 'customers'}`);
     } catch (error) {
       console.error('❌ Error loading tenants:', error);
-      toast.error(language === 'ar' ? 'خطأ في تحميل العملاء' : 'Error loading customers');
+      toast.error(language === 'ar' ? 'خطأ في تحميل الزبائن' : 'Error loading customers');
     } finally {
       setLoadingData(false);
     }
@@ -342,7 +342,7 @@ export function PaymentFormDialog({
     e.preventDefault();
     
     if (!formData.tenant_id || !formData.amount) {
-      toast.error(language === 'ar' ? 'الرجاء اختيار العميل والمبلغ' : 'Please select customer and amount');
+      toast.error(language === 'ar' ? 'الرجاء اختيار الزبون والمبلغ' : 'Please select customer and amount');
       return;
     }
 
@@ -480,18 +480,18 @@ export function PaymentFormDialog({
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-primary" />
-                {language === 'ar' ? '1. اختيار العميل (إلزامي)' : '1. Select Customer (Required)'}
+                {language === 'ar' ? '1. اختيار الزبون (إلزامي)' : '1. Select Customer (Required)'}
               </CardTitle>
               <CardDescription>
                 {language === 'ar' 
-                  ? 'ابحث عن العميل بالاسم أو الكود' 
+                  ? 'ابحث عن الزبون بالاسم أو الكود' 
                   : 'Search for customer by name or code'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>
-                  {language === 'ar' ? 'العميل' : 'Customer'} *
+                  {language === 'ar' ? 'الزبون' : 'Customer'} *
                 </Label>
                 <div className="relative customer-search-container">
                   {/* Input للبحث مع زرين */}
@@ -539,7 +539,7 @@ export function PaymentFormDialog({
                       className="flex items-center gap-2"
                     >
                       <Building2 className="h-4 w-4" />
-                      {language === 'ar' ? 'كل العملاء' : 'All Customers'}
+                      {language === 'ar' ? 'كل الزبائن' : 'All Customers'}
                     </Button>
                   </div>
 
@@ -550,7 +550,7 @@ export function PaymentFormDialog({
                         <CardContent className="p-8 text-center">
                           <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-primary" />
                           <p className="text-sm text-muted-foreground">
-                            {language === 'ar' ? 'جاري تحميل العملاء...' : 'Loading customers...'}
+                            {language === 'ar' ? 'جاري تحميل الزبائن...' : 'Loading customers...'}
                           </p>
                         </CardContent>
                       ) : filteredTenants.length > 0 ? (
@@ -653,7 +653,7 @@ export function PaymentFormDialog({
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-primary" />
                       <CardTitle className="text-base">
-                        {language === 'ar' ? 'تفاصيل العميل المختار' : 'Selected Customer Details'}
+                        {language === 'ar' ? 'تفاصيل الزبون المختار' : 'Selected Customer Details'}
                       </CardTitle>
                     </div>
                   </CardHeader>
@@ -662,14 +662,14 @@ export function PaymentFormDialog({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <span className="text-xs text-muted-foreground uppercase font-medium">
-                          {language === 'ar' ? 'اسم العميل' : 'Customer Name'}
+                          {language === 'ar' ? 'اسم الزبون' : 'Customer Name'}
                         </span>
                         <p className="font-bold text-lg">{selectedTenant.name}</p>
                       </div>
                       
                       <div className="space-y-1">
                         <span className="text-xs text-muted-foreground uppercase font-medium">
-                          {language === 'ar' ? 'رمز العميل' : 'Customer Code'}
+                          {language === 'ar' ? 'رمز الزبون' : 'Customer Code'}
                         </span>
                         <p className="font-mono font-semibold text-lg">{selectedTenant.code}</p>
                       </div>

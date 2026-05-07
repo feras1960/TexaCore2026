@@ -432,7 +432,7 @@ export default function PlatformPlansTab({
                                                         <div className="flex items-center gap-2 text-xs text-emerald-700">
                                                             <Star className="w-3 h-3" />
                                                             {isAr
-                                                                ? `العميل يوفر ${discountPct}% عند الدفع السنوي (ما يعادل ${bonusMonths} شهر مجاناً)`
+                                                                ? `الزبون يوفر ${discountPct}% عند الدفع السنوي (ما يعادل ${bonusMonths} شهر مجاناً)`
                                                                 : `Customer saves ${discountPct}% with annual billing (equivalent to ${bonusMonths} free months)`}
                                                         </div>
                                                     )}
@@ -483,7 +483,7 @@ export default function PlatformPlansTab({
                                             { field: 'max_warehouses', label: isAr ? 'المستودعات' : 'Warehouses', icon: Warehouse },
                                             { field: 'max_products', label: isAr ? 'المنتجات' : 'Products', icon: Package },
                                             { field: 'max_invoices_monthly', label: isAr ? 'الفواتير/شهر' : 'Invoices/mo', icon: FileText },
-                                            { field: 'max_customers', label: isAr ? 'العملاء' : 'Customers', icon: Users },
+                                            { field: 'max_customers', label: isAr ? 'الزبائن' : 'Customers', icon: Users },
                                             { field: 'max_documents', label: isAr ? 'المستندات' : 'Documents', icon: FileText },
                                             { field: 'max_images', label: isAr ? 'الصور' : 'Images', icon: ImageIcon },
                                             { field: 'max_records', label: isAr ? 'السجلات' : 'Records', icon: Database },

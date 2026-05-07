@@ -6,6 +6,7 @@ import { EmptyState } from './shared/EmptyState';
 import { TrendingUp, HelpCircle, X } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 function CashFlowInfoTooltip() {
   const [open, setOpen] = useState(false);
@@ -99,6 +100,7 @@ function CashFlowInfoTooltip() {
 }
 
 export function CashFlowChart({ data, loading }: { data?: CashFlowPoint[]; loading: boolean }) {
+  const { t, direction } = useLanguage();
   const option = useMemo(() => {
     if (!data) return {};
     return {
@@ -134,7 +136,7 @@ export function CashFlowChart({ data, loading }: { data?: CashFlowPoint[]; loadi
       },
       series: [
         {
-          name: 'إيرادات',
+          name: t('dashboard.income'),
           type: 'line',
           smooth: true,
           symbol: 'circle',
@@ -154,7 +156,7 @@ export function CashFlowChart({ data, loading }: { data?: CashFlowPoint[]; loadi
           data: data.map((d) => Math.round(d.income)),
         },
         {
-          name: 'مصروفات',
+          name: t('dashboard.expenses'),
           type: 'line',
           smooth: true,
           symbol: 'circle',
@@ -183,20 +185,20 @@ export function CashFlowChart({ data, loading }: { data?: CashFlowPoint[]; loadi
 
   return (
     <SectionCard
-      title="التدفق النقدي · آخر 30 يومًا"
+      title={t('dashboard.cashFlow')}
       action={
         <span className="flex items-center gap-3 text-xs">
           <CashFlowInfoTooltip />
           <span className="flex items-center gap-1 text-stone-500 dark:text-stone-400">
             <span className="h-2 w-2 rounded-sm bg-emerald-500" aria-hidden="true" />
-            إيرادات
+            {t('dashboard.income')}
           </span>
           <span className="flex items-center gap-1 text-stone-500 dark:text-stone-400">
             <span className="h-2 w-2 rounded-sm bg-orange-500" aria-hidden="true" />
-            مصروفات
+            {t('dashboard.expenses')}
           </span>
           <span className="font-medium text-stone-900 dark:text-stone-100">
-            صافي: ${net.toLocaleString()}
+            ${net.toLocaleString()}
           </span>
         </span>
       }
@@ -214,8 +216,8 @@ export function CashFlowChart({ data, loading }: { data?: CashFlowPoint[]; loadi
         ) : (
           <EmptyState
             icon={TrendingUp}
-            title="لا توجد معاملات بعد"
-            description="سيظهر المخطط بعد إدخال أول قيد."
+            title={t('dashboard.noCashFlow')}
+            description={t('dashboard.noCashFlowDesc')}
           />
         )}
       </div>

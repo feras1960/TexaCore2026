@@ -67,7 +67,7 @@ const DEFAULT_MODULES: Module[] = [
     name: 'Sales',
     nameAr: 'المبيعات',
     description: 'Customers, invoices, quotations',
-    descriptionAr: 'العملاء، الفواتير، عروض الأسعار',
+    descriptionAr: 'الزبائن، الفواتير، عروض الأسعار',
     icon: ShoppingCart,
     enabled: true,
     features: ['Customer Management', 'Sales Invoices', 'Quotations', 'Returns'],

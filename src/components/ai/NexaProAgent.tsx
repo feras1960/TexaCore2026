@@ -34,7 +34,7 @@ const CONTEXT_PROMPTS: Record<string, { ar: string[]; en: string[] }> = {
         en: ['📊 Today\'s summary', '⚠️ Urgent alerts', '💰 This month revenue'],
     },
     sales: {
-        ar: ['📈 اتجاه المبيعات', '🏆 أفضل العملاء', '💰 الفواتير المستحقة'],
+        ar: ['📈 اتجاه المبيعات', '🏆 أفضل الزبائن', '💰 الفواتير المستحقة'],
         en: ['📈 Sales trends', '🏆 Top customers', '💰 Due invoices'],
     },
     purchases: {
@@ -54,7 +54,7 @@ const CONTEXT_PROMPTS: Record<string, { ar: string[]; en: string[] }> = {
         en: ['📊 Best sellers', '💰 Most profitable', '📦 Current stock'],
     },
     customers: {
-        ar: ['👤 أكبر العملاء', '💰 الأرصدة المستحقة', '📈 نمو العملاء'],
+        ar: ['👤 أكبر الزبائن', '💰 الأرصدة المستحقة', '📈 نمو الزبائن'],
         en: ['👤 Top customers', '💰 Outstanding balances', '📈 Customer growth'],
     },
     customer: {
@@ -66,7 +66,7 @@ const CONTEXT_PROMPTS: Record<string, { ar: string[]; en: string[] }> = {
         en: ['👤 Who buys this?', '📊 Sales activity', '💰 Profit margin'],
     },
     customer_in_invoice: {
-        ar: ['💰 رصيد العميل واستحقاقاته', '📦 ماذا يفضّل هذا العميل؟', '📊 آخر أسعار بيع لهذا العميل', '⚠️ هل يدفع بانتظام؟'],
+        ar: ['💰 رصيد الزبون واستحقاقاته', '📦 ماذا يفضّل هذا الزبون؟', '📊 آخر أسعار بيع لهذا الزبون', '⚠️ هل يدفع بانتظام؟'],
         en: ['💰 Customer balance & dues', '📦 What does this customer prefer?', '📊 Last prices for this customer', '⚠️ Is this customer paying on time?'],
     },
     supplier_in_purchase: {

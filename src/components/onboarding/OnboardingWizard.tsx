@@ -49,12 +49,12 @@ const OB_TEXT: Record<string, Record<string, string>> = {
   },
   step2_action: { ar: 'المواد', en: 'Materials' },
 
-  step3_title: { ar: '👥 إضافة العملاء والموردين', en: '👥 Add Customers & Suppliers' },
+  step3_title: { ar: '👥 إضافة الزبائن والموردين', en: '👥 Add Customers & Suppliers' },
   step3_desc: {
     ar: 'أضف عملاءك ومورديك لتتمكن من إنشاء الفواتير وتتبع الحسابات.',
     en: 'Add your customers and suppliers to create invoices and track accounts.',
   },
-  step3_action: { ar: 'العملاء', en: 'Customers' },
+  step3_action: { ar: 'الزبائن', en: 'Customers' },
 
   step4_title: { ar: '💰 إعداد الصناديق', en: '💰 Setup Cash Funds' },
   step4_desc: {

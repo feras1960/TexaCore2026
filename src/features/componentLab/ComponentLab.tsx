@@ -771,7 +771,7 @@ const GRID_DOC_CONFIGS: Record<GridDocType, {
     ],
   },
   customers_ledger: {
-    nameAr: 'كشف حساب العملاء',
+    nameAr: 'كشف حساب الزبائن',
     nameEn: 'Customers Ledger',
     columns: [
       { key: 'debit', title: 'accounting.debit', width: 130, type: 'currency', footer: 'sum' },

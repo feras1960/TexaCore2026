@@ -17,7 +17,7 @@ import { CurrencyExposurePanel } from './_components/CurrencyExposurePanel';
 import { QuickActionsBar } from './_components/QuickActionsBar';
 import { OnboardingChecklist } from '@/components/onboarding/OnboardingWizard';
 
-import type { ActivityItem, CurrencyBreakdown, TopCustomer } from './_lib/dashboard-types';
+import type { ActivityItem, CurrencyBreakdown, TopCustomer, NetPosition } from './_lib/dashboard-types';
 import type { UnifiedDocType } from '@/features/accounting/components/unified/types';
 import { supabase } from '@/lib/supabase';
 
@@ -29,6 +29,7 @@ const UnifiedAccountingSheet = lazy(() =>
 // ── icon/color injection for dashboard-kit compatibility ──
 import { Wallet, Receipt, CircleDollarSign, Package, Loader2 } from 'lucide-react';
 import type { KpiItem } from '@/components/dashboard-kit';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 const KPI_ICONS: Record<string, any> = {
   cash: Wallet,
@@ -75,7 +76,8 @@ const INITIAL_SHEET: SheetState = {
 export default function DashboardPage() {
   const { settings, baseCurrency, supportedCurrencies } = useAccountingSettings();
   const { user } = useAuth();
-  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'مدير النظام';
+  const { t, direction, language } = useLanguage();
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || t('auth.systemAdmin');
   
   const [currency, setCurrency] = useState('USD');
 
@@ -176,6 +178,14 @@ export default function DashboardPage() {
     } as NetPosition & { _originalValue?: number; _originalCurrency?: string };
   }, [netQuery.data, convertAmount, currency, systemBaseCurrency]);
 
+  // KPI label translation map
+  const KPI_LABELS: Record<string, string> = {
+    cash: t('dashboard.cash'),
+    receivables: t('dashboard.receivables'),
+    payables: t('dashboard.payables'),
+    inventory: t('dashboard.inventory'),
+  };
+
   // Convert & enrich KPI items with real currency conversion
   const enrichedKpis: KpiItem[] | undefined = useMemo(() => {
     if (!kpiQuery.data) return undefined;
@@ -184,6 +194,7 @@ export default function DashboardPage() {
       const isInventoryCount = kpi.id === 'inventory';
       return {
         ...kpi,
+        label: KPI_LABELS[kpi.id] || kpi.label,
         value: isInventoryCount ? rawValue : convertAmount(rawValue),
         _originalValue: rawValue,
         _originalCurrency: systemBaseCurrency,
@@ -193,7 +204,7 @@ export default function DashboardPage() {
         deltaPct: kpi.deltaPct7d ?? kpi.deltaPct ?? 0,
       };
     });
-  }, [kpiQuery.data, convertAmount, currency, systemBaseCurrency]);
+  }, [kpiQuery.data, convertAmount, currency, systemBaseCurrency, t]);
 
   // Convert Top Customers to display currency
   const convertedCustomers = useMemo(() => {
@@ -462,7 +473,7 @@ export default function DashboardPage() {
   }, [companyId]);
 
   return (
-    <div className="space-y-6 font-sans" dir="rtl">
+    <div className="space-y-6 font-sans" dir={direction}>
       <DashboardHeader
         userName={userName}
         currency={currency}

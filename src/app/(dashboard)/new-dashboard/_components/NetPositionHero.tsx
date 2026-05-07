@@ -6,6 +6,7 @@ import { LiveSyncBadge } from '@/components/dashboard-kit';
 import CountUp from 'react-countup';
 import { TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 export function NetPositionHero({
   data,
@@ -18,6 +19,8 @@ export function NetPositionHero({
   lastSync?: Date | null;
   isFetching?: boolean;
 }) {
+  const { t } = useLanguage();
+
   if (loading) {
     return (
       <div className="rounded-2xl bg-slate-900 p-6 text-white dark:bg-stone-900 dark:ring-1 dark:ring-stone-800">
@@ -33,9 +36,9 @@ export function NetPositionHero({
       <div className="rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900">
         <EmptyState
           icon={TrendingUp}
-          title="لا توجد بيانات بعد"
-          description="سيظهر مركزك المالي هنا بعد إضافة أول معاملة."
-          action={{ label: 'إضافة قيد يومية', onClick: () => {} }}
+          title={t('dashboard.noDataYet')}
+          description={t('dashboard.noDataDesc')}
+          action={{ label: t('dashboard.addJournal'), onClick: () => {} }}
         />
       </div>
     );
@@ -69,7 +72,7 @@ export function NetPositionHero({
             id="net-position-heading"
             className="text-xs uppercase tracking-wider text-stone-400"
           >
-            صافي المركز المالي
+            {t('dashboard.netPosition')}
           </p>
           <div className="mt-2 flex items-baseline gap-3">
             <span className="text-4xl font-medium tabular-nums lg:text-5xl">
@@ -100,24 +103,24 @@ export function NetPositionHero({
               {Math.abs(deltaPct7d).toFixed(1)}%
             </span>
             <span className="text-stone-400">
-              {positive ? '+' : '−'}{baseCurrency === 'USD' ? '$' : ''}{Math.abs(deltaAbs7d).toLocaleString()}{baseCurrency !== 'USD' ? ` ${baseCurrency}` : ''} آخر 7 أيام
+              {positive ? '+' : '−'}{baseCurrency === 'USD' ? '$' : ''}{Math.abs(deltaAbs7d).toLocaleString()}{baseCurrency !== 'USD' ? ` ${baseCurrency}` : ''} {t('dashboard.last7days')}
             </span>
           </div>
         </div>
 
         {/* Today Movement */}
         <div className="border-stone-700 lg:border-e lg:pe-6">
-          <p className="text-xs uppercase tracking-wider text-stone-400">حركة اليوم</p>
+          <p className="text-xs uppercase tracking-wider text-stone-400">{t('dashboard.todayMovement')}</p>
           <p className="mt-2 text-2xl font-medium tabular-nums">
             {baseCurrency === 'USD' ? '$' : ''}{todayMovement.toLocaleString()}{baseCurrency !== 'USD' ? ` ${baseCurrency}` : ''}
           </p>
-          <p className="mt-1 text-xs text-stone-400">{todayTxCount} معاملات</p>
+          <p className="mt-1 text-xs text-stone-400">{todayTxCount} {t('dashboard.transactions')}</p>
         </div>
 
         {/* Sparkline */}
         <div className="h-16">
           <MiniSparkline data={sparkline} color="#5EEAD4" height={64} />
-          <p className="mt-1 text-[10px] text-stone-500">آخر 14 يومًا</p>
+          <p className="mt-1 text-[10px] text-stone-500">{t('dashboard.last14days')}</p>
         </div>
       </div>
 

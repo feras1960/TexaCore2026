@@ -208,7 +208,7 @@ export const PlanLimitsTab: React.FC<TabComponentProps> = ({
 
         <LimitCard
           icon={ShoppingCart}
-          label={language === 'ar' ? 'عدد العملاء' : 'Max Customers'}
+          label={language === 'ar' ? 'عدد الزبائن' : 'Max Customers'}
           fieldName="max_customers"
           color="purple"
         />

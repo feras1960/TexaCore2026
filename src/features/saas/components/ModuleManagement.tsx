@@ -59,7 +59,7 @@ const defaultModules: Module[] = [
   { id: 3, name: 'Sales', nameAr: 'المبيعات', packages: ['Starter', 'Professional', 'Enterprise'], status: true, version: '2.0.1', price: '0' },
   { id: 4, name: 'Purchases', nameAr: 'المشتريات', packages: ['Professional', 'Enterprise'], status: true, version: '1.8.0', price: '0' },
   { id: 5, name: 'HR & Payroll', nameAr: 'الموارد البشرية', packages: ['Enterprise'], status: false, version: '1.0.0', price: '150' },
-  { id: 6, name: 'CRM', nameAr: 'إدارة العملاء', packages: ['Professional', 'Enterprise'], status: true, version: '1.2.0', price: '100' },
+  { id: 6, name: 'CRM', nameAr: 'إدارة الزبائن', packages: ['Professional', 'Enterprise'], status: true, version: '1.2.0', price: '100' },
   { id: 7, name: 'AI Analytics', nameAr: 'تحليلات الذكاء الاصطناعي', packages: ['Enterprise'], status: true, version: '0.9.5', price: '200' },
   { id: 8, name: 'SaaS Control', nameAr: 'إدارة الاشتراكات', packages: ['Enterprise'], status: true, version: '1.1.0', price: '0' },
   { id: 9, name: 'POS', nameAr: 'نقاط البيع', packages: ['Professional', 'Enterprise'], status: true, version: '1.3.0', price: '50' },

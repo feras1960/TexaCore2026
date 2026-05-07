@@ -4,6 +4,7 @@ import { Truck } from 'lucide-react';
 import { TopCustomer } from '../_lib/dashboard-types';   // reuse same shape
 import { EmptyState } from './shared/EmptyState';
 import { formatCurrency } from '../_lib/formatters';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 export function TopSuppliersPanel({
   items,
@@ -14,17 +15,18 @@ export function TopSuppliersPanel({
   loading: boolean;
   onSupplierClick?: (supplier: TopCustomer) => void;
 }) {
+  const { t } = useLanguage();
   const isClickable = Boolean(onSupplierClick);
 
   return (
     <SectionCard
-      title="أعلى الموردين مديونية"
+      title={t('dashboard.topSuppliers')}
       action={
         <a
           href="/suppliers?sort=outstanding"
           className="text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400"
         >
-          عرض الكل ←
+          {t('dashboard.viewAll')} →
         </a>
       }
     >
@@ -35,7 +37,7 @@ export function TopSuppliersPanel({
           ))}
         </div>
       ) : !items || items.length === 0 ? (
-        <EmptyState icon={Truck} title="لا يوجد موردون" />
+        <EmptyState icon={Truck} title={t('dashboard.noSuppliers')} />
       ) : (
         <ul className="divide-y divide-stone-50 dark:divide-stone-800/50">
           {items.map((s, i) => {

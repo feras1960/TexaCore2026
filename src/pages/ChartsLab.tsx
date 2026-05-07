@@ -451,7 +451,7 @@ export default function ChartsLabPage() {
 
               {/* Type 3: Simple Metric */}
               <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">العملاء النشيطين</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">الزبائن النشيطين</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <p className="text-4xl font-bold text-gray-900 dark:text-white">142</p>
                   <p className="text-sm text-gray-500">من أصل 200</p>

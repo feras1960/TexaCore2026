@@ -335,7 +335,7 @@ export function COAAuditPage() {
             {/* Sub-ledgers */}
             {results.subLedgers && results.subLedgers.length > 0 && (
                 <Card className="p-4">
-                    <h2 className="text-lg font-semibold mb-3">6️⃣ حسابات العملاء والموردين</h2>
+                    <h2 className="text-lg font-semibold mb-3">6️⃣ حسابات الزبائن والموردين</h2>
                     <div className="overflow-x-auto mb-4">
                         <table className="w-full text-sm">
                             <thead>
@@ -358,7 +358,7 @@ export function COAAuditPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-blue-50 p-3 rounded">
-                            <div className="text-sm text-gray-600">عدد العملاء</div>
+                            <div className="text-sm text-gray-600">عدد الزبائن</div>
                             <div className="text-2xl font-bold">{results.customersCount || 0}</div>
                         </div>
                         <div className="bg-orange-50 p-3 rounded">

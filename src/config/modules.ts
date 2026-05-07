@@ -103,7 +103,7 @@ export const STATIC_MODULES: StaticModule[] = [
   },
   {
     code: 'crm',
-    name_ar: 'إدارة العملاء',
+    name_ar: 'إدارة الزبائن',
     name_en: 'CRM',
     name_ru: 'CRM',
     name_uk: 'CRM',

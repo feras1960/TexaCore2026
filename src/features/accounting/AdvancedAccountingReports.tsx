@@ -564,7 +564,7 @@ export const AdvancedAccountingReports: React.FC = () => {
             <div className="space-y-2 col-span-2">
               <Label className="text-xs">{language === 'ar' ? 'بحث' : 'Search'}</Label>
               <Input 
-                placeholder={language === 'ar' ? 'بحث بالعميل أو رقم الفاتورة...' : 'Search by customer or invoice...'}
+                placeholder={language === 'ar' ? 'بحث بالزبون أو رقم الفاتورة...' : 'Search by customer or invoice...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-9"
@@ -840,7 +840,7 @@ export const AdvancedAccountingReports: React.FC = () => {
           <Table className="border-collapse">
             <TableHeader className="bg-gray-100 dark:bg-slate-800 sticky top-0 z-10">
               <TableRow>
-                <TableHead className="min-w-[150px] font-bold border-e border-gray-300">{language === 'ar' ? 'العميل' : 'Customer'}</TableHead>
+                <TableHead className="min-w-[150px] font-bold border-e border-gray-300">{language === 'ar' ? 'الزبون' : 'Customer'}</TableHead>
                 <TableHead className="w-[120px] border-e border-gray-300">{language === 'ar' ? 'رقم الفاتورة' : 'Invoice No.'}</TableHead>
                 <TableHead className="w-[100px] text-center border-e border-gray-300">{language === 'ar' ? 'المبلغ الأصلي' : 'Original'}</TableHead>
                 <TableHead className="w-[100px] text-center border-e border-gray-300">{language === 'ar' ? 'المتبقي' : 'Remaining'}</TableHead>
@@ -1175,7 +1175,7 @@ export const AdvancedAccountingReports: React.FC = () => {
           </Card>
           <Card className="shadow-sm border-e-4 border-e-orange-500">
             <CardContent className="pt-4">
-              <div className="text-sm text-muted-foreground">{language === 'ar' ? 'عدد العملاء' : 'Customers'}</div>
+              <div className="text-sm text-muted-foreground">{language === 'ar' ? 'عدد الزبائن' : 'Customers'}</div>
               <div className="text-2xl font-bold text-orange-600">{stats.totalDebts}</div>
             </CardContent>
           </Card>
