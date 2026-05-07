@@ -306,18 +306,28 @@ export function Header() {
               <Button variant="ghost" className="gap-2 h-10 px-2">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-erp-navy text-white text-sm">
-                    {(user?.user_metadata?.full_name || user?.user_metadata?.name || t('auth.userInitial'))?.charAt?.(0)?.toUpperCase() || t('auth.userInitial')}
+                    {(() => {
+                      const name = user?.user_metadata?.full_name || user?.user_metadata?.name;
+                      const isDefault = name === 'مدير النظام' || name === 'System Admin' || name === 'Администратор';
+                      if (!name || isDefault) return t('auth.userInitial');
+                      return name.charAt(0).toUpperCase();
+                    })()}
                   </AvatarFallback>
                 </Avatar>
                 <span className="hidden lg:block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  {user?.user_metadata?.full_name || user?.user_metadata?.name || t('auth.systemAdmin')}
+                  {(() => {
+                    const name = user?.user_metadata?.full_name || user?.user_metadata?.name;
+                    const isDefault = name === 'مدير النظام' || name === 'System Admin' || name === 'Администратор';
+                    if (!name || isDefault) return user?.email?.split('@')[0] || t('auth.systemAdmin');
+                    return name;
+                  })()}
                 </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align={direction === 'rtl' ? 'start' : 'end'} className="w-48">
               <DropdownMenuLabel>
                 {t('auth.welcome')}
-                {user?.user_metadata?.full_name && (
+                {user?.user_metadata?.full_name && user.user_metadata.full_name !== 'مدير النظام' && user.user_metadata.full_name !== 'System Admin' && (
                   <div className="text-xs text-muted-foreground font-normal mt-1">
                     {user.user_metadata.full_name}
                   </div>

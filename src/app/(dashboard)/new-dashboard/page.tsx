@@ -77,7 +77,11 @@ export default function DashboardPage() {
   const { settings, baseCurrency, supportedCurrencies } = useAccountingSettings();
   const { user } = useAuth();
   const { t, direction, language } = useLanguage();
-  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || t('auth.systemAdmin');
+  const rawName = user?.user_metadata?.full_name;
+  const isDefaultAdminName = rawName === 'مدير النظام' || rawName === 'System Admin' || rawName === 'Администратор';
+  const userName = (!rawName || isDefaultAdminName) 
+    ? (user?.email?.split('@')[0] || t('auth.systemAdmin'))
+    : rawName;
   
   const [currency, setCurrency] = useState('USD');
 
