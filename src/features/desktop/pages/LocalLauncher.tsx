@@ -1184,8 +1184,8 @@ export default function LocalLauncher() {
         </div>
         {/* Build Version Info */}
         <div className="absolute bottom-4 end-6 text-xs text-gray-400 font-mono text-end opacity-70 pointer-events-none">
-          <div>TexaCore ERP {import.meta.env.VITE_APP_VERSION || 'v1.3.1'}</div>
-          <div>Build: {new Date().toISOString().replace('T', ' ').substring(0, 19)} UTC</div>
+          <div>TexaCore ERP v{import.meta.env.VITE_APP_VERSION}</div>
+          <div>Build: {import.meta.env.VITE_BUILD_DATE?.replace('T', ' ').substring(0, 19)} UTC</div>
         </div>
       </div>
     </div>
