@@ -38,15 +38,29 @@ export function Sidebar({ className }: SidebarProps) {
   } = useRBAC();
 
   // 🛡️ SECURITY: فلترة الموديولات حسب الصلاحيات والأدوار
-  // 🚀 PERFORMANCE: عرض جميع الموديولات فوراً أثناء التحميل (optimistic rendering)
-  // بعد اكتمال التحميل، يتم تطبيق الفلترة الفعلية
+  // 🖥️ LOCAL/SELF-HOSTED: عرض الموديولات الأساسية فقط (حسب الترخيص)
   const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+  
+  // الموديولات المسموحة في الوضع المحلي/التجريبي
+  const SELF_HOSTED_ALLOWED = [
+    'dashboard', 'accounting', 'inventory', 'sales', 'purchases', 'crm',
+    'pos', 'system_config', 'workflow_center', 'activity_log',
+    'fabric', 'exchange'
+  ];
+
   const filteredModules = STATIC_MODULES.filter(module => {
-    // أثناء التحميل:
-    // 🖥️ Localhost: عرض كل الموديولات (optimistic — المالك يرى الكل عادةً)
-    // ☁️ Cloud: عرض dashboard فقط (حماية — ممكن يكون مستخدم عادي)
+    // 🖥️ وضع محلي: إظهار الموديولات الأساسية فقط (بدون وميض)
+    if (isLocalhost) {
+      // Super admin modules مخفية في الوضع المحلي
+      if (module.requires_super_admin) return false;
+      // فقط الموديولات المسموحة
+      return SELF_HOSTED_ALLOWED.includes(module.code);
+    }
+
+    // ☁️ وضع سحابي:
+    // أثناء التحميل: dashboard فقط (حماية)
     if (rbacLoading) {
-      return isLocalhost ? !module.requires_super_admin : module.code === 'dashboard';
+      return module.code === 'dashboard';
     }
 
     // 1. إذا كان الموديول يتطلب Super Admin (مدير المنصة)، نتحقق من الصلاحية

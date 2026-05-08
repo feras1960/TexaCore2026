@@ -48,6 +48,18 @@ export default function ModuleGuard() {
 
     // التحقق من الصلاحية
     const isAllowed = useMemo(() => {
+        const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+
+        // 🖥️ وضع محلي: حظر الوصول للموديولات غير المسموحة
+        if (isLocalhost && currentModule) {
+            const SELF_HOSTED_ALLOWED = [
+                'dashboard', 'accounting', 'inventory', 'sales', 'purchases', 'crm',
+                'pos', 'system_config', 'system-config', 'workflow_center', 'workflows',
+                'activity_log', 'activity-log', 'fabric', 'exchange', 'warehouse'
+            ];
+            if (!SELF_HOSTED_ALLOWED.includes(currentModule)) return false;
+        }
+
         // لا حاجة للتحقق أثناء التحميل
         if (rbacLoading) return true; // سنتحقق بعد التحميل
 
