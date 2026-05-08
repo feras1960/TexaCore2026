@@ -1,11 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { VitePWA } from 'vite-plugin-pwa';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import path from 'path';
 
 export default defineConfig({
   plugins: [
     react(),
+    nodePolyfills({
+      include: ['process', 'buffer', 'stream', 'util', 'events'],
+      globals: { process: true, Buffer: true },
+    }),
     // removeConsole disabled - causes build errors when console.log is inside arrow functions
     VitePWA({
       registerType: 'autoUpdate',

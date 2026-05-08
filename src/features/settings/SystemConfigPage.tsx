@@ -36,7 +36,7 @@ import {
     Settings, Building2,
     Globe, Bell, Megaphone,
     Calculator, Package, ShoppingCart,
-    Link2, Printer, FileUp,
+    Link2, Printer, FileUp, ArrowUpDown,
     FileSpreadsheet, Users, TrendingUp,
     CheckCircle2, XCircle, Clock, Plus,
     X as XIcon, Bot, ShieldCheck,
@@ -57,6 +57,7 @@ const PrintSettingsTab = React.lazy(() => import('./components/PrintSettingsTab'
 const AILanguageSettingsTab = React.lazy(() => import('./components/AILanguageSettingsTab'));
 const UsersPermissionsSettingsTab = React.lazy(() => import('./components/UsersPermissionsSettingsTab'));
 const CompanyAnnouncementsTab = React.lazy(() => import('./tabs/CompanyAnnouncementsTab'));
+const DataPortalTab = React.lazy(() => import('./components/DataPortalTab'));
 import { ImportWizard } from '@/features/import';
 import { useLanguage as useImportLang } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -341,14 +342,14 @@ const CONFIG_TABS: ConfigTab[] = [
         component: AILanguageSettingsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
-    // ─ 9. Data Import ─────────────────────────────
+    // ─ 9. Data Portal (Import & Export) ──────────
     {
         id: 'import',
         labelKey: 'settings.tabs.import',
-        labelAr: 'استيراد البيانات',
-        labelEn: 'Data Import',
-        icon: FileUp,
-        component: ImportDataTab,
+        labelAr: 'استيراد وتصدير',
+        labelEn: 'Data Portal',
+        icon: ArrowUpDown,
+        component: DataPortalTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
     // ─ 10. Notifications ─────────────────────────
