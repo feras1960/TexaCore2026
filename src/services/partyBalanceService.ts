@@ -154,32 +154,39 @@ export const partyBalanceService = {
                 total_debit: 0,
                 total_credit: 0,
                 balance: 0,
+                total_debit_fc: 0,
+                total_credit_fc: 0,
+                balance_fc: 0,
                 transaction_count: 0,
             };
 
-            // ═══ Smart FC Recovery — same logic as useLedgerData V3 ═══
-            // debit/credit = base currency (UAH), debit_fc/credit_fc = native currency (e.g. USD)
+            // ═══ Dual Currency — base (UAH) + FC (USD) ═══
             const debit = Number(row.debit || 0);
             const credit = Number(row.credit || 0);
             const debitFc = row.debit_fc != null ? Number(row.debit_fc) : null;
             const creditFc = row.credit_fc != null ? Number(row.credit_fc) : null;
             const rate = Number(row.exchange_rate || 1);
 
-            // Use FC if valid (>0 or debit/credit is 0). Otherwise recover via base ÷ rate.
+            // FC Recovery for foreign currency display
             const hasValidDebitFc = debitFc != null && (debitFc > 0 || debit === 0);
             const hasValidCreditFc = creditFc != null && (creditFc > 0 || credit === 0);
+            const fcDebit = hasValidDebitFc ? debitFc! : (rate > 1 ? debit / rate : debit);
+            const fcCredit = hasValidCreditFc ? creditFc! : (rate > 1 ? credit / rate : credit);
 
-            const effectiveDebit = hasValidDebitFc ? debitFc! : (rate > 1 ? debit / rate : debit);
-            const effectiveCredit = hasValidCreditFc ? creditFc! : (rate > 1 ? credit / rate : credit);
-
-            existing.total_debit += effectiveDebit;
-            existing.total_credit += effectiveCredit;
+            // Base currency (UAH) — raw debit/credit as stored
+            existing.total_debit += debit;
+            existing.total_credit += credit;
+            // FC (USD) — recovered amounts
+            existing.total_debit_fc = (existing.total_debit_fc || 0) + fcDebit;
+            existing.total_credit_fc = (existing.total_credit_fc || 0) + fcCredit;
             existing.transaction_count++;
 
             if (partyType === 'supplier') {
                 existing.balance = Math.round((existing.total_credit - existing.total_debit) * 100) / 100;
+                existing.balance_fc = Math.round(((existing.total_credit_fc || 0) - (existing.total_debit_fc || 0)) * 100) / 100;
             } else {
                 existing.balance = Math.round((existing.total_debit - existing.total_credit) * 100) / 100;
+                existing.balance_fc = Math.round(((existing.total_debit_fc || 0) - (existing.total_credit_fc || 0)) * 100) / 100;
             }
 
             balanceMap[pid] = existing;
@@ -296,6 +303,8 @@ export const partyBalanceService = {
 
         let totalDebit = 0;
         let totalCredit = 0;
+        let totalDebitFc = 0;
+        let totalCreditFc = 0;
         let txCount = 0;
 
         for (const row of (data || [])) {
@@ -311,20 +320,30 @@ export const partyBalanceService = {
             const hasValidDebitFc = debitFc != null && (debitFc > 0 || debit === 0);
             const hasValidCreditFc = creditFc != null && (creditFc > 0 || credit === 0);
 
-            totalDebit += hasValidDebitFc ? debitFc! : (rate > 1 ? debit / rate : debit);
-            totalCredit += hasValidCreditFc ? creditFc! : (rate > 1 ? credit / rate : credit);
+            // Base currency (UAH) — raw amounts
+            totalDebit += debit;
+            totalCredit += credit;
+            // FC (USD) — recovered amounts
+            totalDebitFc += hasValidDebitFc ? debitFc! : (rate > 1 ? debit / rate : debit);
+            totalCreditFc += hasValidCreditFc ? creditFc! : (rate > 1 ? credit / rate : credit);
             txCount++;
         }
 
         const balance = partyType === 'supplier'
             ? totalCredit - totalDebit
             : totalDebit - totalCredit;
+        const balanceFc = partyType === 'supplier'
+            ? totalCreditFc - totalDebitFc
+            : totalDebitFc - totalCreditFc;
 
         return {
             party_id: partyId,
             total_debit: Math.round(totalDebit * 100) / 100,
             total_credit: Math.round(totalCredit * 100) / 100,
             balance: Math.round(balance * 100) / 100,
+            total_debit_fc: Math.round(totalDebitFc * 100) / 100,
+            total_credit_fc: Math.round(totalCreditFc * 100) / 100,
+            balance_fc: Math.round(balanceFc * 100) / 100,
             transaction_count: txCount,
         };
     },
