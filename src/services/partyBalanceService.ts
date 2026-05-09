@@ -81,34 +81,11 @@ export const partyBalanceService = {
         companyId: string,
         partyType: 'supplier' | 'customer'
     ): Promise<Record<string, PartyBalance>> {
-        // ⚡ Try fast RPC first (server-side aggregation)
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_party_balances_bulk', {
-            p_company_id: companyId,
-            p_party_type: partyType,
-        });
-
-        if (!rpcError && rpcData) {
-            const balanceMap: Record<string, PartyBalance> = {};
-            for (const row of rpcData) {
-                balanceMap[row.party_id] = {
-                    party_id: row.party_id,
-                    // العملة المحلية (UAH)
-                    total_debit: Number(row.total_debit || 0),
-                    total_credit: Number(row.total_credit || 0),
-                    balance: Number(row.balance || 0),
-                    // العملة الأجنبية (USD) — بسعر صرف كل حركة
-                    total_debit_fc: Number(row.total_debit_fc || 0),
-                    total_credit_fc: Number(row.total_credit_fc || 0),
-                    balance_fc: Number(row.balance_fc || 0),
-                    transaction_count: Number(row.transaction_count || 0),
-                    last_transaction_date: row.last_transaction_date || undefined,
-                };
-            }
-            return balanceMap;
-        }
-
-        // 🔄 Fallback: client-side aggregation (slower)
-        console.warn('⚠️ get_party_balances_bulk RPC failed, using client-side fallback:', rpcError?.message);
+        // ═══ V2: Always use client-side calculation ═══
+        // The RPC may return FC-recovered amounts as 'balance' (old schema)
+        // which causes currency mismatch. Client-side guarantees:
+        //   balance    = base currency (UAH) — raw debit/credit
+        //   balance_fc = foreign currency (USD) — FC-recovered
         return this._getAllPartyBalancesFallback(companyId, partyType);
     },
 
