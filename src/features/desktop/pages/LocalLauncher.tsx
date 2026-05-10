@@ -789,11 +789,15 @@ export default function LocalLauncher() {
                                     console.log('[OpenFile] Import response status:', importRes.status);
                                     
                                     if (!importRes.ok) {
-                                      console.error('[OpenFile] Import failed with status:', importRes.status);
+                                      let errorMsg = `Error ${importRes.status}`;
+                                      try {
+                                        const errBody = await importRes.json();
+                                        errorMsg = errBody.error || errorMsg;
+                                      } catch {}
+                                      console.error('[OpenFile] Import failed:', errorMsg);
                                       setRsfImporting(false);
                                       setRsfProgress(null);
-                                      // Show error instead of silently falling back
-                                      alert(isRTL ? `فشل الاستيراد (خطأ ${importRes.status})` : `Import failed (error ${importRes.status})`);
+                                      alert(isRTL ? `فشل الاستيراد: ${errorMsg}` : `Import failed: ${errorMsg}`);
                                       return;
                                     }
                                     
@@ -836,10 +840,13 @@ export default function LocalLauncher() {
                                   return;
                                 }
                                 
-                                // Unknown response type
-                                console.warn('[OpenFile] Unknown response type:', result);
+                                // Failed or unknown response — show error
+                                console.warn('[OpenFile] Response:', result);
                                 setRsfImporting(false);
                                 setRsfProgress(null);
+                                if (result.error) {
+                                  alert(result.error);
+                                }
                               } catch (err: any) {
                                 // API not available — fallback to browser file input
                                 console.error('[OpenFile] API error:', err.message);
