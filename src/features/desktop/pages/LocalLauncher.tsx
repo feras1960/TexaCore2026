@@ -726,8 +726,8 @@ export default function LocalLauncher() {
                                 }
                                 
                                 if (result.success && result.type === 'tcdb') {
-                                  // TCDB restored successfully — set company
-                                  console.log('[OpenFile] TCDB restored:', result.companyName);
+                                  // TCDB restored — go directly to login (like traditional programs)
+                                  console.log('[OpenFile] ✅ TCDB restored:', result.companyName);
                                   const companyName = result.companyName;
                                   const LOCAL_SUPABASE_URL = 'http://localhost:54321';
                                   const LOCAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
@@ -746,26 +746,9 @@ export default function LocalLauncher() {
                                   setRsfImporting(false);
                                   setRsfProgress(null);
                                   
-                                  // Show notification about the file path
-                                  setImportReport({
-                                    show: true,
-                                    companyName,
-                                    counts: {},
-                                    users: [],
-                                    tcdbPath: result.tcdbPath,
-                                    timestamp: new Date().toLocaleString(isRTL ? 'ar-SA' : 'en-US'),
-                                  });
-                                  
-                                  // Reload companies
-                                  try {
-                                    const compRes = await fetch('http://127.0.0.1:1960/api/companies');
-                                    if (compRes.ok) {
-                                      const compData = await compRes.json();
-                                      if (compData.success && compData.companies) setLocalCompanies(compData.companies);
-                                    }
-                                  } catch {}
-                                  
-                                  setSelectedCompany(companyName);
+                                  // Reload page — login form will appear automatically
+                                  // Company data is already restored in the DB
+                                  window.location.reload();
                                   return;
                                 }
                                 
