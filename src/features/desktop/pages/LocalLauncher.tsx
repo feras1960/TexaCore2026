@@ -742,16 +742,18 @@ export default function LocalLauncher() {
                                 if (result.success && result.type === 'tcdb') {
                                   // TCDB restored — go directly to login (like traditional programs)
                                   console.log('[OpenFile] ✅ TCDB restored:', result.companyName);
+                                  console.log('[OpenFile] Company ID:', result.companyId, 'Users:', result.users);
                                   const companyName = result.companyName;
                                   const LOCAL_SUPABASE_URL = 'http://localhost:54321';
                                   const LOCAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
                                   
                                   localStorage.setItem('texacore_active_company', JSON.stringify({
-                                    id: 'restored',
+                                    id: result.companyId || 'restored',
                                     name: companyName,
                                     url: LOCAL_SUPABASE_URL,
                                     anonKey: LOCAL_ANON_KEY,
                                     tcdbPath: result.tcdbPath,
+                                    users: result.users || [],
                                   }));
                                   
                                   localStorage.removeItem('texacore_cached_ids');
