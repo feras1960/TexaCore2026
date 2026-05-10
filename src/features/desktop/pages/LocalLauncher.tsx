@@ -713,10 +713,13 @@ export default function LocalLauncher() {
                                 setRsfImporting(true);
                                 setRsfProgress({ step: isRTL ? 'جاري اختيار الملف...' : 'Selecting file...', current: 0, total: 1 });
                                 
+                                console.log('[OpenFile] Calling /api/open-tcdb...');
                                 const response = await fetch('http://127.0.0.1:1960/api/open-tcdb');
                                 const result = await response.json();
+                                console.log('[OpenFile] Response:', JSON.stringify(result));
                                 
                                 if (result.canceled) {
+                                  console.log('[OpenFile] User canceled');
                                   setRsfImporting(false);
                                   setRsfProgress(null);
                                   return;
@@ -724,6 +727,7 @@ export default function LocalLauncher() {
                                 
                                 if (result.success && result.type === 'tcdb') {
                                   // TCDB restored successfully — set company
+                                  console.log('[OpenFile] TCDB restored:', result.companyName);
                                   const companyName = result.companyName;
                                   const LOCAL_SUPABASE_URL = 'http://localhost:54321';
                                   const LOCAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
@@ -767,46 +771,78 @@ export default function LocalLauncher() {
                                 
                                 if (result.success && result.type === 'rsf') {
                                   // RSF file selected — trigger import via path
+                                  console.log('[OpenFile] RSF file selected:', result.filePath);
                                   setRsfProgress({ step: isRTL ? 'جاري استيراد البيانات...' : 'Importing data...', current: 0, total: 1 });
-                                  const importRes = await fetch('http://127.0.0.1:1960/api/import-rsf-path', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ filePath: result.filePath }),
-                                  });
-                                  // If import-rsf-path is not available, fallback
-                                  if (!importRes.ok) {
-                                    // Fallback to browser file input for RSF
+                                  
+                                  try {
+                                    const controller = new AbortController();
+                                    const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+                                    
+                                    const importRes = await fetch('http://127.0.0.1:1960/api/import-rsf-path', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ filePath: result.filePath }),
+                                      signal: controller.signal,
+                                    });
+                                    clearTimeout(timeout);
+                                    
+                                    console.log('[OpenFile] Import response status:', importRes.status);
+                                    
+                                    if (!importRes.ok) {
+                                      console.error('[OpenFile] Import failed with status:', importRes.status);
+                                      setRsfImporting(false);
+                                      setRsfProgress(null);
+                                      // Show error instead of silently falling back
+                                      alert(isRTL ? `فشل الاستيراد (خطأ ${importRes.status})` : `Import failed (error ${importRes.status})`);
+                                      return;
+                                    }
+                                    
+                                    const importResult = await importRes.json();
+                                    console.log('[OpenFile] Import result:', JSON.stringify(importResult));
                                     setRsfImporting(false);
                                     setRsfProgress(null);
-                                    document.getElementById('company-file-upload')?.click();
-                                    return;
-                                  }
-                                  const importResult = await importRes.json();
-                                  setRsfImporting(false);
-                                  setRsfProgress(null);
-                                  
-                                  if (importResult.success) {
-                                    const companyName = importResult.companyName || path.basename(result.filePath).replace('.rsf', '');
-                                    setImportReport({
-                                      show: true, companyName,
-                                      counts: importResult.counts || {},
-                                      users: importResult.users || [],
-                                      tcdbPath: importResult.tcdbPath || null,
-                                      timestamp: new Date().toLocaleString(isRTL ? 'ar-SA' : 'en-US'),
-                                    });
-                                    setSelectedCompany(companyName);
-                                  } else {
-                                    alert(importResult.error || 'Import failed');
+                                    
+                                    if (importResult.success) {
+                                      const companyName = importResult.companyName || result.filePath.split(/[/\\]/).pop()?.replace('.rsf', '') || 'Company';
+                                      console.log('[OpenFile] ✅ RSF imported:', companyName);
+                                      setImportReport({
+                                        show: true, companyName,
+                                        counts: importResult.counts || {},
+                                        users: importResult.users || [],
+                                        tcdbPath: importResult.tcdbPath || null,
+                                        timestamp: new Date().toLocaleString(isRTL ? 'ar-SA' : 'en-US'),
+                                      });
+                                      
+                                      // Reload companies list
+                                      try {
+                                        const compRes = await fetch('http://127.0.0.1:1960/api/companies');
+                                        if (compRes.ok) {
+                                          const compData = await compRes.json();
+                                          if (compData.success && compData.companies) setLocalCompanies(compData.companies);
+                                        }
+                                      } catch {}
+                                      
+                                      setSelectedCompany(companyName);
+                                    } else {
+                                      console.error('[OpenFile] Import returned error:', importResult.error);
+                                      alert(importResult.error || (isRTL ? 'فشل الاستيراد' : 'Import failed'));
+                                    }
+                                  } catch (importErr: any) {
+                                    console.error('[OpenFile] Import exception:', importErr.message);
+                                    setRsfImporting(false);
+                                    setRsfProgress(null);
+                                    alert(isRTL ? `خطأ أثناء الاستيراد: ${importErr.message}` : `Import error: ${importErr.message}`);
                                   }
                                   return;
                                 }
                                 
-                                // Something failed — fallback to browser input
+                                // Unknown response type
+                                console.warn('[OpenFile] Unknown response type:', result);
                                 setRsfImporting(false);
                                 setRsfProgress(null);
-                                document.getElementById('company-file-upload')?.click();
-                              } catch {
+                              } catch (err: any) {
                                 // API not available — fallback to browser file input
+                                console.error('[OpenFile] API error:', err.message);
                                 setRsfImporting(false);
                                 setRsfProgress(null);
                                 document.getElementById('company-file-upload')?.click();
