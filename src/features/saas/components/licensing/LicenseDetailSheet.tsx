@@ -2,7 +2,7 @@
  * 🔑 License Detail Sheet — Full monitoring dashboard per license
  * Shows: info, subscription/domain, device, heartbeats, backups, actions
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -40,6 +40,55 @@ const MODULE_LABELS: Record<string, { ar: string; en: string }> = {
   ai: { ar: 'ذكاء اصطناعي', en: 'AI' },
   api: { ar: 'API', en: 'API' },
 };
+
+// Helper: Format OS info to human readable
+function formatOsInfo(osInfo: string): string {
+  if (!osInfo) return '—';
+  const parts = osInfo.toLowerCase().split(' ');
+  const platform = parts[0];
+  const version = parts[1] || '';
+  const arch = parts[2] || '';
+  
+  let osName = platform;
+  if (platform === 'win32' || platform === 'windows') {
+    if (version.startsWith('10.0.22')) osName = 'Windows 11';
+    else if (version.startsWith('10.0')) osName = 'Windows 10';
+    else osName = `Windows ${version}`;
+  } else if (platform === 'darwin') {
+    osName = `macOS ${version}`;
+  } else if (platform === 'linux') {
+    osName = `Linux ${version}`;
+  }
+  return `${osName} (${arch || 'x64'})`;
+}
+
+// Component: Resolve country from IP using free API
+function IpCountryBadge({ ip }: { ip: string }) {
+  const [info, setInfo] = useState<{ country: string; city: string; flag: string } | null>(null);
+  
+  useEffect(() => {
+    if (!ip || ip === 'unknown') return;
+    fetch(`https://ip-api.com/json/${ip}?fields=country,city,countryCode`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.country) {
+          const flag = d.countryCode
+            ? String.fromCodePoint(...[...d.countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
+            : '🌍';
+          setInfo({ country: d.country, city: d.city || '', flag });
+        }
+      })
+      .catch(() => setInfo({ country: '—', city: '', flag: '🌍' }));
+  }, [ip]);
+
+  if (!info) return <span className="text-xs text-muted-foreground animate-pulse">{ip}</span>;
+  return (
+    <span className="text-xs font-medium flex items-center gap-1.5">
+      <span className="text-base">{info.flag}</span>
+      {info.city ? `${info.city}, ${info.country}` : info.country}
+    </span>
+  );
+}
 
 interface Props {
   license: License | null;
@@ -187,7 +236,7 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
               <CardHeader className="pb-2"><CardTitle className="text-sm">{isAr ? 'العميل' : 'Customer'}</CardTitle></CardHeader>
               <CardContent className="space-y-0">
                 <InfoRow label={isAr ? 'الشركة' : 'Company'} value={(license as any).customer_name || '—'} />
-                <InfoRow label={isAr ? 'البريد' : 'Email'} value={(license as any).customer_email || '—'} />
+                <InfoRow label={isAr ? 'البريد' : 'Email'} value={(license as any).customer_email || '—'} icon={Mail} />
               </CardContent>
             </Card>
 
@@ -201,7 +250,72 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
                     : <span className="text-muted-foreground">{isAr ? 'غير مسجل' : 'Not registered'}</span>
                 } icon={Globe} />
                 <InfoRow label={isAr ? 'اسم الجهاز' : 'Hostname'} value={license.hostname || '—'} icon={Server} />
-                <InfoRow label={isAr ? 'الإصدار' : 'Version'} value={license.app_version || '—'} />
+                <InfoRow label={isAr ? 'الإصدار' : 'Version'} value={license.app_version || '—'} icon={ArrowUpCircle} />
+                <InfoRow label={isAr ? 'بداية الترخيص' : 'Start Date'} value={fmt(license.created_at)} icon={CalendarPlus} />
+                <InfoRow label={isAr ? 'تاريخ الانتهاء' : 'Expires'} value={fmt(license.expires_at)} icon={Clock} />
+                <InfoRow label={isAr ? 'الأيام المتبقية' : 'Days Left'} value={
+                  isExpired
+                    ? <span className="text-red-500 font-bold">{isAr ? 'منتهي' : 'Expired'}</span>
+                    : <span className="text-emerald-600 font-bold">{daysLeft} {isAr ? 'يوم' : 'days'}</span>
+                } icon={Clock} />
+              </CardContent>
+            </Card>
+
+            {/* Network & Location */}
+            <Card className="mt-3">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MapPin className="h-4 w-4 text-red-500" />{isAr ? 'الشبكة والموقع' : 'Network & Location'}</CardTitle></CardHeader>
+              <CardContent className="space-y-0">
+                <InfoRow label={isAr ? 'عنوان IP العام' : 'Public IP'} value={
+                  license.local_ip
+                    ? <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{license.local_ip}</code>
+                    : '—'
+                } icon={Globe} />
+                {latestHb?.local_ips && latestHb.local_ips.length > 0 && (
+                  <InfoRow label={isAr ? 'عناوين IP المحلية' : 'Local IPs'} value={
+                    <div className="flex flex-col gap-0.5 items-end">
+                      {latestHb.local_ips.map((ip: any, i: number) => (
+                        <code key={i} className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                          {ip.ip} <span className="text-muted-foreground">({ip.iface})</span>
+                        </code>
+                      ))}
+                    </div>
+                  } icon={Wifi} />
+                )}
+                <InfoRow label={isAr ? 'الدولة' : 'Country'} value={
+                  license.country
+                    ? (() => {
+                        const cc = license.country_code || '';
+                        const flag = cc ? String.fromCodePoint(...[...cc.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : '🌍';
+                        return <span className="text-xs font-medium flex items-center gap-1.5"><span className="text-base">{flag}</span>{license.country}</span>;
+                      })()
+                    : license.local_ip && license.local_ip !== 'unknown'
+                      ? <IpCountryBadge ip={license.local_ip} />
+                      : <span className="text-muted-foreground">—</span>
+                } icon={MapPin} />
+                <InfoRow label={isAr ? 'المدينة' : 'City'} value={
+                  license.city || <span className="text-muted-foreground">—</span>
+                } icon={MapPin} />
+              </CardContent>
+            </Card>
+
+            {/* System & Device */}
+            <Card className="mt-3">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Monitor className="h-4 w-4 text-violet-500" />{isAr ? 'النظام والجهاز' : 'System & Device'}</CardTitle></CardHeader>
+              <CardContent className="space-y-0">
+                <InfoRow label={isAr ? 'نظام التشغيل' : 'Operating System'} value={
+                  license.os_info
+                    ? <span className="text-xs">{formatOsInfo(license.os_info)}</span>
+                    : '—'
+                } icon={Monitor} />
+                {latestHb?.cpu_model && <InfoRow label={isAr ? 'المعالج' : 'CPU'} value={<span className="text-xs truncate max-w-[200px] block text-end">{latestHb.cpu_model}</span>} icon={Cpu} />}
+                {latestHb?.cpu_cores && <InfoRow label={isAr ? 'عدد الأنوية' : 'CPU Cores'} value={latestHb.cpu_cores} icon={Cpu} />}
+                {latestHb?.ram_total_gb && <InfoRow label={isAr ? 'الذاكرة الكلية' : 'Total RAM'} value={`${latestHb.ram_total_gb} GB`} />}
+                {latestHb?.uptime_hours != null && <InfoRow label={isAr ? 'مدة التشغيل' : 'Uptime'} value={
+                  latestHb.uptime_hours >= 24
+                    ? `${Math.floor(latestHb.uptime_hours / 24)} ${isAr ? 'يوم' : 'd'} ${Math.round(latestHb.uptime_hours % 24)} ${isAr ? 'ساعة' : 'h'}`
+                    : `${Math.round(latestHb.uptime_hours)} ${isAr ? 'ساعة' : 'hours'}`
+                } icon={Clock} />}
+                {license.hardware_id && <InfoRow label="Hardware ID" value={<code className="text-[10px] truncate max-w-[180px] block text-end">{license.hardware_id}</code>} icon={Shield} />}
               </CardContent>
             </Card>
 
@@ -213,7 +327,6 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
                 <InfoRow label={isAr ? 'الشركات' : 'Companies'} value={license.max_companies} />
                 <InfoRow label={isAr ? 'المخازن' : 'Warehouses'} value={license.max_warehouses} />
                 <InfoRow label={isAr ? 'التخزين' : 'Storage'} value={`${license.max_storage_gb} GB`} icon={HardDrive} />
-                <InfoRow label={isAr ? 'ينتهي' : 'Expires'} value={fmt(license.expires_at)} icon={Clock} />
               </CardContent>
             </Card>
 

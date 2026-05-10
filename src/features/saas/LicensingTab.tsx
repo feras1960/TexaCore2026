@@ -2,7 +2,7 @@
  * 🔑 Licensing Management Tab — SaaS Admin
  * Real-time table with tier filtering, online status, and detail sheet
  */
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/hooks';
@@ -49,11 +49,13 @@ export default function LicensingTab() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedLicense, setSelectedLicense] = useState<License | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [presenceOnline, setPresenceOnline] = useState<Set<string>>(new Set());
 
-  // ─── Realtime Subscription ──────────────────────────────
+  // ─── Realtime: DB changes + Presence (instant online/offline) ──
   useEffect(() => {
-    const channel = supabase
-      .channel('licensing-realtime')
+    // Channel 1: DB changes for data refresh
+    const dbChannel = supabase
+      .channel('licensing-db')
       .on('postgres_changes', {
         event: '*',
         schema: 'licensing',
@@ -71,20 +73,59 @@ export default function LicensingTab() {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Channel 2: Presence for instant online/offline status
+    const presenceChannel = supabase
+      .channel('desktop-presence')
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const onlineKeys = new Set<string>();
+        Object.values(state).forEach((presences: any[]) => {
+          presences.forEach((p: any) => {
+            if (p.license_key) onlineKeys.add(p.license_key);
+          });
+        });
+        setPresenceOnline(onlineKeys);
+        console.log('[Presence] Online devices:', onlineKeys.size, [...onlineKeys]);
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        console.log('[Presence] 🟢 Device joined:', key);
+        setPresenceOnline(prev => {
+          const next = new Set(prev);
+          newPresences.forEach((p: any) => { if (p.license_key) next.add(p.license_key); });
+          return next;
+        });
+      })
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        console.log('[Presence] 🔴 Device left:', key);
+        setPresenceOnline(prev => {
+          const next = new Set(prev);
+          leftPresences.forEach((p: any) => { if (p.license_key) next.delete(p.license_key); });
+          return next;
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(dbChannel);
+      supabase.removeChannel(presenceChannel);
+    };
   }, [queryClient]);
 
-  // ─── Data ────────────────────────────────────────────────
+  // ─── Data (with auto-polling every 15s as realtime fallback) ──
   const { data: statsData, isLoading: statsLoading } = useCachedQuery({
     queryKey: ['licensing', 'stats'],
     queryFn: () => licensingService.getStats(),
-    staleTime: 30_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: licensesRaw, isLoading: licensesLoading } = useCachedQuery({
     queryKey: ['licensing', 'licenses'],
     queryFn: () => licensingService.getLicenses(),
-    staleTime: 15_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
 
   const stats: LicensingStats | null = statsData ?? null;
@@ -256,7 +297,7 @@ export default function LicensingTab() {
                     const statusConf = STATUS_CONFIG[license.status] || STATUS_CONFIG.pending;
                     const StatusIcon = statusConf.icon;
                     const expired = isExpired(license.expires_at);
-                    const online = licensingService.isOnline(license.last_heartbeat_at);
+                    const online = presenceOnline.has(license.license_key) || licensingService.isOnline(license.last_heartbeat_at);
                     return (
                       <motion.tr key={license.id}
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.02 }}

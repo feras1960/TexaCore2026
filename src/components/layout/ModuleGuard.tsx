@@ -48,18 +48,13 @@ export default function ModuleGuard() {
 
     // التحقق من الصلاحية
     const isAllowed = useMemo(() => {
-        const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-
-        // 🖥️ وضع محلي: السماح بالموديولات الأساسية فقط — تخطي RBAC
-        if (isLocalhost) {
-            const SELF_HOSTED_ALLOWED = [
-                'dashboard', 'accounting', 'inventory', 'sales', 'purchases', 'crm',
-                'pos', 'system_config', 'system-config', 'workflow_center', 'workflows',
-                'activity_log', 'activity-log', 'fabric', 'exchange', 'warehouse'
-            ];
-            // مسموح → true, غير مسموح → false
-            return !currentModule || SELF_HOSTED_ALLOWED.includes(currentModule);
-        }
+        // 🖥️ LOCAL/SELF-HOSTED: السماح بكل الموديولات (المالك المحلي)
+        const isSelfHosted = typeof window !== 'undefined' && (
+            window.location.hostname === 'localhost' || 
+            window.location.hostname === '127.0.0.1' ||
+            window.location.hostname.endsWith('.texacore.ai')
+        );
+        if (isSelfHosted) return true;
 
         // لا حاجة للتحقق أثناء التحميل
         if (rbacLoading) return true; // سنتحقق بعد التحميل

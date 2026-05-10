@@ -43,14 +43,14 @@ export default function MainLayout() {
 
   // 💾 Initialize storage, service worker, integrity checks, offline listener (once)
   useEffect(() => {
-    const isLocalhost = window.location.hostname === 'localhost';
+    const isSelfHosted = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.texacore.ai');
 
     // 💾 IndexedDB cache persistence — enabled for ALL modes (cloud + local)
     // This ensures React Query cache survives page refresh → instant load
     initStoragePersistence();
 
     // 🖥️ Localhost: skip Service Worker & integrity checks (cloud-only features)
-    if (!isLocalhost) {
+    if (!isSelfHosted) {
       // ⚡ Register Service Worker (background sync)
       import('@/lib/serviceWorker/register').then(({ registerServiceWorker }) => {
         registerServiceWorker();

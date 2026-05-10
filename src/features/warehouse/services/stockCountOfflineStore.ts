@@ -394,10 +394,17 @@ export const stockCountOfflineStore = {
 
         // محاولة دورية كل 15 ثانية
         retryIntervalId = setInterval(async () => {
-            if (navigator.onLine) {
-                const stats = await offlineDB.getSyncQueueStats();
-                if (stats.pending > 0) {
-                    await this.flushSyncQueue();
+            try {
+                if (navigator.onLine) {
+                    const stats = await offlineDB.getSyncQueueStats();
+                    if (stats.pending > 0) {
+                        await this.flushSyncQueue();
+                    }
+                }
+            } catch (err: any) {
+                // Suppress DatabaseClosedError — DB may have been closed by another tab
+                if (err?.name !== 'DatabaseClosedError') {
+                    console.warn('[OfflineStore] Retry interval error:', err.message);
                 }
             }
         }, RETRY_INTERVAL_MS);

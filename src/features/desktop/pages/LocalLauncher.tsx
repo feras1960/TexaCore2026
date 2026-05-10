@@ -146,6 +146,7 @@ export default function LocalLauncher() {
     companyName: string;
     counts: Record<string, number>;
     users: any[];
+    tcdbPath?: string | null;
     timestamp: string;
   } | null>(null);
 
@@ -190,7 +191,8 @@ export default function LocalLauncher() {
     // Load from local API (real database companies only)
     const fetchCompanies = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:1960/api/companies');
+        const apiBase = isCloudDomain() ? '' : 'http://127.0.0.1:1960';
+        const response = await fetch(`${apiBase}/api/companies`);
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.companies) {
@@ -278,12 +280,20 @@ export default function LocalLauncher() {
       if (activeCompany?.url?.includes('localhost') || selectedLocalComp) {
         // ── LOCAL MODE (Opened via file or selected from API): sign in against local GoTrue ──────────────
         // Make sure we use the correct Supabase URL based on selection
-        const LOCAL_SUPABASE_URL = (selectedLocalComp && activeCompany?.name !== selectedCompany) 
+        let LOCAL_SUPABASE_URL = (selectedLocalComp && activeCompany?.name !== selectedCompany) 
             ? 'http://localhost:54321' // Default local if it was selected from API list
             : (activeCompany?.url || import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321');
             
         const LOCAL_ANON_KEY     = activeCompany?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY ||
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
+
+        // ─── Cloud Detection: redirect localhost → proxy ─────────
+        // When accessing via subdomain (e.g. textile001.texacore.ai),
+        // localhost:54321 is unreachable — route through cloud proxy instead
+        if (isCloudDomain() && (LOCAL_SUPABASE_URL.includes('localhost') || LOCAL_SUPABASE_URL.includes('127.0.0.1'))) {
+          LOCAL_SUPABASE_URL = `${window.location.protocol}//${window.location.host}/_supabase`;
+          console.log('☁️ [LocalLauncher] Cloud mode → using proxy:', LOCAL_SUPABASE_URL);
+        }
 
         // Build email — accept both "admin" and "admin@company-id.local"
         let loginEmail = username.trim();
@@ -695,7 +705,113 @@ export default function LocalLauncher() {
                           </button>
                           
                           <button 
-                            onClick={() => !rsfImporting && document.getElementById('company-file-upload')?.click()}
+                            onClick={async () => {
+                              if (rsfImporting) return;
+                              
+                              // Try native file dialog first (gets full path including USB)
+                              try {
+                                setRsfImporting(true);
+                                setRsfProgress({ step: isRTL ? 'جاري اختيار الملف...' : 'Selecting file...', current: 0, total: 1 });
+                                
+                                const response = await fetch('http://127.0.0.1:1960/api/open-tcdb');
+                                const result = await response.json();
+                                
+                                if (result.canceled) {
+                                  setRsfImporting(false);
+                                  setRsfProgress(null);
+                                  return;
+                                }
+                                
+                                if (result.success && result.type === 'tcdb') {
+                                  // TCDB restored successfully — set company
+                                  const companyName = result.companyName;
+                                  const LOCAL_SUPABASE_URL = 'http://localhost:54321';
+                                  const LOCAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
+                                  
+                                  localStorage.setItem('texacore_active_company', JSON.stringify({
+                                    id: 'restored',
+                                    name: companyName,
+                                    url: LOCAL_SUPABASE_URL,
+                                    anonKey: LOCAL_ANON_KEY,
+                                    tcdbPath: result.tcdbPath,
+                                  }));
+                                  
+                                  localStorage.removeItem('texacore_cached_ids');
+                                  localStorage.removeItem('sb-local-auth-token');
+                                  
+                                  setRsfImporting(false);
+                                  setRsfProgress(null);
+                                  
+                                  // Show notification about the file path
+                                  setImportReport({
+                                    show: true,
+                                    companyName,
+                                    counts: {},
+                                    users: [],
+                                    tcdbPath: result.tcdbPath,
+                                    timestamp: new Date().toLocaleString(isRTL ? 'ar-SA' : 'en-US'),
+                                  });
+                                  
+                                  // Reload companies
+                                  try {
+                                    const compRes = await fetch('http://127.0.0.1:1960/api/companies');
+                                    if (compRes.ok) {
+                                      const compData = await compRes.json();
+                                      if (compData.success && compData.companies) setLocalCompanies(compData.companies);
+                                    }
+                                  } catch {}
+                                  
+                                  setSelectedCompany(companyName);
+                                  return;
+                                }
+                                
+                                if (result.success && result.type === 'rsf') {
+                                  // RSF file selected — trigger import via path
+                                  setRsfProgress({ step: isRTL ? 'جاري استيراد البيانات...' : 'Importing data...', current: 0, total: 1 });
+                                  const importRes = await fetch('http://127.0.0.1:1960/api/import-rsf-path', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ filePath: result.filePath }),
+                                  });
+                                  // If import-rsf-path is not available, fallback
+                                  if (!importRes.ok) {
+                                    // Fallback to browser file input for RSF
+                                    setRsfImporting(false);
+                                    setRsfProgress(null);
+                                    document.getElementById('company-file-upload')?.click();
+                                    return;
+                                  }
+                                  const importResult = await importRes.json();
+                                  setRsfImporting(false);
+                                  setRsfProgress(null);
+                                  
+                                  if (importResult.success) {
+                                    const companyName = importResult.companyName || path.basename(result.filePath).replace('.rsf', '');
+                                    setImportReport({
+                                      show: true, companyName,
+                                      counts: importResult.counts || {},
+                                      users: importResult.users || [],
+                                      tcdbPath: importResult.tcdbPath || null,
+                                      timestamp: new Date().toLocaleString(isRTL ? 'ar-SA' : 'en-US'),
+                                    });
+                                    setSelectedCompany(companyName);
+                                  } else {
+                                    alert(importResult.error || 'Import failed');
+                                  }
+                                  return;
+                                }
+                                
+                                // Something failed — fallback to browser input
+                                setRsfImporting(false);
+                                setRsfProgress(null);
+                                document.getElementById('company-file-upload')?.click();
+                              } catch {
+                                // API not available — fallback to browser file input
+                                setRsfImporting(false);
+                                setRsfProgress(null);
+                                document.getElementById('company-file-upload')?.click();
+                              }
+                            }}
                             disabled={rsfImporting}
                             className={cn(
                               "flex flex-col items-center justify-center p-5 border border-dashed rounded-xl transition-colors group",
@@ -781,6 +897,7 @@ export default function LocalLauncher() {
                                       companyName: companyName,
                                       counts: result.counts || {},
                                       users: result.users || [],
+                                      tcdbPath: result.tcdbPath || null,
                                       timestamp: new Date().toLocaleString(isRTL ? 'ar-SA' : 'en-US'),
                                     });
 
@@ -824,24 +941,46 @@ export default function LocalLauncher() {
                                     bytes[2] === 0x44 && bytes[3] === 0x42;
 
                                   if (isBinaryTcdb) {
-                                    // ── New encrypted backup file (v2) ──
-                                    // This is a full database backup. We need the Electron main process to restore it.
-                                    // For now, just select the company and let the user login normally.
-                                    // The restore flow will be handled via IPC when the system starts.
-                                    
+                                    // ── Encrypted TCDB backup file ──
                                     const companyName = file.name.replace('.tcdb', '');
                                     const LOCAL_SUPABASE_URL = 'http://localhost:54321';
                                     const LOCAL_ANON_KEY =
                                       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
 
-                                    // Tell Electron to restore from this file (if running in Electron)
+                                    // Restore via Electron IPC or HTTP API
                                     try {
-                                      // @ts-ignore — Electron preload API
-                                      if (window.texacore?.restoreBackup) {
-                                        await window.texacore.restoreBackup(file.path || file.name);
+                                      setRsfImporting(true);
+                                      setRsfProgress({ step: isRTL ? 'جاري استعادة البيانات من الملف...' : 'Restoring data from file...', current: 0, total: 1 });
+
+                                      let restoreResult: any = null;
+                                      const filePath = (file as any).path;
+
+                                      if (filePath && (window as any).texacore?.restoreBackup) {
+                                        // Electron IPC mode
+                                        restoreResult = await (window as any).texacore.restoreBackup(filePath);
+                                      } else {
+                                        // Browser HTTP mode — upload to restore endpoint
+                                        const formData = new FormData();
+                                        formData.append('file', file);
+                                        const response = await fetch('http://127.0.0.1:1960/api/restore-tcdb', {
+                                          method: 'POST',
+                                          body: formData,
+                                        });
+                                        restoreResult = await response.json();
                                       }
-                                    } catch (ipcErr) {
-                                      console.warn('[TCDB] IPC restore not available:', ipcErr);
+
+                                      setRsfImporting(false);
+                                      setRsfProgress(null);
+
+                                      if (restoreResult && !restoreResult.success) {
+                                        alert(isRTL ? `خطأ في الاستعادة: ${restoreResult.error}` : `Restore error: ${restoreResult.error}`);
+                                        return;
+                                      }
+                                    } catch (restoreErr: any) {
+                                      setRsfImporting(false);
+                                      setRsfProgress(null);
+                                      console.warn('[TCDB] Restore error:', restoreErr.message);
+                                      // Continue even if restore fails — user might have existing data
                                     }
 
                                     localStorage.setItem('texacore_active_company', JSON.stringify({
@@ -1062,6 +1201,13 @@ export default function LocalLauncher() {
                           ? `✅ تم استيراد بيانات "${importReport.companyName}" بنجاح`
                           : `✅ "${importReport.companyName}" imported successfully`}
                       </p>
+                      {importReport.tcdbPath && (
+                        <p className="text-xs text-white/60 mt-1 flex items-center gap-1">
+                          💾 {isRTL 
+                            ? `ملف البيانات: ${importReport.tcdbPath} — يتم تحديثه تلقائياً كل 5 دقائق`
+                            : `Data file: ${importReport.tcdbPath} — auto-synced every 5 min`}
+                        </p>
+                      )}
                     </div>
                   </div>
 

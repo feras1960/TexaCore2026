@@ -37,6 +37,11 @@ export interface License {
   subdomain: string | null;
   cloud_tunnel_id: string | null;
   hostname: string | null;
+  os_info: string | null;
+  local_ip: string | null;
+  country: string | null;
+  city: string | null;
+  country_code: string | null;
   last_heartbeat_at: string | null;
   app_version: string | null;
   activated_at: string | null;
@@ -68,6 +73,16 @@ export interface LicenseHeartbeat {
   hardware_id: string;
   app_version: string;
   ip_address: string;
+  hostname: string | null;
+  os_info: string | null;
+  os_type: string | null;
+  os_platform: string | null;
+  os_arch: string | null;
+  cpu_model: string | null;
+  cpu_cores: number | null;
+  local_ips: any[] | null;
+  subdomain: string | null;
+  uptime_hours: number | null;
   users_active: number;
   companies_count: number;
   invoices_count: number;
@@ -332,8 +347,8 @@ export const licensingService = {
   // ─── Connection Status Helper ───────────────────────────
   isOnline(lastHeartbeat: string | null): boolean {
     if (!lastHeartbeat) return false;
-    const tenMinAgo = Date.now() - 10 * 60 * 1000;
-    return new Date(lastHeartbeat).getTime() > tenMinAgo;
+    const fiveMinAgo = Date.now() - 5 * 60 * 1000; // heartbeat interval is 3min, allow 1 missed
+    return new Date(lastHeartbeat).getTime() > fiveMinAgo;
   },
 
   // ─── Key Generator ───────────────────────────────────────

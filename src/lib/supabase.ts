@@ -45,10 +45,25 @@ function getConfig(): TexaCoreConfig {
   //   supabaseUrl / supabaseKey  (preferred — matches TexaCoreConfig)
   //   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY  (legacy compat)
   const wc = windowConfig as any;
-  const supabaseUrl = wc?.supabaseUrl || wc?.VITE_SUPABASE_URL || localUrl || import.meta.env.VITE_SUPABASE_URL || '';
+  let supabaseUrl = wc?.supabaseUrl || wc?.VITE_SUPABASE_URL || localUrl || import.meta.env.VITE_SUPABASE_URL || '';
   const supabaseKey = wc?.supabaseKey || wc?.VITE_SUPABASE_ANON_KEY || localKey || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+  // ─── Client-Side Cloud Detection (Robust Fallback) ─────────
+  // If the browser is on a .texacore.ai subdomain but the configured
+  // URL still points to localhost (e.g. due to cached config.js or
+  // Service Worker), override it with the cloud proxy URL.
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if ((hostname.includes('.texacore.ai') || hostname.includes('.texacore.com')) &&
+        (supabaseUrl.includes('localhost') || supabaseUrl.includes('127.0.0.1'))) {
+      supabaseUrl = `${window.location.protocol}//${window.location.host}/_supabase`;
+      console.log('☁️ [Cloud Mode] Detected subdomain access — redirecting API to proxy:', supabaseUrl);
+    }
+  }
+
   const mode        = wc?.mode
     || (supabaseUrl.includes('localhost') ? 'selfhosted' : undefined)
+    || (supabaseUrl.includes('/_supabase') ? 'selfhosted' : undefined)
     || (localUrl ? 'selfhosted' : undefined)
     || (import.meta.env.VITE_TEXACORE_MODE as 'saas' | 'selfhosted')
     || 'saas';
@@ -88,8 +103,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    storageKey: supabaseUrl.includes('localhost')
-      ? `sb-local-auth-token`   // consistent key for ALL local instances
+    storageKey: (supabaseUrl.includes('localhost') || supabaseUrl.includes('/_supabase'))
+      ? `sb-local-auth-token`   // consistent key for ALL local/cloud-proxy instances
       : undefined,              // supabase-js default (sb-{project}-auth-token)
     flowType: 'pkce',
     lock: async (_name: string, _timeout: number, cb: () => Promise<any>) => cb(),

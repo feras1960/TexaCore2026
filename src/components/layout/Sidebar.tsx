@@ -39,25 +39,37 @@ export function Sidebar({ className }: SidebarProps) {
 
   // 🛡️ SECURITY: فلترة الموديولات حسب الصلاحيات والأدوار
   // 🖥️ LOCAL/SELF-HOSTED: عرض الموديولات الأساسية فقط (حسب الترخيص)
-  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+  // 🖥️ LOCAL/SELF-HOSTED detection: localhost OR cloud-tunneled self-hosted subdomain
+  const isSelfHosted = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.endsWith('.texacore.ai')  // Cloud tunnel = self-hosted
+  );
   
-  // الموديولات المسموحة في الوضع المحلي/التجريبي
+  // الموديولات المسموحة في الوضع المحلي/التجريبي — كل الموديولات متاحة للمالك المحلي
   const SELF_HOSTED_ALLOWED = [
     'dashboard', 'accounting', 'inventory', 'sales', 'purchases', 'crm',
     'pos', 'system_config', 'workflow_center', 'activity_log',
-    'fabric', 'exchange'
+    'fabric', 'exchange', 'hr', 'e-commerce', 'ai_analytics',
+    'inspiration_studio', 'pharmacy', 'healthcare', 'manufacturing',
+    'website', 'restaurant', 'gold', 'real_estate', 'doctors', 'component_lab'
   ];
 
   const filteredModules = STATIC_MODULES.filter(module => {
-    // 🖥️ وضع محلي: إظهار الموديولات الأساسية فقط (بدون وميض)
-    if (isLocalhost) {
-      // Super admin modules مخفية في الوضع المحلي
-      if (module.requires_super_admin) return false;
-      // فقط الموديولات المسموحة
-      return SELF_HOSTED_ALLOWED.includes(module.code);
+    // 🖥️ LOCAL/SELF-HOSTED: لا ننتظر RBAC — نعرض كل الموديولات المسموحة مباشرة
+    if (isSelfHosted) {
+      if (module.requires_super_admin && !isSuperAdmin) {
+        return false;
+      }
+      // 🌐 Hybrid (subdomain): hide SaaS module — it's for cloud platform only
+      const isSubdomain = typeof window !== 'undefined' && window.location.hostname.endsWith('.texacore.ai');
+      if (isSubdomain && module.code === 'saas') {
+        return false;
+      }
+      return SELF_HOSTED_ALLOWED.includes(module.code) || module.code === 'dashboard' || module.code === 'saas';
     }
 
-    // ☁️ وضع سحابي:
+    // ═══ CLOUD MODE: RBAC filtering ═══
     // أثناء التحميل: dashboard فقط (حماية)
     if (rbacLoading) {
       return module.code === 'dashboard';
