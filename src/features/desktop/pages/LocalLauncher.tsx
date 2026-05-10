@@ -197,6 +197,20 @@ export default function LocalLauncher() {
           const result = await response.json();
           if (result.success && result.companies) {
             setLocalCompanies(result.companies);
+            
+            // Auto-select company if coming from TCDB restore
+            // (texacore_active_company is set in localStorage during restore)
+            try {
+              const activeCompanyStr = localStorage.getItem('texacore_active_company');
+              if (activeCompanyStr) {
+                const activeCompany = JSON.parse(activeCompanyStr);
+                if (activeCompany?.name) {
+                  console.log('[Launcher] Auto-selecting restored company:', activeCompany.name);
+                  setSelectedCompany(activeCompany.name);
+                }
+              }
+            } catch {}
+            
             return;
           }
         }
