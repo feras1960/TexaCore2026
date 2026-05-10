@@ -345,10 +345,11 @@ export const licensingService = {
   },
 
   // ─── Connection Status Helper ───────────────────────────
+  /** Heartbeat-based fallback (used when Presence not available) */
   isOnline(lastHeartbeat: string | null): boolean {
     if (!lastHeartbeat) return false;
-    const fiveMinAgo = Date.now() - 5 * 60 * 1000; // heartbeat interval is 3min, allow 1 missed
-    return new Date(lastHeartbeat).getTime() > fiveMinAgo;
+    const twoMinAgo = Date.now() - 2 * 60 * 1000; // 2-min threshold (heartbeat is every 1min)
+    return new Date(lastHeartbeat).getTime() > twoMinAgo;
   },
 
   // ─── Key Generator ───────────────────────────────────────

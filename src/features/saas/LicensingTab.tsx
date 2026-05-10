@@ -298,14 +298,15 @@ export default function LicensingTab() {
                     const StatusIcon = statusConf.icon;
                     const expired = isExpired(license.expires_at);
                     const online = presenceOnline.has(license.license_key) || licensingService.isOnline(license.last_heartbeat_at);
+                    const isPresenceOnline = presenceOnline.has(license.license_key);
                     return (
                       <motion.tr key={license.id}
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.02 }}
                         className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
                         onClick={() => setSelectedLicense(license)}>
-                        {/* Online dot */}
+                        {/* Online dot — pulsing green = Presence (realtime), solid = heartbeat */}
                         <td className="p-3">
-                          <div className={`h-2.5 w-2.5 rounded-full ${online ? 'bg-green-500 animate-pulse' : license.last_heartbeat_at ? 'bg-gray-300' : 'bg-gray-200'}`} />
+                          <div className={`h-2.5 w-2.5 rounded-full ${isPresenceOnline ? 'bg-green-500 animate-pulse shadow-[0_0_6px_rgba(34,197,94,0.6)]' : online ? 'bg-green-400' : license.last_heartbeat_at ? 'bg-gray-300' : 'bg-gray-200'}`} />
                         </td>
                         <td className="p-3 font-mono text-xs">{license.license_key}</td>
                         <td className="p-3">
@@ -334,7 +335,9 @@ export default function LicensingTab() {
                           ) : online ? (
                             <span className="inline-flex items-center gap-1 text-green-600">
                               <Wifi className="h-3.5 w-3.5" />
-                              {isAr ? 'متصل' : 'Online'}
+                              {isPresenceOnline 
+                                ? (isAr ? '⚡ متصل مباشر' : '⚡ Live') 
+                                : (isAr ? 'متصل' : 'Online')}
                             </span>
                           ) : license.last_heartbeat_at ? (
                             <span className="inline-flex items-center gap-1 text-gray-400">
