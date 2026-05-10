@@ -311,7 +311,8 @@ export default function LocalLauncher() {
 
         // Build email — accept both "admin" and "admin@company-id.local"
         let loginEmail = username.trim();
-        if (loginEmail && !loginEmail.includes('@')) {
+        const isPlainUsername = loginEmail && !loginEmail.includes('@');
+        if (isPlainUsername) {
           // IMPORTANT FIX: Use selectedLocalComp.id if it exists and matches selectedCompany, 
           // otherwise fallback to activeCompany.id
           const compId = (selectedLocalComp && selectedLocalComp.name === selectedCompany) 
@@ -332,10 +333,42 @@ export default function LocalLauncher() {
           }
         });
 
-        const { data, error } = await localClient.auth.signInWithPassword({
+        let { data, error } = await localClient.auth.signInWithPassword({
           email:    loginEmail,
           password: password,
         });
+
+        // Fallback: if plain username failed, try alternative email patterns
+        if (error && isPlainUsername) {
+          const plainName = username.trim();
+          const fallbackEmails = [
+            `${plainName}@texacore.local`,           // default pattern from RSF import
+            `${plainName}@gmail.com`,                  // common pattern
+          ];
+          
+          // Also check stored user emails from TCDB restore
+          const storedUsers = activeCompany?.users || [];
+          for (const email of storedUsers) {
+            if (email.toLowerCase().startsWith(plainName.toLowerCase())) {
+              fallbackEmails.unshift(email); // prioritize matching stored users
+            }
+          }
+          
+          for (const fallbackEmail of fallbackEmails) {
+            if (fallbackEmail === loginEmail) continue; // skip already tried
+            console.log('[LOGIN DEBUG] Fallback attempt:', fallbackEmail);
+            const retry = await localClient.auth.signInWithPassword({
+              email: fallbackEmail,
+              password: password,
+            });
+            if (!retry.error && retry.data?.session) {
+              data = retry.data;
+              error = null;
+              console.log('[LOGIN DEBUG] ✅ Fallback succeeded:', fallbackEmail);
+              break;
+            }
+          }
+        }
 
         if (error || !data.session) {
           setFormError(
