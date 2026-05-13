@@ -51,6 +51,10 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
+  // Keep a ref to state for use in callbacks that can't re-render
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // ─── Setup Remote Audio (SIP.js v0.21+ API) ─────────────────
   const setupRemoteMedia = useCallback((session: Session) => {
     const sdh = session.sessionDescriptionHandler as any;
@@ -127,6 +131,109 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     });
   }, [setupRemoteMedia]);
 
+  // ─── Reconnection Engine ────────────────────────────────────
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const isReconnectingRef = useRef(false);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
+  const doReconnect = useCallback(() => {
+    const ua = userAgentRef.current;
+    if (!ua || isReconnectingRef.current) return;
+
+    isReconnectingRef.current = true;
+    const attempt = ++reconnectAttemptRef.current;
+    // Exponential backoff: 1s, 2s, 4s, 8s (max)
+    const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+
+    console.log(`[Softphone] Reconnect attempt #${attempt} in ${delay}ms...`);
+
+    clearReconnectTimer();
+    reconnectTimerRef.current = setTimeout(async () => {
+      try {
+        await ua.reconnect();
+        console.log('[Softphone] ✅ Reconnected to WebSocket');
+        await registererRef.current?.register();
+        console.log('[Softphone] ✅ Re-registered');
+        reconnectAttemptRef.current = 0; // Reset on success
+      } catch (e: any) {
+        console.warn(`[Softphone] ❌ Reconnect #${attempt} failed:`, e.message);
+        // Keep trying
+        isReconnectingRef.current = false;
+        doReconnect();
+        return;
+      }
+      isReconnectingRef.current = false;
+    }, delay);
+  }, [clearReconnectTimer]);
+
+  // ─── Full Rebuild (for network switch) ─────────────────────
+  const fullRebuild = useCallback(async () => {
+    console.log('[Softphone] 🔄 Network changed — smart reconnect');
+    const ua = userAgentRef.current;
+    if (!ua) return;
+
+    clearReconnectTimer();
+    isReconnectingRef.current = false;
+    reconnectAttemptRef.current = 0;
+
+    setState(prev => ({ ...prev, isRegistered: false }));
+
+    // Wait a moment for the new network to stabilize
+    await new Promise(r => setTimeout(r, 800));
+
+    // Strategy: just reconnect the transport (don't kill the UA)
+    // This preserves any active call sessions
+    try {
+      await ua.reconnect();
+      console.log('[Softphone] ✅ Transport reconnected on new network');
+      await registererRef.current?.register();
+      console.log('[Softphone] ✅ Re-registered on new network');
+
+      // If there's an active call, re-setup the media
+      // (the old ICE candidates may be stale on the new network)
+      const activeSession = stateRef.current.activeCall;
+      if (activeSession && activeSession.state === SessionState.Established) {
+        console.log('[Softphone] 📞 Active call detected — refreshing media...');
+        try {
+          const sdh = activeSession.sessionDescriptionHandler as any;
+          const pc = sdh?.peerConnection as RTCPeerConnection;
+          if (pc) {
+            // Request ICE restart to get fresh candidates for new network
+            const offer = await pc.createOffer({ iceRestart: true });
+            await pc.setLocalDescription(offer);
+            console.log('[Softphone] ✅ ICE restart initiated for active call');
+          }
+          // Re-setup remote audio element
+          setTimeout(() => setupRemoteMedia(activeSession), 500);
+        } catch (e: any) {
+          console.warn('[Softphone] Media refresh failed:', e.message);
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Softphone] Smart reconnect failed, trying full rebuild...', e.message);
+      // Only if reconnect fails, do a full stop/start (will kill active calls)
+      try {
+        registererRef.current?.unregister().catch(() => {});
+        await ua.stop();
+      } catch { /* ignore */ }
+      await new Promise(r => setTimeout(r, 500));
+      try {
+        await ua.start();
+        await registererRef.current?.register();
+        console.log('[Softphone] ✅ Full rebuild complete');
+      } catch {
+        doReconnect();
+      }
+    }
+  }, [clearReconnectTimer, doReconnect, setupRemoteMedia]);
+
   // ─── Initialize SIP.js UserAgent ───────────────────────────
   useEffect(() => {
     if (!user) return;
@@ -150,10 +257,10 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       authorizationUsername: sipUsername,
       transportOptions: {
         server: PBX_CONFIG.websocketUrl,
-        // ─── Auto-reconnect on WebSocket drop ─────────────
-        connectionTimeout: 10,        // 10 seconds to connect
-        keepAliveInterval: 30,         // Send keep-alive every 30s
-        keepAliveDebounce: 10,         // Debounce keep-alive by 10s
+        // ─── Aggressive reconnect settings ─────────────
+        connectionTimeout: 8,           // 8 seconds to connect
+        keepAliveInterval: 15,           // Ping every 15s (detect drops faster)
+        keepAliveDebounce: 5,            // Debounce 5s
       },
       uri: uri,
       // ─── WebRTC media options: ICE/STUN for NAT traversal ──
@@ -162,7 +269,10 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
           ],
+          // ICE candidate pool for faster reconnection
+          iceCandidatePoolSize: 2,
         },
       },
       delegate: {
@@ -180,23 +290,14 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
 
           attachSessionListeners(invitation, 'inbound');
         },
-        // Handle disconnect events
+        // Handle disconnect events — trigger fast reconnect
         onDisconnect: (error?: Error) => {
-          console.warn('[Softphone] Transport disconnected:', error?.message);
+          console.warn('[Softphone] ⚠️ Transport disconnected:', error?.message);
           setState(prev => ({ ...prev, isRegistered: false }));
-          // Auto-reconnect after 3 seconds
-          setTimeout(() => {
-            const ua = userAgentRef.current;
-            if (ua) {
-              console.log('[Softphone] Attempting reconnect...');
-              ua.reconnect().then(() => {
-                console.log('[Softphone] Reconnected, re-registering...');
-                registererRef.current?.register().catch(() => {});
-              }).catch((e) => {
-                console.warn('[Softphone] Reconnect failed:', e.message);
-              });
-            }
-          }, 3000);
+          // Start progressive reconnect immediately
+          isReconnectingRef.current = false;
+          reconnectAttemptRef.current = 0;
+          doReconnect();
         },
       },
     };
@@ -208,7 +309,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       .then(() => {
         console.log('[Softphone] UserAgent started');
         const registerer = new Registerer(ua, {
-          expires: 300,   // Register for 5 minutes
+          expires: 120,     // Register for 2 minutes (refresh more often)
           extraHeaders: [],
         });
         registererRef.current = registerer;
@@ -216,6 +317,9 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
         registerer.stateChange.addListener((newState) => {
           const registered = newState === RegistererState.Registered;
           setState(prev => ({ ...prev, isRegistered: registered }));
+          if (registered) {
+            reconnectAttemptRef.current = 0; // Reset counter on successful register
+          }
           console.log(`[Softphone] Registration state: ${newState}`);
         });
 
@@ -224,15 +328,53 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       .catch(error => {
         console.error('[Softphone] Failed to start:', error);
         setState(prev => ({ ...prev, error: 'Failed to connect to PBX' }));
+        // Try reconnecting even on initial failure
+        doReconnect();
       });
 
+    // ─── Network Change Detection ────────────────────────────
+    // When browser goes online after being offline
+    const handleOnline = () => {
+      console.log('[Softphone] 🌐 Network ONLINE — triggering full rebuild');
+      fullRebuild();
+    };
+
+    const handleOffline = () => {
+      console.log('[Softphone] 📴 Network OFFLINE');
+      clearReconnectTimer();
+      setState(prev => ({ ...prev, isRegistered: false }));
+    };
+
+    // Detect network type changes (WiFi → Mobile, etc.)
+    const handleConnectionChange = () => {
+      const conn = (navigator as any).connection;
+      console.log(`[Softphone] 🔀 Network changed: type=${conn?.type}, effectiveType=${conn?.effectiveType}`);
+      // Full rebuild to get fresh ICE candidates for the new network
+      fullRebuild();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // NetworkInformation API (Chrome/Edge/Android)
+    const conn = (navigator as any).connection;
+    if (conn) {
+      conn.addEventListener('change', handleConnectionChange);
+    }
+
     return () => {
+      clearReconnectTimer();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      if (conn) {
+        conn.removeEventListener('change', handleConnectionChange);
+      }
       registererRef.current?.unregister().catch(() => {});
       ua.stop().catch(() => {});
       userAgentRef.current = null;
       registererRef.current = null;
     };
-  }, [user, attachSessionListeners]);
+  }, [user, attachSessionListeners, doReconnect, fullRebuild, clearReconnectTimer]);
 
   // ─── Make Outbound Call ────────────────────────────────────
   const makeCall = useCallback(async (targetNumber: string) => {
