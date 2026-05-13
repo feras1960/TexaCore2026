@@ -131,11 +131,11 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const sipUsername = import.meta.env.VITE_SIP_USERNAME || `ext-${user.id?.substring(0, 8) || '100'}`;
-    const sipPassword = import.meta.env.VITE_SIP_PASSWORD || '';
+    const sipUsername = import.meta.env.VITE_SIP_USERNAME || '100';
+    const sipPassword = import.meta.env.VITE_SIP_PASSWORD || 'TexaCore2026Pbx100';
 
     if (!sipPassword) {
-      console.warn('[Softphone] No SIP password configured. Set VITE_SIP_PASSWORD in .env');
+      console.warn('[Softphone] No SIP password configured.');
       return;
     }
 
