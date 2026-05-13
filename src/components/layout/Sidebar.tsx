@@ -52,7 +52,7 @@ export function Sidebar({ className }: SidebarProps) {
     'pos', 'system_config', 'workflow_center', 'activity_log',
     'fabric', 'exchange', 'hr', 'e-commerce', 'ai_analytics',
     'inspiration_studio', 'pharmacy', 'healthcare', 'manufacturing',
-    'website', 'restaurant', 'gold', 'real_estate', 'doctors', 'component_lab'
+    'website', 'restaurant', 'gold', 'real_estate', 'doctors', 'component_lab', 'support_mdm'
   ];
 
   const filteredModules = STATIC_MODULES.filter(module => {

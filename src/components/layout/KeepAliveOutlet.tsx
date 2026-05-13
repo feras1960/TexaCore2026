@@ -44,6 +44,7 @@ const ROUTE_MAP: Record<string, () => Promise<{ default: ComponentType<any> }>> 
   '/exchange': () => import('@/features/exchange/Exchange'),
 
   // Settings & Admin
+  '/support': () => import('@/features/mdm/SupportModule'),
   '/system-config': () => import('@/features/settings/SystemConfigPage'),
   '/users-permissions': () => import('@/features/settings/SystemConfigPage'), // Redirect: now a tab inside Settings
   '/workflows': () => import('@/features/workflow-center/WorkflowCenter'),
@@ -71,6 +72,7 @@ const TIER_2_IMPORTANT = [
   '/ecommerce',           // المتجر الإلكتروني
   '/ai-analytics',        // تحليلات الذكاء الاصطناعي
   '/inspiration-studio',  // استوديو الإلهام
+  '/support',             // الدعم وإدارة الأجهزة
   '/system-config',       // إعدادات النظام
   '/users-permissions',   // المستخدمين والصلاحيات
   '/workflows',           // سير العمل

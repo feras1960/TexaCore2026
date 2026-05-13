@@ -10,6 +10,8 @@ import { initArabicNumeralNormalizer } from '@/lib/arabicNumeralNormalizer';
 import { LicenseExpiryBanner } from '@/components/LicenseExpiryBanner';
 import { initSessionGuard, isSelfHosted } from '@/services/sessionGuardService';
 import { TourProvider } from '@/components/tour/InteractiveTour';
+import { SoftphoneProvider } from '@/features/pbx/context/SoftphoneContext';
+import { SoftphoneWidget } from '@/features/pbx/components/SoftphoneWidget';
 
 // Import AuthGuard directly (not lazy) for better auth flow
 import { AuthGuard } from '@/components/auth/AuthGuard';
@@ -172,10 +174,13 @@ function App() {
   return (
     <ErrorBoundary>
       <AppProviders>
-        <TourProvider>
-          <LicenseExpiryBanner />
-          <AppRoutes />
-        </TourProvider>
+        <SoftphoneProvider>
+          <TourProvider>
+            <LicenseExpiryBanner />
+            <SoftphoneWidget />
+            <AppRoutes />
+          </TourProvider>
+        </SoftphoneProvider>
       </AppProviders>
     </ErrorBoundary>
   );

@@ -166,7 +166,10 @@ export function LanguageProvider({ children, defaultLanguage }: LanguageProvider
     // Return fallback or key if translation not found
     if (value === undefined) {
       if (!explicitFallback) {
-        console.warn(`Translation missing for key: \${key}`);
+        // Only warn in development, not for every render
+        if (import.meta.env.DEV) {
+          console.warn(`Translation missing for key: ${key}`);
+        }
       }
       return explicitFallback || key;
     }

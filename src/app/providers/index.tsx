@@ -85,8 +85,8 @@ const persistOptions = {
     },
   },
   // Auto-generate buster based on week number — invalidates old schema caches weekly
-  // v7: re-enable local persistence for instant navigation (2026-05-06)
-  buster: `v7-w${Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))}`,
+  // v10: fix stale stage='draft' in purchase_cycle_full cache (2026-05-12)
+  buster: `v10-w${Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))}`,
 };
 
 // ═══════════════════════════════════════════════════════════════
