@@ -1,0 +1,27 @@
+{
+  "$schema": "http://info.meshcentral.com/downloads/meshcentral-config-schema.json",
+  "settings": {
+    "cert": "mdm.texacore.local",
+    "TlsOffload": "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1",
+    "AllowLoginToken": true,
+    "AllowFraming": true,
+    "WebRTC": true,
+    "ClickToPlay": false
+  },
+  "domains": {
+    "": {
+      "title": "TexaCore Support",
+      "title2": "TexaCore ERP Device Management",
+      "minify": true,
+      "NewAccounts": true,
+      "userNameIsEmail": true,
+      "agentCustomization": {
+        "displayName": "TexaCore Support Service",
+        "description": "TexaCore ERP Background Support & Telemetry Service",
+        "companyName": "TexaCore",
+        "serviceName": "texacore-support"
+      },
+      "agentHideTrayIcon": true
+    }
+  }
+}

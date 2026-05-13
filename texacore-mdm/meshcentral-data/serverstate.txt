@@ -1,0 +1,8 @@
+time=1778622476730
+state=running
+server-pid=59917
+server-parent-pid=59915
+redirect-port=80
+mps-port=4433
+mps-name=mdm.texacore.local
+http-port=443
