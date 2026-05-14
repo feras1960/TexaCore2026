@@ -1,5 +1,6 @@
 import React from 'react';
-import { Phone, Users, Voicemail, HeadphonesIcon } from 'lucide-react';
+import { Phone, Users, Voicemail, HeadphonesIcon, Globe } from 'lucide-react';
+import { OnlineVisitorsList } from '../components/OnlineVisitorsList';
 
 export default function PBXDashboard() {
   return (
@@ -61,14 +62,18 @@ export default function PBXDashboard() {
         </div>
       </div>
       
-      <div className="mt-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="h-64 flex items-center justify-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
             <div className="text-center">
               <p className="text-gray-500 dark:text-gray-400 mb-2 font-medium">جاري العمل على استكمال الإحصائيات</p>
               <p className="text-sm text-gray-400 dark:text-gray-500">سيتم عرض الرسوم البيانية وسجل المكالمات هنا</p>
             </div>
           </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <OnlineVisitorsList />
         </div>
       </div>
     </div>

@@ -164,9 +164,9 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       authorizationUsername: cfg.username,
       transportOptions: {
         server: PBX_CONFIG.websocketUrl,
-        connectionTimeout: 5,
-        keepAliveInterval: 8,
-        keepAliveDebounce: 3,
+        connectionTimeout: 15,
+        keepAliveInterval: 15, // Reduced from 25 to 15 to prevent strict NAT/proxy timeouts
+        keepAliveDebounce: 10,
       },
       uri,
       sessionDescriptionHandlerFactoryOptions: {
@@ -196,10 +196,11 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
           // Skip if we're intentionally disposing
           if (isDisposingRef.current) return;
           console.warn('[Softphone] ⚠️ Transport disconnected:', error?.message);
+          
           setState(prev => ({ ...prev, isRegistered: false }));
-          // Go straight to full rebuild — don't waste time on stale reconnect
+          // Rebuild connection if disconnected unexpectedly
           if (!isRebuildingRef.current) {
-            setTimeout(() => fullRebuild(), 50);
+            setTimeout(() => fullRebuild(), 1000);
           }
         },
       },
@@ -255,16 +256,15 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     if (oldUA) {
       isDisposingRef.current = true;
       try {
-        const t = (oldUA as any).transport;
-        // Kill keepAlive interval to stop WS spam
-        if (t?._keepAliveInterval) { clearInterval(t._keepAliveInterval); t._keepAliveInterval = undefined; }
-        const ws = t?.ws || t?._ws;
-        if (ws && ws.readyState !== WebSocket.CLOSED) ws.close();
-        // Fire-and-forget — don't await (SIP timers take 32s!)
+        // Stop user agent gracefully if possible, but don't await indefinitely
         oldUA.stop().catch(() => {});
+        const t = (oldUA as any).transport;
+        if (t && typeof t.disconnect === 'function') {
+           t.disconnect().catch(() => {});
+        }
       } catch (_) {}
-      // Brief pause to let WS close event fire
-      await new Promise(r => setTimeout(r, 50));
+      // Brief pause to allow the network sockets to close cleanly
+      await new Promise(r => setTimeout(r, 500));
       isDisposingRef.current = false;
     }
 
@@ -290,6 +290,12 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
   // ─── Initialize SIP.js UserAgent ───────────────────────────
   useEffect(() => {
     if (!user) return;
+
+    // ⚡ TEST OVERRIDE: Prevent Softphone from starting if disabled
+    if (localStorage.getItem('DISABLE_SOFTPHONE') === 'true') {
+      console.log('[Softphone] Disabled via localStorage flag (DISABLE_SOFTPHONE=true). Remove flag to re-enable.');
+      return;
+    }
 
     // Reset flags (HMR / StrictMode safe)
     isDisposingRef.current = false;
@@ -328,11 +334,76 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       setState(prev => ({ ...prev, isRegistered: false, error: 'لا يوجد اتصال بالإنترنت' }));
     };
     const handleNetChange = () => triggerRebuild('🔀 Network changed');
+    
+    // ─── Smart Tab Visibility Handler ─────────────────────────
+    // When switching back to the tab, the browser needs time to restore
+    // the WebSocket connection. We give a 1.5s grace period before checking.
+    let visibilityTimer: ReturnType<typeof setTimeout> | null = null;
     const handleVisibility = () => {
-      if (document.visibilityState !== 'visible') return;
-      const t = (userAgentRef.current as any)?.transport;
-      const ws = t?.ws || t?._ws;
-      if (!ws || ws.readyState !== WebSocket.OPEN) triggerRebuild('👁 Tab visible + WS dead');
+      if (document.visibilityState !== 'visible') {
+        // Tab going to background — clear any pending check
+        if (visibilityTimer) { clearTimeout(visibilityTimer); visibilityTimer = null; }
+        return;
+      }
+      
+      // Tab became visible — wait briefly for browser to restore WS
+      if (visibilityTimer) clearTimeout(visibilityTimer);
+      visibilityTimer = setTimeout(async () => {
+        visibilityTimer = null;
+        const ua = userAgentRef.current;
+        if (!ua) return;
+        
+        const t = (ua as any).transport;
+        const ws = t?.ws || t?._ws;
+        const wsAlive = ws && ws.readyState === WebSocket.OPEN;
+        
+        if (wsAlive) {
+          // WS is still open — just verify registration
+          console.log('[Softphone] 👁 Tab visible — WS alive, checking registration');
+          const reg = registererRef.current;
+          if (reg && reg.state !== RegistererState.Registered) {
+            try { await reg.register(); } catch (_) {}
+          }
+          return;
+        }
+        
+        // WS is dead — try soft reconnect first (transport.connect)
+        console.log('[Softphone] 👁 Tab visible — WS dead, attempting soft reconnect...');
+        
+        // During an active call, try harder to reconnect without rebuilding
+        if (stateRef.current.callState !== 'idle' && stateRef.current.callState !== 'ended') {
+          console.log('[Softphone] ⚠️ Active call detected — trying transport reconnect only');
+          try {
+            if (t && typeof t.connect === 'function') {
+              await t.connect();
+              console.log('[Softphone] ✅ Transport reconnected during call');
+              return;
+            }
+          } catch (_) {
+            console.warn('[Softphone] Transport reconnect failed during call');
+          }
+          return; // Don't rebuild during a call
+        }
+        
+        // No active call — try transport.connect first, then rebuild if needed
+        try {
+          if (t && typeof t.connect === 'function') {
+            await t.connect();
+            // Re-register after reconnect
+            const reg = registererRef.current;
+            if (reg) {
+              try { await reg.register(); } catch (_) {}
+            }
+            console.log('[Softphone] ✅ Soft reconnect succeeded');
+            return;
+          }
+        } catch (e) {
+          console.log('[Softphone] Soft reconnect failed, doing full rebuild');
+        }
+        
+        // Last resort: full rebuild
+        triggerRebuild('👁 Tab visible + WS dead (after soft reconnect failed)');
+      }, 1500); // 1.5s grace period for browser to restore WS
     };
 
     window.addEventListener('online', handleOnline);
@@ -344,6 +415,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isDisposingRef.current = true;
       isRebuildingRef.current = true;
+      if (visibilityTimer) clearTimeout(visibilityTimer);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       document.removeEventListener('visibilitychange', handleVisibility);

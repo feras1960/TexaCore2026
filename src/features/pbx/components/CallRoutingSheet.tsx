@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Route, Filter, Play, ArrowDown, ArrowUp } from 'lucide-react';
+import { Route, Filter, Play, ArrowDown, ArrowUp, Bot } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -259,6 +259,7 @@ export function CallRoutingSheet({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ivr">{isRTL ? 'تشغيل رد آلي (IVR)' : 'Play IVR Menu'}</SelectItem>
+                  <SelectItem value="ai_agent">{isRTL ? 'تحويل للوكيل الذكي (AI Agent)' : 'Route to AI Agent'}</SelectItem>
                   <SelectItem value="ring_group">{isRTL ? 'تحويل لمجموعة رنين' : 'Route to Ring Group'}</SelectItem>
                   <SelectItem value="extension">{isRTL ? 'تحويل لرقم داخلي' : 'Route to Extension'}</SelectItem>
                   <SelectItem value="voicemail">{isRTL ? 'تحويل للبريد الصوتي' : 'Route to Voicemail'}</SelectItem>
@@ -268,7 +269,7 @@ export function CallRoutingSheet({
               </Select>
             </div>
 
-            {formData.action !== 'voicemail' && (
+            {formData.action !== 'voicemail' && formData.action !== 'ai_agent' && (
               <div className="space-y-2 animate-in slide-in-from-top-2 pt-2">
                 <Label>
                   {formData.action === 'ivr' ? (isRTL ? 'اختر رسالة الرد الآلي' : 'Select IVR Menu') :
@@ -288,6 +289,19 @@ export function CallRoutingSheet({
                   }
                   className="bg-white dark:bg-gray-900 font-mono"
                 />
+              </div>
+            )}
+            
+            {formData.action === 'ai_agent' && (
+              <div className="space-y-2 animate-in slide-in-from-top-2 pt-2">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
+                  <p className="text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                    <Bot className="w-4 h-4" />
+                    {isRTL 
+                      ? 'سيتم تحويل المكالمات إلى الوكيل الذكي الخاص بالشركة (ElevenLabs). يمكنك إدارة الأصوات من إعدادات المقسم المتقدمة.'
+                      : 'Calls will be routed to the company AI Agent (ElevenLabs). You can manage voices from Advanced PBX Settings.'}
+                  </p>
+                </div>
               </div>
             )}
           </div>

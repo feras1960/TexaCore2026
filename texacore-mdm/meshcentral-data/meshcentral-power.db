@@ -1,5 +1,3 @@
+{"time":{"$$date":1778622471639},"nodeid":"*","power":0,"s":1,"_id":"YWbVOeRxmMNOeaHk"}
 {"$$indexCreated":{"fieldName":"nodeid","unique":false,"sparse":false}}
 {"$$indexCreated":{"fieldName":"time","unique":false,"sparse":false}}
-{"$$indexCreated":{"fieldName":"nodeid"}}
-{"$$indexCreated":{"fieldName":"time","expireAfterSeconds":864000}}
-{"time":{"$$date":1778622471639},"nodeid":"*","power":0,"s":1,"_id":"YWbVOeRxmMNOeaHk"}
