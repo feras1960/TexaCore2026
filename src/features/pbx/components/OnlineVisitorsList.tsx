@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { cloudSupabase } from '@/lib/supabase';
-import { Globe, PhoneCall, Clock, CheckCircle2 } from 'lucide-react';
+import { Globe, PhoneCall, Clock, CheckCircle2, Smartphone, Monitor, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -19,11 +18,16 @@ interface VisitorPresence {
   status: 'online' | 'offline';
   url: string;
   timestamp: string;
+  device?: string;
+  browser?: string;
+  page_title?: string;
+  referrer?: string;
 }
 
 export function OnlineVisitorsList() {
   const [visitors, setVisitors] = useState<VisitorPresence[]>([]);
   const [callingUuid, setCallingUuid] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
@@ -35,11 +39,12 @@ export function OnlineVisitorsList() {
         const state = channel.presenceState();
         const activeVisitors: VisitorPresence[] = [];
         
+        console.log('[PBX-Visitors] Presence sync, raw state:', JSON.stringify(state));
+        
         for (const id in state) {
           // @ts-ignore
           const presenceList = state[id] as VisitorPresence[];
           if (presenceList.length > 0) {
-            // Only keep the most recent state for this uuid
             activeVisitors.push(presenceList[0]);
           }
         }
@@ -49,14 +54,17 @@ export function OnlineVisitorsList() {
         setVisitors(activeVisitors);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log('Visitor joined', key, newPresences);
+        console.log('[PBX-Visitors] ✅ Visitor joined:', key, newPresences);
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log('Visitor left', key, leftPresences);
+        console.log('[PBX-Visitors] 🔴 Visitor left:', key, leftPresences);
       })
       .subscribe(async (status) => {
+        console.log('[PBX-Visitors] Channel subscription status:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to PBX Visitors presence');
+          setConnectionStatus('connected');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setConnectionStatus('error');
         }
       });
 
@@ -65,6 +73,43 @@ export function OnlineVisitorsList() {
       channelRef.current = null;
     };
   }, []);
+
+  const handleReconnect = () => {
+    setConnectionStatus('connecting');
+    if (channelRef.current) {
+      pbxRealtimeClient.removeChannel(channelRef.current);
+    }
+    const channel = pbxRealtimeClient.channel('pbx_visitors');
+    channelRef.current = channel;
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const activeVisitors: VisitorPresence[] = [];
+        for (const id in state) {
+          // @ts-ignore
+          const presenceList = state[id] as VisitorPresence[];
+          if (presenceList.length > 0) {
+            activeVisitors.push(presenceList[0]);
+          }
+        }
+        activeVisitors.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setVisitors(activeVisitors);
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        console.log('[PBX-Visitors] ✅ Visitor joined:', key, newPresences);
+      })
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        console.log('[PBX-Visitors] 🔴 Visitor left:', key, leftPresences);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected');
+          toast.success('تم إعادة الاتصال بنجاح');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setConnectionStatus('error');
+        }
+      });
+  };
 
   const handleCallVisitor = async (visitor: VisitorPresence) => {
     setCallingUuid(visitor.uuid);
@@ -81,7 +126,7 @@ export function OnlineVisitorsList() {
         event: 'incoming_call',
         payload: {
           to_uuid: visitor.uuid,
-          agent_ext: '700' // Changed to 700 (Ring Group) to prevent Asterisk 403 Forbidden for guests
+          agent_ext: '700' // Ring Group to prevent Asterisk 403 Forbidden for guests
         }
       });
       
@@ -95,8 +140,23 @@ export function OnlineVisitorsList() {
   };
 
   const formatTime = (isoString: string) => {
-    const d = new Date(isoString);
-    return d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '--:--';
+    }
+  };
+
+  const getDeviceIcon = (device?: string) => {
+    if (device === 'mobile') return <Smartphone className="w-3.5 h-3.5 text-blue-500" />;
+    return <Monitor className="w-3.5 h-3.5 text-gray-500" />;
+  };
+
+  const getStatusDot = () => {
+    if (connectionStatus === 'connected') return 'bg-emerald-500';
+    if (connectionStatus === 'connecting') return 'bg-yellow-500 animate-pulse';
+    return 'bg-red-500';
   };
 
   return (
@@ -105,16 +165,33 @@ export function OnlineVisitorsList() {
         <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
           <Globe className="w-4 h-4 text-emerald-500" />
           زوار الموقع المتصلين
+          <span className={`w-2 h-2 rounded-full ${getStatusDot()}`} title={connectionStatus} />
         </h3>
-        <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200">
-          {visitors.length} نشط
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={handleReconnect}
+            title="إعادة اتصال"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </Button>
+          <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200">
+            {visitors.length} نشط
+          </Badge>
+        </div>
       </div>
 
       {visitors.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
           <Globe className="w-8 h-8 text-gray-300 mb-2" />
           <p className="text-sm text-gray-500">لا يوجد زوار متصلين بالموقع حالياً</p>
+          {connectionStatus === 'error' && (
+            <Button variant="outline" size="sm" className="mt-3" onClick={handleReconnect}>
+              <RefreshCw className="w-3.5 h-3.5 ml-1" /> إعادة الاتصال
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -125,10 +202,16 @@ export function OnlineVisitorsList() {
             >
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
+                  {getDeviceIcon(visitor.device)}
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span className="text-xs font-mono text-gray-500">
                     {visitor.uuid.split('-')[0]}...
                   </span>
+                  {visitor.browser && (
+                    <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">
+                      {visitor.browser}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
