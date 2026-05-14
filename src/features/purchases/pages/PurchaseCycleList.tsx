@@ -85,6 +85,7 @@ interface PurchaseDocument {
     _source_type?: string;
     container_status?: string;
     container_name?: string;
+    received_at?: string;
 }
 
 export default function PurchaseCycleList() {
@@ -248,21 +249,30 @@ export default function PurchaseCycleList() {
                 } else if (effectiveTab === 'quotation') {
                     q = q.eq('stage', 'quotation');
                 } else if (effectiveTab === 'invoice') {
-                    q = q.in('stage', ['draft', 'confirmed', 'received', 'posted', 'cancelled']);
+                    q = q.in('stage', ['draft', 'confirmed', 'received', 'posted', 'paid', 'partial_paid', 'cancelled']);
                 }
 
                 const { data, error: txError } = await q;
+                console.log('🔴 [DEBUG] RAW API Response:', JSON.stringify((data || []).map((r: any) => ({ id: r.id?.substring(0,8), stage: r.stage, is_posted: r.is_posted, received_at: r.received_at, invoice_no: r.invoice_no }))));
                 if (txError) {
                     console.warn('Failed to fetch purchase_transactions:', txError.message);
                 } else {
                     const txDocs = (data || []).map((item: any) => {
+                        // Map transaction stages to display types:
+                        // paid/posted/partial_paid/received → show as "invoice" in type column
+                        // but keep original stage for status badge
+                        const rawStage = item.stage || 'draft';
+                        const displayType = ['paid', 'posted', 'partial_paid', 'received', 'confirmed', 'invoice'].includes(rawStage) 
+                            ? 'invoice' 
+                            : rawStage;
+                        
                         return {
                             id: item.id,
                             order_number: item.invoice_no || item.id.substring(0, 8),
                             date: item.doc_date,
-                            type: (item.stage || 'draft') as CycleType,
-                            status: item.stage || 'draft',
-                            stage: item.stage,
+                            type: displayType as CycleType,
+                            status: rawStage,
+                            stage: rawStage,
                             total_amount: item.total_amount || 0,
                             paid_amount: item.paid_amount || 0,
                             balance: item.balance || item.total_amount || 0,
@@ -275,6 +285,7 @@ export default function PurchaseCycleList() {
                             receipt_type: item.receipt_type,
                             shipment_id: item.shipment_id,
                             is_posted: item.is_posted,
+                            received_at: item.received_at,
                             container_number: item.container_number || null,
                             container_status: item.container_status || null,
                         };
@@ -343,6 +354,7 @@ export default function PurchaseCycleList() {
         },
         enabled: !!companyId,
         staleTime: 30_000,
+        refetchOnMount: 'always',  // ⚡ Always refetch from DB — prevents stale IndexedDB cache from showing wrong stage
     });
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
@@ -630,7 +642,7 @@ export default function PurchaseCycleList() {
                     received: { bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400', dot: 'bg-teal-500', labelAr: 'مستلمة', labelEn: 'Received' },
                     invoice: { bg: 'bg-indigo-50 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'فاتورة', labelEn: 'Invoice' },
                     posted: { bg: 'bg-emerald-50 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500', labelAr: doc.received_at ? 'مستلمة ومرحّلة' : 'مرحّلة', labelEn: doc.received_at ? 'Received & Posted' : 'Posted' },
-                    paid: { bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', dot: 'bg-blue-500', labelAr: 'مدفوع', labelEn: 'Paid' },
+                    paid: { bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', dot: 'bg-blue-500', labelAr: doc.received_at ? 'مدفوع ومستلم' : 'مدفوع', labelEn: doc.received_at ? 'Paid & Received' : 'Paid' },
                     partial_paid: { bg: 'bg-indigo-50 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'مدفوع جزئياً', labelEn: 'Partially Paid' },
                     cancelled: { bg: 'bg-red-50 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', dot: 'bg-red-500', labelAr: 'ملغاة', labelEn: 'Cancelled' },
                     closed: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-500', labelAr: 'مغلقة', labelEn: 'Closed' },

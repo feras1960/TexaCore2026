@@ -6065,5 +6065,18 @@
     "errorPrefix": "خطأ",
     "receivingLabel": "قيد الاستلام",
     "kanban": "كانبان"
+  },
+  "pbx": {
+    "dashboard": "لوحة التحكم",
+    "extensions": "الأرقام الداخلية",
+    "ring_groups": "مجموعات الرنين",
+    "ivr": "الرد الآلي (IVR)",
+    "trunks": "البوابات (Trunks)",
+    "routing": "التوجيه (Routing)",
+    "call_logs": "سجل المكالمات (CDR)",
+    "web_callbacks": "نداء الويب (Web Callbacks)",
+    "callback_requests": "طلبات الاتصال (Callback Requests)",
+    "webrtc_widgets": "الاتصال المباشر (Click to Call)",
+    "settings": "الإعدادات"
   }
 }

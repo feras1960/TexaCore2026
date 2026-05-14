@@ -317,8 +317,9 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
     return (
         <TooltipProvider delayDuration={200}>
             <div className="space-y-4">
-                {/* ════════ Summary Bar ════════ */}
-                <div className={cn("grid gap-3", hideFinancials ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
+                {/* ════════ Summary Bar (hidden in transfer mode — info shown in transfer status bar) ════════ */}
+                {!hideFinancials && (
+                <div className={cn("grid gap-3", "grid-cols-2 sm:grid-cols-4")}>
                     <SummaryMiniCard
                         label={t('المواد', 'Materials')}
                         value={String(grandTotals.materials)}
@@ -331,7 +332,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                         icon={<Ruler className="w-4 h-4" />}
                         color="blue"
                     />
-                    {!hideFinancials && showDiscount && grandTotals.discount > 0 && (
+                    {showDiscount && grandTotals.discount > 0 && (
                         <SummaryMiniCard
                             label={t('الخصم', 'Discount')}
                             value={`-${fmtAmount(grandTotals.discount)}`}
@@ -339,15 +340,14 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                             color="orange"
                         />
                     )}
-                    {!hideFinancials && (
-                        <SummaryMiniCard
-                            label={grandTotals.tax > 0 ? t('الإجمالي شامل الضريبة', 'Total incl. Tax') : t('الإجمالي', 'Total')}
-                            value={`${fmtAmount(grandTotals.total)} ${currency}`}
-                            icon={<Check className="w-4 h-4" />}
-                            color="green"
-                        />
-                    )}
+                    <SummaryMiniCard
+                        label={grandTotals.tax > 0 ? t('الإجمالي شامل الضريبة', 'Total incl. Tax') : t('الإجمالي', 'Total')}
+                        value={`${fmtAmount(grandTotals.total)} ${currency}`}
+                        icon={<Check className="w-4 h-4" />}
+                        color="green"
+                    />
                 </div>
+                )}
 
                 {/* ════════ Grouped Items ════════ */}
                 <div className="space-y-3">

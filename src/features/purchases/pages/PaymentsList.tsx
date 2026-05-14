@@ -125,7 +125,6 @@ export default function PaymentsList() {
                 .select(`
                     *,
                     supplier:suppliers(name_ar, name_en),
-                    container:containers(container_number, shipment_number),
                     invoice:purchase_invoices!purchase_invoice_id(invoice_number)
                 `)
                 .eq('company_id', companyId)

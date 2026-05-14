@@ -325,7 +325,18 @@ export default function AccountingSettings() {
       const effectiveBase = settingsRes.data.base_currency || companyBaseCurrency || 'USD';
       setSettings({
         ...settingsRes.data,
+        company_id: settingsRes.data.company_id || companyId,
         base_currency: effectiveBase,
+        decimal_places: settingsRes.data.decimal_places ?? 2,
+        date_format: settingsRes.data.date_format || 'DD/MM/YYYY',
+        number_format: settingsRes.data.number_format || 'en-US',
+        vat_enabled: settingsRes.data.vat_enabled ?? true,
+        vat_rate: settingsRes.data.vat_rate ?? 0,
+        auto_post_entries: settingsRes.data.auto_post_entries ?? false,
+        require_approval: settingsRes.data.require_approval ?? true,
+        journal_entry_prefix: settingsRes.data.journal_entry_prefix || 'JE',
+        reset_numbering_yearly: settingsRes.data.reset_numbering_yearly ?? true,
+        current_entry_number: settingsRes.data.current_entry_number ?? 1,
         supported_currencies: (settingsRes.data.supported_currencies && settingsRes.data.supported_currencies.length > 0)
           ? settingsRes.data.supported_currencies
           : (effectiveBase ? [effectiveBase] : ['USD']),
@@ -423,9 +434,12 @@ export default function AccountingSettings() {
           }
           if (Object.keys(autoSaveFields).length > 0) {
             console.log('[AccountingSettings] 🔄 Auto-persisting discovered accounts:', Object.keys(autoSaveFields));
+            const tenantId = (settingsRes.data as any)?.tenant_id || (company as any)?.tenant_id;
+            const upsertPayload: Record<string, any> = { company_id: companyId, ...autoSaveFields };
+            if (tenantId) upsertPayload.tenant_id = tenantId;
             supabase
               .from('company_accounting_settings')
-              .upsert({ company_id: companyId, ...autoSaveFields }, { onConflict: 'company_id' })
+              .upsert(upsertPayload, { onConflict: 'company_id' })
               .then(({ error }) => {
                 if (error) console.warn('[AccountingSettings] Auto-persist failed:', error.message);
                 else console.log('[AccountingSettings] ✅ Auto-persisted', Object.keys(autoSaveFields).length, 'accounts to DB');

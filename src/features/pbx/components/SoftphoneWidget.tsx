@@ -4,7 +4,7 @@ import {
   Phone, PhoneOff, PhoneCall, PhoneIncoming, PhoneOutgoing,
   Mic, MicOff, Volume2, X, Delete, Minimize2, Maximize2,
   Signal, SignalZero, Wifi, WifiOff, User, Clock, Hash,
-  ChevronDown, Settings, Circle
+  ChevronDown, ChevronUp, Settings, Circle, Pause, Play, PhoneForwarded
 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 
@@ -49,14 +49,19 @@ const KEYPAD = [
 export function SoftphoneWidget() {
   const {
     isRegistered, callState, remoteNumber, callStartTime,
-    isMuted, error, callDirection,
-    makeCall, answerCall, hangupCall, toggleMute,
+    isMuted, isOnHold, error, callDirection,
+    makeCall, answerCall, hangupCall, toggleMute, toggleHold, transferCall,
   } = useSoftphone();
   const { language } = useLanguage();
   const [dialNumber, setDialNumber] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Advanced features state
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferTarget, setTransferTarget] = useState('');
 
   const isRtl = language === 'ar';
   const timer = useCallTimer(callStartTime);
@@ -106,6 +111,13 @@ export function SoftphoneWidget() {
       setIsOpen(true);
       setIsCompact(false);
     }
+    // Auto-clear states when call ends
+    if (callState === 'idle') {
+      setDialNumber('');
+      setShowAdvanced(false);
+      setIsTransferring(false);
+      setTransferTarget('');
+    }
   }, [callState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard input for dialpad
@@ -132,7 +144,7 @@ export function SoftphoneWidget() {
   // ═══ FAB — Floating Action Button ═══════════════════════════
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50" style={{ direction: 'ltr' }}>
+      <div className={`fixed bottom-6 z-50 ${isRtl ? 'left-6' : 'right-6'}`} style={{ direction: 'ltr' }}>
         <button
           onClick={() => setIsOpen(true)}
           className="group relative"
@@ -153,7 +165,7 @@ export function SoftphoneWidget() {
             <span className={`absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 ${statusInfo.bg}`} />
           </div>
           {/* Tooltip with extension & status */}
-          <div className="absolute bottom-full right-0 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className={`absolute bottom-full ${isRtl ? 'left-0' : 'right-0'} mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}>
             <div className="bg-slate-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl">
               <div className="font-bold">Ext. {sipExtension}</div>
               <div className={statusInfo.color}>{statusInfo.label}</div>
@@ -167,17 +179,20 @@ export function SoftphoneWidget() {
   // ═══ Compact Mode (mini bar for active calls) ═══════════════
   if (isCompact && isInCall) {
     return (
-      <div className="fixed bottom-6 right-6 z-50" style={{ direction: 'ltr' }}>
+      <div className={`fixed bottom-6 z-50 ${isRtl ? 'left-6' : 'right-6'}`} style={{ direction: 'ltr' }}>
         <div className="bg-slate-900 rounded-2xl shadow-2xl w-72 overflow-hidden border border-slate-700">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                callState === 'connected' ? 'bg-green-500/20' : 'bg-amber-500/20'
+                isOnHold ? 'bg-orange-500/20' : callState === 'connected' ? 'bg-green-500/20' : 'bg-amber-500/20'
               }`}>
-                {callState === 'connected'
-                  ? <PhoneCall className="w-5 h-5 text-green-400 animate-pulse" />
-                  : <PhoneOutgoing className="w-5 h-5 text-amber-400 animate-pulse" />
-                }
+                {isOnHold ? (
+                  <Pause className="w-5 h-5 text-orange-400" />
+                ) : callState === 'connected' ? (
+                  <PhoneCall className="w-5 h-5 text-green-400 animate-pulse" />
+                ) : (
+                  <PhoneOutgoing className="w-5 h-5 text-amber-400 animate-pulse" />
+                )}
               </div>
               <div>
                 <p className="text-white font-bold text-sm" dir="ltr">{remoteNumber}</p>
@@ -203,7 +218,7 @@ export function SoftphoneWidget() {
 
   // ═══ Full Panel ═════════════════════════════════════════════
   return (
-    <div className="fixed bottom-6 right-6 z-50" style={{ direction: 'ltr' }}>
+    <div className={`fixed bottom-6 z-50 ${isRtl ? 'left-6' : 'right-6'}`} style={{ direction: 'ltr' }}>
       <div className="bg-slate-900 rounded-2xl shadow-2xl w-80 overflow-hidden border border-slate-700/50 animate-in fade-in slide-in-from-bottom-4 duration-200">
 
         {/* ─── Header ─────────────────────────────────────── */}
@@ -313,6 +328,31 @@ export function SoftphoneWidget() {
                 <Phone className="w-5 h-5" />
                 {isRtl ? 'اتصال' : 'Call'}
               </button>
+
+              {/* Quick Dials */}
+              <div className="flex justify-center gap-1.5 mt-1">
+                <button 
+                  onClick={() => { setDialNumber('200'); makeCall('200'); }} 
+                  disabled={!isRegistered}
+                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-[10px] font-bold text-slate-300 rounded-lg transition-all border border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isRtl ? 'المبيعات' : 'Sales'}
+                </button>
+                <button 
+                  onClick={() => { setDialNumber('300'); makeCall('300'); }} 
+                  disabled={!isRegistered}
+                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-[10px] font-bold text-slate-300 rounded-lg transition-all border border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isRtl ? 'الدعم الفني' : 'Support'}
+                </button>
+                <button 
+                  onClick={() => { setDialNumber('400'); makeCall('400'); }} 
+                  disabled={!isRegistered}
+                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-[10px] font-bold text-slate-300 rounded-lg transition-all border border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isRtl ? 'الإدارة' : 'Mgmt'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -442,6 +482,75 @@ export function SoftphoneWidget() {
                   <Hash className="w-5 h-5" />
                   <span className="text-[10px] font-medium">{isRtl ? 'لوحة' : 'Keypad'}</span>
                 </button>
+              </div>
+
+              {/* Advanced Options Toggle */}
+              <div className="w-full">
+                <button
+                  onClick={() => {
+                    setShowAdvanced(!showAdvanced);
+                    setIsTransferring(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-1.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
+                >
+                  {isRtl ? 'خيارات إضافية' : 'Advanced Options'}
+                  {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+
+                {/* Advanced Options Panel */}
+                {showAdvanced && (
+                  <div className="mt-2 mb-3 bg-slate-800/40 rounded-xl p-3 border border-slate-700/50 animate-in slide-in-from-top-2 fade-in duration-200">
+                    {!isTransferring ? (
+                      <div className="flex justify-center gap-4">
+                        <button
+                          onClick={toggleHold}
+                          className={`flex flex-col items-center gap-1.5 p-3 rounded-xl min-w-[72px] transition-all ${
+                            isOnHold
+                              ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                          }`}
+                        >
+                          {isOnHold ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+                          <span className="text-[10px] font-medium">{isOnHold ? (isRtl ? 'استئناف' : 'Resume') : (isRtl ? 'انتظار' : 'Hold')}</span>
+                        </button>
+                        <button
+                          onClick={() => setIsTransferring(true)}
+                          className="flex flex-col items-center gap-1.5 p-3 rounded-xl min-w-[72px] bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-all"
+                        >
+                          <PhoneForwarded className="w-5 h-5" />
+                          <span className="text-[10px] font-medium">{isRtl ? 'تحويل' : 'Transfer'}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-xs font-medium text-slate-300">{isRtl ? 'تحويل المكالمة إلى:' : 'Transfer call to:'}</span>
+                          <button onClick={() => setIsTransferring(false)} className="text-slate-500 hover:text-slate-300">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder={isRtl ? 'رقم التحويلة...' : 'Extension...'}
+                            value={transferTarget}
+                            onChange={(e) => setTransferTarget(e.target.value.replace(/\D/g, ''))}
+                            className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
+                            dir="ltr"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => transferTarget && transferCall(transferTarget)}
+                            disabled={!transferTarget}
+                            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            {isRtl ? 'تحويل' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* End Call */}

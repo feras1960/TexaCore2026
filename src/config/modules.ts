@@ -23,6 +23,8 @@ import {
 
   PanelTop,
   Sparkles,
+  MonitorSmartphone,
+  Phone,
 } from 'lucide-react';
 
 export interface StaticModule {
@@ -138,6 +140,18 @@ export const STATIC_MODULES: StaticModule[] = [
     is_core: false
   },
   {
+    code: 'pbx',
+    name_ar: 'المقسم السحابي',
+    name_en: 'Cloud PBX',
+    name_ru: 'Облачная АТС',
+    name_uk: 'Хмарна АТС',
+    icon: Phone,
+    path: '/pbx',
+    is_enabled: true,
+    requires_upgrade: false,
+    is_core: false
+  },
+  {
     code: 'ai_analytics',
     name_ar: 'تحليلات الذكاء الاصطناعي',
     name_en: 'AI Analytics',
@@ -171,6 +185,18 @@ export const STATIC_MODULES: StaticModule[] = [
     name_uk: 'Робочі процеси',
     icon: GitBranch,
     path: '/workflows',
+    is_enabled: true,
+    requires_upgrade: false,
+    is_core: true
+  },
+  {
+    code: 'support_mdm',
+    name_ar: 'الدعم وإدارة الأجهزة',
+    name_en: 'Support & MDM',
+    name_ru: 'Поддержка и MDM',
+    name_uk: 'Підтримка та MDM',
+    icon: MonitorSmartphone,
+    path: '/support',
     is_enabled: true,
     requires_upgrade: false,
     is_core: true

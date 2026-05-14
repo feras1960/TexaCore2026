@@ -245,7 +245,65 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
         <Card className="border-none shadow-sm bg-gray-50/50 dark:bg-gray-900/50 mb-4" dir={direction}>
             <CardContent className={cn("p-4 grid grid-cols-1 gap-4 items-end", isTransfer ? 'md:grid-cols-4' : mode === 'sales' ? 'md:grid-cols-5' : 'md:grid-cols-4')}>
 
-                {/* 1. Party Selection (Customer/Supplier) OR Transfer: To Warehouse */}
+                {/* 1. Transfer: "From Warehouse" FIRST | Others: regular Warehouse */}
+                <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                        <Building className="w-3.5 h-3.5" />
+                        {warehouseLabel}
+                        {mode === 'purchase' && (
+                            <HelpTip
+                                isAr={isAr}
+                                ar="المستودع الذي ستُستلم فيه البضائع. في المشتريات المحلية، يُحدد أمين المستودع المسؤول عن الاستلام"
+                                en="The warehouse where goods will be received. For direct purchases, this determines which warehouse keeper handles the receipt"
+                            />
+                        )}
+                        {isTransfer && (
+                            <HelpTip
+                                isAr={isAr}
+                                ar="المستودع الذي سيتم نقل المواد منه. سيظهر طلب المناقلة لأمين هذا المستودع لتجهيز البضائع"
+                                en="The warehouse to transfer materials FROM. The transfer request will appear to this warehouse keeper for preparation"
+                            />
+                        )}
+                    </Label>
+                    {warehouseInfo.isMulti ? (
+                        /* Multi-warehouse indicator */
+                        <div className="h-10 flex items-center gap-2 px-3 rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 dark:border-indigo-700">
+                            <Layers className="w-4 h-4 text-indigo-500" />
+                            <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                                {isAr ? `متعدد المستودعات (${warehouseInfo.ids.size})` : `Multiple (${warehouseInfo.ids.size} warehouses)`}
+                            </span>
+                        </div>
+                    ) : (
+                        <Select
+                            value={currentWarehouseId}
+                            onValueChange={(val) => {
+                                onChange('warehouse_id', val);
+                                if (isTransfer) {
+                                    onChange('from_warehouse_id', val);
+                                }
+                            }}
+                            disabled={isReadOnly || isWarehouseLocked}
+                        >
+                            <SelectTrigger className={cn("h-10 bg-white dark:bg-gray-800 text-start", (isReadOnly || isWarehouseLocked) && "opacity-70 cursor-default")}>
+                                <div className="flex items-center gap-1.5 w-full">
+                                    {isWarehouseLocked && <Lock className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                                    <SelectValue placeholder={isAr ? (isTransfer ? 'اختر المستودع المرسل...' : 'اختر المستودع...') : (isTransfer ? 'Select source warehouse...' : 'Select Warehouse...')} />
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent align={isAr ? "end" : "start"}>
+                                {warehouseList
+                                    .filter(w => isTransfer ? w.id !== data.to_warehouse_id : true) // In transfer, exclude "to" warehouse
+                                    .map((w) => (
+                                        <SelectItem key={w.id} value={w.id}>
+                                            {w.name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                </div>
+
+                {/* 2. Transfer: "To Warehouse" SECOND | Others: Party (Customer/Supplier) */}
                 <div className="space-y-2 md:col-span-1">
                     <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
                         {isTransfer ? <Warehouse className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
@@ -315,64 +373,6 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                                         {p.name}
                                     </SelectItem>
                                 ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                </div>
-
-                {/* 2. Warehouse Selection — Transfer: "From Warehouse", others: regular Warehouse */}
-                <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
-                        <Building className="w-3.5 h-3.5" />
-                        {warehouseLabel}
-                        {mode === 'purchase' && (
-                            <HelpTip
-                                isAr={isAr}
-                                ar="المستودع الذي ستُستلم فيه البضائع. في المشتريات المحلية، يُحدد أمين المستودع المسؤول عن الاستلام"
-                                en="The warehouse where goods will be received. For direct purchases, this determines which warehouse keeper handles the receipt"
-                            />
-                        )}
-                        {isTransfer && (
-                            <HelpTip
-                                isAr={isAr}
-                                ar="المستودع الذي سيتم نقل المواد منه. سيظهر طلب المناقلة لأمين هذا المستودع لتجهيز البضائع"
-                                en="The warehouse to transfer materials FROM. The transfer request will appear to this warehouse keeper for preparation"
-                            />
-                        )}
-                    </Label>
-                    {warehouseInfo.isMulti ? (
-                        /* Multi-warehouse indicator */
-                        <div className="h-10 flex items-center gap-2 px-3 rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 dark:border-indigo-700">
-                            <Layers className="w-4 h-4 text-indigo-500" />
-                            <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                                {isAr ? `متعدد المستودعات (${warehouseInfo.ids.size})` : `Multiple (${warehouseInfo.ids.size} warehouses)`}
-                            </span>
-                        </div>
-                    ) : (
-                        <Select
-                            value={currentWarehouseId}
-                            onValueChange={(val) => {
-                                onChange('warehouse_id', val);
-                                if (isTransfer) {
-                                    onChange('from_warehouse_id', val);
-                                }
-                            }}
-                            disabled={isReadOnly || isWarehouseLocked}
-                        >
-                            <SelectTrigger className={cn("h-10 bg-white dark:bg-gray-800 text-start", (isReadOnly || isWarehouseLocked) && "opacity-70 cursor-default")}>
-                                <div className="flex items-center gap-1.5 w-full">
-                                    {isWarehouseLocked && <Lock className="w-3 h-3 text-amber-500 flex-shrink-0" />}
-                                    <SelectValue placeholder={isAr ? (isTransfer ? 'اختر المستودع المرسل...' : 'اختر المستودع...') : (isTransfer ? 'Select source warehouse...' : 'Select Warehouse...')} />
-                                </div>
-                            </SelectTrigger>
-                            <SelectContent align={isAr ? "end" : "start"}>
-                                {warehouseList
-                                    .filter(w => isTransfer ? w.id !== data.to_warehouse_id : true) // In transfer, exclude "to" warehouse
-                                    .map((w) => (
-                                        <SelectItem key={w.id} value={w.id}>
-                                            {w.name}
-                                        </SelectItem>
-                                    ))}
                             </SelectContent>
                         </Select>
                     )}

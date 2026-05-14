@@ -208,6 +208,60 @@ export default function LocalLauncher() {
                   console.log('[Launcher] Auto-selecting restored company:', activeCompany.name);
                   setSelectedCompany(activeCompany.name);
                 }
+                
+                // FIX: If company ID is 'restored' (placeholder), query real ID from API
+                if (activeCompany?.id === 'restored' || !activeCompany?.id) {
+                  console.log('[Launcher] ⚠️ Detected placeholder company ID, fetching real ID...');
+                  let fixed = false;
+                  
+                  // Try Electron API first
+                  try {
+                    const compResp = await fetch(`${apiBase}/api/companies`);
+                    if (compResp.ok) {
+                      const compResult = await compResp.json();
+                      const matchedComp = compResult.companies?.find(
+                        (c: { name: string }) => c.name === activeCompany.name
+                      ) || compResult.companies?.[0];
+                      
+                      if (matchedComp?.id) {
+                        console.log('[Launcher] ✅ Fixed company ID via Electron API:', matchedComp.id);
+                        activeCompany.id = matchedComp.id;
+                        localStorage.setItem('texacore_active_company', JSON.stringify(activeCompany));
+                        localStorage.setItem('texacore_cached_ids', JSON.stringify({
+                          company_id: matchedComp.id,
+                          tenant_id: matchedComp.tenant_id || null,
+                        }));
+                        fixed = true;
+                      }
+                    }
+                  } catch {}
+                  
+                  // Fallback: query Supabase REST API directly (works in dev mode)
+                  if (!fixed) {
+                    try {
+                      const supabaseUrl = activeCompany?.url || import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
+                      const anonKey = activeCompany?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY ||
+                        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
+                      const compResp = await fetch(`${supabaseUrl}/rest/v1/companies?select=id,name,tenant_id&limit=1`, {
+                        headers: { 'apikey': anonKey, 'Authorization': `Bearer ${anonKey}` }
+                      });
+                      if (compResp.ok) {
+                        const companies = await compResp.json();
+                        if (companies?.[0]?.id) {
+                          console.log('[Launcher] ✅ Fixed company ID via REST API:', companies[0].id);
+                          activeCompany.id = companies[0].id;
+                          localStorage.setItem('texacore_active_company', JSON.stringify(activeCompany));
+                          localStorage.setItem('texacore_cached_ids', JSON.stringify({
+                            company_id: companies[0].id,
+                            tenant_id: companies[0].tenant_id || null,
+                          }));
+                        }
+                      }
+                    } catch (restErr) {
+                      console.warn('[Launcher] REST API fallback failed:', restErr);
+                    }
+                  }
+                }
               }
             } catch {}
             
@@ -291,8 +345,10 @@ export default function LocalLauncher() {
       console.log('[LOGIN DEBUG] activeCompany:', activeCompany);
       console.log('[LOGIN DEBUG] username:', username);
 
-      if (activeCompany?.url?.includes('localhost') || selectedLocalComp) {
-        // ── LOCAL MODE (Opened via file or selected from API): sign in against local GoTrue ──────────────
+      // Detect local mode: either we have local company info OR we're on localhost
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (activeCompany?.url?.includes('localhost') || selectedLocalComp || isLocalhost) {
+        // ── LOCAL MODE (Opened via file or selected from API or on localhost): sign in against local GoTrue ──────────────
         // Make sure we use the correct Supabase URL based on selection
         let LOCAL_SUPABASE_URL = (selectedLocalComp && activeCompany?.name !== selectedCompany) 
             ? 'http://localhost:54321' // Default local if it was selected from API list
@@ -313,13 +369,29 @@ export default function LocalLauncher() {
         let loginEmail = username.trim();
         const isPlainUsername = loginEmail && !loginEmail.includes('@');
         if (isPlainUsername) {
-          // IMPORTANT FIX: Use selectedLocalComp.id if it exists and matches selectedCompany, 
-          // otherwise fallback to activeCompany.id
-          const compId = (selectedLocalComp && selectedLocalComp.name === selectedCompany) 
+          // Get company ID: try selectedLocalComp, then activeCompany, then query REST API
+          let compId = (selectedLocalComp && selectedLocalComp.name === selectedCompany) 
               ? selectedLocalComp.id 
               : activeCompany?.id;
+          
+          // If compId is missing or 'restored', query REST API BEFORE first attempt
+          if (!compId || compId === 'restored' || compId === 'undefined') {
+            try {
+              const restUrl = LOCAL_SUPABASE_URL || 'http://localhost:54321';
+              const compResp = await fetch(`${restUrl}/rest/v1/companies?select=id&limit=1`, {
+                headers: { 'apikey': LOCAL_ANON_KEY, 'Authorization': `Bearer ${LOCAL_ANON_KEY}` }
+              });
+              if (compResp.ok) {
+                const companies = await compResp.json();
+                if (companies?.[0]?.id) {
+                  compId = companies[0].id;
+                  console.log('[LOGIN] ✅ Got real company ID from REST API:', compId);
+                }
+              }
+            } catch { /* REST API not available */ }
+          }
               
-          loginEmail = `${loginEmail}@${compId}.local`;
+          loginEmail = compId ? `${loginEmail}@${compId}.local` : loginEmail;
         }
         console.log('[LOGIN DEBUG] MODE: LOCAL, email:', loginEmail, 'url:', LOCAL_SUPABASE_URL);
 
@@ -341,21 +413,75 @@ export default function LocalLauncher() {
         // Fallback: if plain username failed, try alternative email patterns
         if (error && isPlainUsername) {
           const plainName = username.trim();
-          const fallbackEmails = [
-            `${plainName}@texacore.local`,           // default pattern from RSF import
-            `${plainName}@gmail.com`,                  // common pattern
-          ];
+          const fallbackEmails: string[] = [];
           
-          // Also check stored user emails from TCDB restore
+          // 1. First priority: query REAL company ID from Supabase REST API directly
+          // This works in both dev mode (npm run dev) and production (Electron)
+          try {
+            const restUrl = LOCAL_SUPABASE_URL || 'http://localhost:54321';
+            const compResp = await fetch(`${restUrl}/rest/v1/companies?select=id&limit=1`, {
+              headers: {
+                'apikey': LOCAL_ANON_KEY,
+                'Authorization': `Bearer ${LOCAL_ANON_KEY}`,
+              }
+            });
+            if (compResp.ok) {
+              const companies = await compResp.json();
+              if (companies?.[0]?.id) {
+                const realId = companies[0].id;
+                const apiEmail = `${plainName}@${realId}.local`;
+                if (apiEmail !== loginEmail) {
+                  fallbackEmails.push(apiEmail);
+                  console.log('[LOGIN] Real company email from REST API:', apiEmail);
+                  
+                  // Also fix localStorage for future logins
+                  try {
+                    const ac = localStorage.getItem('texacore_active_company');
+                    if (ac) {
+                      const parsed = JSON.parse(ac);
+                      if (!parsed.id || parsed.id === 'restored') {
+                        parsed.id = realId;
+                        localStorage.setItem('texacore_active_company', JSON.stringify(parsed));
+                        console.log('[LOGIN] ✅ Fixed localStorage company ID:', realId);
+                      }
+                    }
+                  } catch {}
+                }
+              }
+            }
+          } catch { /* REST API not available */ }
+          
+          // 2. Fallback: try Electron API (only works when installer is running)
+          try {
+            const apiBase = 'http://127.0.0.1:1960';
+            const usersResp = await fetch(`${apiBase}/api/companies`);
+            if (usersResp.ok) {
+              const usersData = await usersResp.json();
+              const realComp = usersData.companies?.[0];
+              if (realComp?.id) {
+                const apiEmail = `${plainName}@${realComp.id}.local`;
+                if (apiEmail !== loginEmail && !fallbackEmails.includes(apiEmail)) {
+                  fallbackEmails.push(apiEmail);
+                }
+              }
+            }
+          } catch { /* Electron API not available in dev mode */ }
+          
+          // 3. Check stored user emails from TCDB restore
           const storedUsers = activeCompany?.users || [];
-          for (const email of storedUsers) {
-            if (email.toLowerCase().startsWith(plainName.toLowerCase())) {
-              fallbackEmails.unshift(email); // prioritize matching stored users
+          for (const userEntry of storedUsers) {
+            const userEmail = typeof userEntry === 'string' ? userEntry : userEntry?.email;
+            if (userEmail && typeof userEmail === 'string' && userEmail.toLowerCase().startsWith(plainName.toLowerCase()) && !fallbackEmails.includes(userEmail)) {
+              fallbackEmails.unshift(userEmail);
             }
           }
           
+          // 4. Common patterns
+          fallbackEmails.push(`${plainName}@texacore.local`);
+          fallbackEmails.push(`${plainName}@gmail.com`);
+          
           for (const fallbackEmail of fallbackEmails) {
-            if (fallbackEmail === loginEmail) continue; // skip already tried
+            if (fallbackEmail === loginEmail) continue;
             console.log('[LOGIN DEBUG] Fallback attempt:', fallbackEmail);
             const retry = await localClient.auth.signInWithPassword({
               email: fallbackEmail,
@@ -380,14 +506,29 @@ export default function LocalLauncher() {
           return;
         }
 
-        // Store active company info for proper multi-tenant routing locally
-        if (selectedLocalComp && !activeCompany) {
-           localStorage.setItem('texacore_active_company', JSON.stringify({
-              id: selectedLocalComp.id,
-              name: selectedLocalComp.name,
-              url: LOCAL_SUPABASE_URL,
-              anonKey: LOCAL_ANON_KEY
-           }));
+        // ALWAYS update active company with real IDs after successful login
+        // This fixes the 'restored' placeholder that causes 400 errors
+        const realCompanyId = selectedLocalComp?.id 
+          || data.user?.user_metadata?.company_id 
+          || activeCompany?.id;
+        const realCompanyName = selectedLocalComp?.name || activeCompany?.name || selectedCompany || '';
+        
+        console.log('[LOGIN] ✅ Setting active company:', { id: realCompanyId, name: realCompanyName });
+        localStorage.setItem('texacore_active_company', JSON.stringify({
+          id: realCompanyId,
+          name: realCompanyName,
+          url: LOCAL_SUPABASE_URL,
+          anonKey: LOCAL_ANON_KEY,
+          tcdbPath: activeCompany?.tcdbPath,
+        }));
+        
+        // Also store company_id in cached_ids for other services
+        if (realCompanyId && realCompanyId !== 'restored') {
+          const tenantId = data.user?.user_metadata?.tenant_id || activeCompany?.tenantId;
+          localStorage.setItem('texacore_cached_ids', JSON.stringify({
+            company_id: realCompanyId,
+            tenant_id: tenantId || null,
+          }));
         }
 
         // Session is already persisted by setSession — hard reload to /
@@ -755,7 +896,15 @@ export default function LocalLauncher() {
                             onClick={async () => {
                               if (rsfImporting) return;
                               
-                              // Try native file dialog first (gets full path including USB)
+                              // In standalone browser mode: open file picker directly
+                              // The /api/open-tcdb is only for Electron with native dialogs
+                              const hasElectron = !!(window as any).texacore?.openFile;
+                              if (!hasElectron) {
+                                document.getElementById('company-file-upload')?.click();
+                                return;
+                              }
+                              
+                              // Electron mode: use native file dialog
                               try {
                                 setRsfImporting(true);
                                 setRsfProgress({ step: isRTL ? 'جاري اختيار الملف...' : 'Selecting file...', current: 0, total: 1 });
@@ -780,8 +929,23 @@ export default function LocalLauncher() {
                                   const LOCAL_SUPABASE_URL = 'http://localhost:54321';
                                   const LOCAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJlZiI6InRleGFjb3JlLWxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ1MzUsImV4cCI6MjA5MjU5NDUzNX0.aEuY0oBAUi1C9XHpr_xFEtvPDVXYrIdnjJsZUgWJxSk';
                                   
+                                  // Get real company ID — NEVER use 'restored' placeholder
+                                  let realCompanyId = result.companyId;
+                                  if (!realCompanyId) {
+                                    // Backend didn't return ID — query it from API
+                                    try {
+                                      const apiBase = 'http://127.0.0.1:1960';
+                                      const compResp = await fetch(`${apiBase}/api/companies`);
+                                      if (compResp.ok) {
+                                        const compData = await compResp.json();
+                                        realCompanyId = compData.companies?.[0]?.id;
+                                        console.log('[OpenFile] Fetched real company ID:', realCompanyId);
+                                      }
+                                    } catch (e) { console.warn('[OpenFile] Could not fetch company ID:', e); }
+                                  }
+                                  
                                   localStorage.setItem('texacore_active_company', JSON.stringify({
-                                    id: result.companyId || 'restored',
+                                    id: realCompanyId || null,
                                     name: companyName,
                                     url: LOCAL_SUPABASE_URL,
                                     anonKey: LOCAL_ANON_KEY,
@@ -789,7 +953,15 @@ export default function LocalLauncher() {
                                     users: result.users || [],
                                   }));
                                   
-                                  localStorage.removeItem('texacore_cached_ids');
+                                  // Store cached_ids with real company ID
+                                  if (realCompanyId) {
+                                    localStorage.setItem('texacore_cached_ids', JSON.stringify({
+                                      company_id: realCompanyId,
+                                      tenant_id: result.tenantId || null,
+                                    }));
+                                  } else {
+                                    localStorage.removeItem('texacore_cached_ids');
+                                  }
                                   localStorage.removeItem('sb-local-auth-token');
                                   
                                   setRsfImporting(false);
@@ -857,6 +1029,17 @@ export default function LocalLauncher() {
                                           if (compData.success && compData.companies) setLocalCompanies(compData.companies);
                                         }
                                       } catch {}
+
+                                      // مسح كاش IndexedDB لضمان تحميل البيانات الجديدة
+                                      try {
+                                        const dbs = await indexedDB.databases();
+                                        for (const db of dbs) {
+                                          if (db.name) indexedDB.deleteDatabase(db.name);
+                                        }
+                                        console.log('[RSF Path Import] ✅ IndexedDB cache cleared');
+                                      } catch (e) {
+                                        console.warn('[RSF Path Import] Could not clear IndexedDB:', e);
+                                      }
                                       
                                       setSelectedCompany(companyName);
                                     } else {
@@ -966,6 +1149,17 @@ export default function LocalLauncher() {
                                     localStorage.removeItem('texacore_cached_ids');
                                     localStorage.removeItem('sb-local-auth-token');
 
+                                    // ═══ مسح كاش IndexedDB لضمان تحميل البيانات الجديدة بعد الاستيراد ═══
+                                    try {
+                                      const dbs = await indexedDB.databases();
+                                      for (const db of dbs) {
+                                        if (db.name) indexedDB.deleteDatabase(db.name);
+                                      }
+                                      console.log('[RSF Import] ✅ IndexedDB cache cleared');
+                                    } catch (e) {
+                                      console.warn('[RSF Import] Could not clear IndexedDB:', e);
+                                    }
+
                                     // ═══ عرض تقرير الاستيراد الذكي بدل alert() ═══
                                     setImportReport({
                                       show: true,
@@ -1058,14 +1252,33 @@ export default function LocalLauncher() {
                                       // Continue even if restore fails — user might have existing data
                                     }
 
+                                    // Get real company ID from API — NEVER use placeholder
+                                    let realId = null;
+                                    try {
+                                      const apiBase = 'http://127.0.0.1:1960';
+                                      const cResp = await fetch(`${apiBase}/api/companies`);
+                                      if (cResp.ok) {
+                                        const cData = await cResp.json();
+                                        realId = cData.companies?.[0]?.id;
+                                        console.log('[TCDB-Restore] Real company ID:', realId);
+                                      }
+                                    } catch (e) { console.warn('[TCDB-Restore] Could not fetch company ID:', e); }
+
                                     localStorage.setItem('texacore_active_company', JSON.stringify({
-                                      id: 'restored',
+                                      id: realId || null,
                                       name: companyName,
                                       url: LOCAL_SUPABASE_URL,
                                       anonKey: LOCAL_ANON_KEY,
                                     }));
 
-                                    localStorage.removeItem('texacore_cached_ids');
+                                    if (realId) {
+                                      localStorage.setItem('texacore_cached_ids', JSON.stringify({
+                                        company_id: realId,
+                                        tenant_id: null,
+                                      }));
+                                    } else {
+                                      localStorage.removeItem('texacore_cached_ids');
+                                    }
                                     localStorage.removeItem('sb-local-auth-token');
                                     setSelectedCompany(companyName);
                                     
@@ -1299,6 +1512,7 @@ export default function LocalLauncher() {
                         { key: 'journalEntries', icon: FileText, label: isRTL ? 'قيود' : 'Entries', color: 'amber' },
                         { key: 'salesInvoices', icon: Receipt, label: isRTL ? 'فواتير مبيعات' : 'Sales Inv.', color: 'green' },
                         { key: 'purchaseInvoices', icon: Receipt, label: isRTL ? 'فواتير مشتريات' : 'Purchase Inv.', color: 'orange' },
+                        { key: 'purchaseOrders', icon: ClipboardList, label: isRTL ? 'طلبيات شراء' : 'Purchase Orders', color: 'amber' },
                         { key: 'inventoryMoves', icon: Warehouse, label: isRTL ? 'حركات مستودع' : 'Inv. Moves', color: 'sky' },
                         { key: 'receipts', icon: Banknote, label: isRTL ? 'سندات قبض/دفع' : 'Receipts', color: 'rose' },
                         { key: 'costCenters', icon: Building2, label: isRTL ? 'مراكز تكلفة' : 'Cost Centers', color: 'slate' },

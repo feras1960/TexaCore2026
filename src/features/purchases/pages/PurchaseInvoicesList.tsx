@@ -381,6 +381,8 @@ export default function PurchaseInvoicesList() {
         confirmed: { label: t('purchaseInvoices.stageConfirmed'), cls: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800', icon: '🛡️' },
         received: { label: t('purchaseInvoices.stageReceived'), cls: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-800', icon: '📦' },
         posted: { label: t('purchaseInvoices.stagePosted'), cls: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800', icon: '📊' },
+        paid: { label: language === 'ar' ? 'مدفوع' : 'Paid', cls: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800', icon: '💰' },
+        partial_paid: { label: language === 'ar' ? 'مدفوع جزئياً' : 'Partially Paid', cls: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800', icon: '💳' },
         cancelled: { label: t('purchaseInvoices.stageCancelled'), cls: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800', icon: '❌' },
     };
 
@@ -755,13 +757,17 @@ export default function PurchaseInvoicesList() {
                                     ) : (
                                         filteredInvoices.map((doc: any, idx: number) => {
                                             const stage = doc.stage || doc._stage || 'draft';
-                                            const badge = stageBadgeConfig[stage] || stageBadgeConfig.draft;
+                                            // Badge shows WORKFLOW stage (posted/received/confirmed), not payment status
+                                            const workflowStage = ['paid', 'partial_paid'].includes(stage)
+                                                ? (doc.is_posted ? 'posted' : doc.received_at ? 'received' : 'confirmed')
+                                                : stage;
+                                            const badge = stageBadgeConfig[workflowStage] || stageBadgeConfig.draft;
                                             const total = Number(doc.total_amount || 0);
                                             const paid = Number(doc.paid_amount || 0);
                                             const curr = doc.currency || companyCurrency || 'USD';
                                             const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
-                                            const isConfirmedPlus = ['confirmed', 'received', 'posted'].includes(stage);
-                                            const isDelivered = stage === 'received';
+                                            const isConfirmedPlus = ['confirmed', 'received', 'posted', 'paid', 'partial_paid'].includes(stage);
+                                            const isDelivered = ['received', 'posted', 'paid'].includes(stage) || !!doc.received_at;
 
                                             // Date & elapsed time — use doc_date (original invoice date), NOT created_at (import date)
                                             const docDate = new Date(doc.doc_date || doc.invoice_date || doc.created_at);
@@ -778,6 +784,8 @@ export default function PurchaseInvoicesList() {
                                                 confirmed: 'border-s-blue-400',
                                                 received: 'border-s-teal-400',
                                                 posted: 'border-s-green-400',
+                                                paid: 'border-s-blue-400',
+                                                partial_paid: 'border-s-indigo-400',
                                                 cancelled: 'border-s-red-400',
                                             };
 
@@ -883,8 +891,8 @@ export default function PurchaseInvoicesList() {
                                                             // الحالة الحقيقية من stage في purchase_transactions
                                                             const receiptStatus =
                                                                 doc.receipt_status ||
-                                                                (stage === 'received' ? 'received' :
-                                                                    ['confirmed', 'posted'].includes(stage) ? 'pending' : null);
+                                                                (['received', 'paid'].includes(stage) || doc.received_at ? 'received' :
+                                                                    ['confirmed', 'posted', 'partial_paid'].includes(stage) ? 'pending' : null);
                                                             const cfg: Record<string, { label_ar: string; label_en: string; cls: string; icon: string }> = {
                                                                 received: { label_ar: 'مستلم ✔', label_en: 'Received ✔', cls: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800', icon: '✅' },
                                                                 partial: { label_ar: 'جزئي', label_en: 'Partial', cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800', icon: '🔶' },

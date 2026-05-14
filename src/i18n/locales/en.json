@@ -5722,5 +5722,18 @@
     "errorPrefix": "Error",
     "receivingLabel": "Receiving",
     "kanban": "Kanban"
+  },
+  "pbx": {
+    "dashboard": "Dashboard",
+    "extensions": "Extensions",
+    "ring_groups": "Ring Groups",
+    "ivr": "IVR Menus",
+    "trunks": "Trunks & Gateways",
+    "routing": "Call Routing",
+    "call_logs": "Call Logs (CDR)",
+    "web_callbacks": "Web Callbacks",
+    "callback_requests": "Callback Requests",
+    "webrtc_widgets": "Click-to-Call Widgets",
+    "settings": "Settings"
   }
 }

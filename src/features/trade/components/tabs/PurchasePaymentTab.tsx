@@ -298,7 +298,12 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
         staleTime: 5000,
     });
 
-    const isReceived = !!receiptInfo && receiptInfo.status === 'completed';
+    // RSF-imported invoices don't have purchase_receipts — they are received directly
+    // Check: 1) purchase_receipts record, 2) invoice receipt_status, 3) stage = paid/received
+    const isReceived = (!!receiptInfo && receiptInfo.status === 'completed')
+        || data?.receipt_status === 'received'
+        || data?.stage === 'paid'
+        || data?.stage === 'received';
     const hasActualJournal = !!actualJournalEntry;
     const isInvoicePosted = liveInvoiceStatus?.is_posted || liveInvoiceStatus?.stage === 'posted' || data?.stage === 'posted' || data?.status === 'posted' || hasActualJournal;
     const journalStatus = actualJournalEntry?.status; // 'draft' | 'posted' | 'confirmed'

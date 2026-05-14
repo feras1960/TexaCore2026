@@ -76,7 +76,8 @@ export default function TransfersPage() {
                 .select(`
                     *,
                     from_warehouse:warehouses!stock_transfers_from_warehouse_id_fkey(id, name_ar, name_en),
-                    to_warehouse:warehouses!stock_transfers_to_warehouse_id_fkey(id, name_ar, name_en)
+                    to_warehouse:warehouses!stock_transfers_to_warehouse_id_fkey(id, name_ar, name_en),
+                    stock_transfer_items(id)
                 `)
                 .order('created_at', { ascending: false });
 
@@ -132,7 +133,13 @@ export default function TransfersPage() {
 
     const handleOpenTransfer = useCallback(async (transfer: any) => {
         // View mode → open UnifiedAccountingSheet with existing data
-        setUnifiedSheetData(transfer);
+        // Map fields for UnifiedAccountingSheet compatibility
+        setUnifiedSheetData({
+            ...transfer,
+            warehouse_id: transfer.from_warehouse_id || transfer.warehouse_id,
+            date: transfer.transfer_date || transfer.date || transfer.created_at,
+            reference_number: transfer.transfer_number,
+        });
         setUnifiedSheetMode('view');
         setUnifiedSheetOpen(true);
     }, []);
@@ -257,7 +264,7 @@ export default function TransfersPage() {
             header: getLocalizedLabel('tf_col_items', language),
             cell: (row: any) => (
                 <span className="text-sm font-medium text-center block">
-                    {row.total_items || '—'}
+                    {row.stock_transfer_items?.length || '—'}
                 </span>
             ),
         },

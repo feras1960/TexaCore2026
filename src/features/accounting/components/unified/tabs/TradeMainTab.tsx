@@ -39,8 +39,9 @@ import {
     StickyNote, AlertTriangle, CreditCard, Percent,
     CalendarClock, Tag, Loader2, ShieldAlert, CheckCircle2,
     ChevronDown, Building2, Calendar, DollarSign, Warehouse, Truck,
-    Lock, ArrowLeftRight,
+    Lock, ArrowLeftRight, ExternalLink,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
 interface TradeMainTabProps {
@@ -57,6 +58,13 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     tradeMode: tradeModeFromProp,
 }) => {
     const { isRTL, t, language } = useLanguage();
+    const queryClient = useQueryClient();
+
+    // ─── Material Sheet (for transfers) ───
+    const [materialSheet, setMaterialSheet] = useState<{ open: boolean; data: any }>({ open: false, data: null });
+    const LazyUnifiedSheet = useMemo(() => React.lazy(() =>
+        import('../UnifiedAccountingSheet').then(m => ({ default: m.UnifiedAccountingSheet }))
+    ), []);
     const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
     const { companyId } = useCompany();
     const { supportedCurrencies } = useAccountingSettings();
@@ -658,7 +666,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         ? (resolvedDeliveryWhAr || resolvedDeliveryWhEn || deliveryWhObj?.name || '')
         : (resolvedDeliveryWhEn || resolvedDeliveryWhAr || deliveryWhObj?.name || '');
 
-    return (
+    return (<>
         <div className="space-y-3" dir={isRTL ? "rtl" : "ltr"}>
             {/* ═══ Collapsible Header Section ═══ */}
             <Collapsible open={headerOpen} onOpenChange={setHeaderOpen}>
@@ -669,46 +677,120 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                     {/* ─── Collapsed Summary Bar ─── */}
                     <CollapsibleTrigger asChild>
                         <button
+                            dir={isRTL ? 'rtl' : 'ltr'}
                             className={cn(
-                                "w-full px-4 py-2.5 flex items-center gap-3 cursor-pointer",
+                                "w-full px-4 py-3 flex items-center gap-3 cursor-pointer",
                                 "bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/60 dark:to-gray-800/40",
-                                "hover:brightness-95 transition-colors",
-                                isRTL && "flex-row-reverse"
+                                "hover:brightness-95 transition-colors"
                             )}
                         >
                             <Building2 className="w-4 h-4 text-gray-500 shrink-0" />
-                            <span className={cn(
-                                "text-sm font-semibold text-gray-700 dark:text-gray-200",
-                                isRTL ? "text-right" : "text-left"
-                            )}>
+                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 shrink-0">
                                 {isRTL ? 'بيانات المستند' : 'Document Details'}
                             </span>
 
                             {/* Summary badges — visible always for quick reference */}
-                            <div className={cn("flex items-center gap-1.5 ms-auto", isRTL && "flex-row-reverse")}>
-                                {partyName && (
-                                    <Badge variant="secondary" className="text-[10px] max-w-[140px] truncate">
-                                        {partyName}
-                                    </Badge>
-                                )}
-                                {docDate && (
-                                    <Badge variant="outline" className="text-[10px] gap-1 hidden sm:flex">
-                                        <Calendar className="w-2.5 h-2.5" />
-                                        {new Date(docDate).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}
-                                    </Badge>
-                                )}
-                                {docCurrency && (
-                                    <Badge variant="outline" className="text-[10px] gap-1 hidden sm:flex">
-                                        <DollarSign className="w-2.5 h-2.5" />
-                                        {docCurrency}
-                                    </Badge>
-                                )}
-                                {docTotal > 0 && (
-                                    <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                        {docTotal.toLocaleString()} {docCurrency}
-                                    </Badge>
-                                )}
-                            </div>
+                            {isTransfer ? (
+                                /* Transfer mode: full info bar style */
+                                <div className="flex items-center gap-2 flex-wrap flex-1">
+                                    {(() => {
+                                        const fromWh = warehousesList.find((w: any) => w.id === (data.from_warehouse_id || data.warehouse_id))?.name || '';
+                                        const toWh = warehousesList.find((w: any) => w.id === data.to_warehouse_id)?.name || '';
+                                        const itemCount = lineItems.length;
+                                        const totalQty = lineItems.reduce((s, i) => s + Number(i.quantity || 0), 0);
+                                        const st = data.status || 'draft';
+                                        const stLabel: Record<string, { emoji: string; ar: string; en: string; cls: string }> = {
+                                            draft: { emoji: '📝', ar: 'مسودة', en: 'Draft', cls: 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600' },
+                                            pending: { emoji: '⏳', ar: 'قيد الانتظار', en: 'Pending', cls: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700' },
+                                            sent: { emoji: '🚚', ar: 'مُرسلة', en: 'Sent', cls: 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700' },
+                                            in_transit: { emoji: '🚛', ar: 'بالطريق', en: 'In Transit', cls: 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700' },
+                                            received: { emoji: '📦', ar: 'مُستلمة', en: 'Received', cls: 'bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-700' },
+                                            completed: { emoji: '✅', ar: 'مكتملة', en: 'Completed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700' },
+                                            cancelled: { emoji: '❌', ar: 'ملغاة', en: 'Cancelled', cls: 'bg-red-50 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700' },
+                                        };
+                                        const stc = stLabel[st] || stLabel.draft;
+                                        return (
+                                            <>
+                                                {/* From → To */}
+                                                {fromWh && toWh && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Warehouse className="w-3.5 h-3.5 text-blue-500" />
+                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{fromWh}</span>
+                                                        <ArrowLeftRight className="w-3 h-3 text-gray-400" />
+                                                        <Warehouse className="w-3.5 h-3.5 text-emerald-500" />
+                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{toWh}</span>
+                                                    </div>
+                                                )}
+
+                                                <span className="text-gray-300 dark:text-gray-600 text-xs">•</span>
+
+                                                {/* Status */}
+                                                <span className={cn(
+                                                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border",
+                                                    stc.cls
+                                                )}>
+                                                    {stc.emoji} {isRTL ? stc.ar : stc.en}
+                                                </span>
+
+                                                <span className="text-gray-300 dark:text-gray-600 text-xs hidden sm:inline">•</span>
+
+                                                {/* Items + Qty */}
+                                                {itemCount > 0 && (
+                                                    <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 gap-1 hidden sm:flex">
+                                                        📋 {itemCount} {isRTL ? 'صنف' : 'items'}
+                                                    </Badge>
+                                                )}
+                                                {totalQty > 0 && (
+                                                    <Badge className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 gap-1 hidden sm:flex font-mono">
+                                                        📐 {totalQty.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                                                    </Badge>
+                                                )}
+
+                                                {/* Date */}
+                                                {docDate && (
+                                                    <Badge variant="outline" className="text-xs gap-1 hidden sm:flex">
+                                                        <Calendar className="w-3 h-3" />
+                                                        {new Date(docDate).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}
+                                                    </Badge>
+                                                )}
+
+                                                {/* Ref # */}
+                                                {data.reference_number && (
+                                                    <Badge variant="outline" className="text-xs gap-1 hidden sm:flex font-mono">
+                                                        # {data.reference_number}
+                                                    </Badge>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            ) : (
+                                /* Normal mode: party, currency, total, date */
+                                <div className="flex items-center gap-1.5 ms-auto">
+                                    {partyName && (
+                                        <Badge variant="secondary" className="text-[10px] max-w-[140px] truncate">
+                                            {partyName}
+                                        </Badge>
+                                    )}
+                                    {docCurrency && (
+                                        <Badge variant="outline" className="text-[10px] gap-1 hidden sm:flex">
+                                            <DollarSign className="w-2.5 h-2.5" />
+                                            {docCurrency}
+                                        </Badge>
+                                    )}
+                                    {docTotal > 0 && (
+                                        <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                            {docTotal.toLocaleString()} {docCurrency}
+                                        </Badge>
+                                    )}
+                                    {docDate && (
+                                        <Badge variant="outline" className="text-[10px] gap-1 hidden sm:flex">
+                                            <Calendar className="w-2.5 h-2.5" />
+                                            {new Date(docDate).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
 
                             <ChevronDown className={cn(
                                 "w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0",
@@ -975,9 +1057,10 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 const postedAt = data.posted_at as string | undefined;
 
                 const isDelivered = !!(data.delivered_at || data.delivery_confirmed_at || data.delivery_no
-                    || ['delivered', 'posted', 'completed'].includes(data.stage));
+                    || data.received_at
+                    || ['delivered', 'posted', 'completed', 'paid', 'received'].includes(data.stage));
                 const deliveryNo = data.delivery_no as string | undefined;
-                const deliveredAt = data.delivered_at || data.delivery_confirmed_at;
+                const deliveredAt = data.delivered_at || data.delivery_confirmed_at || data.received_at;
 
                 // warehouse name — يستخدم المتغيرات المحسوبة مسبقاً
                 const warehouseName = resolvedDeliveryWhName;
@@ -1109,6 +1192,97 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                     />
                                 </CollapsibleContent>
                             </Collapsible>
+                        ) : isTransfer ? (
+                            /* ═══ Compact Transfer Table — NexaList style ═══ */
+                            (() => {
+                                const fromWhName = warehousesList.find((w: any) => w.id === (data.from_warehouse_id || data.warehouse_id))?.name || (isRTL ? '—' : '—');
+                                const toWhName = warehousesList.find((w: any) => w.id === data.to_warehouse_id)?.name || (isRTL ? '—' : '—');
+                                return (
+                                    <div className="border rounded-lg overflow-hidden bg-white dark:bg-gray-900">
+                                        <table dir={isRTL ? 'rtl' : 'ltr'} className="w-full text-xs table-fixed">
+                                            <colgroup>
+                                                <col style={{ width: '28px' }} />
+                                                <col />
+                                                <col style={{ width: '18%' }} />
+                                                <col style={{ width: '18%' }} />
+                                                <col style={{ width: '12%' }} />
+                                                <col style={{ width: '8%' }} />
+                                            </colgroup>
+                                            <thead>
+                                                <tr className="bg-gradient-to-r from-blue-50 to-slate-50 dark:from-blue-950/30 dark:to-gray-800/40 border-b border-gray-200 dark:border-gray-700">
+                                                    <th className="px-1 py-1.5 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500">#</th>
+                                                    <th className="px-2 py-1.5 text-start text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{isRTL ? 'المادة' : 'Material'}</th>
+                                                    <th className="px-1 py-1.5 text-center text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider whitespace-nowrap">
+                                                        <div className="flex items-center justify-center gap-0.5">
+                                                            <Warehouse className="w-2.5 h-2.5" />
+                                                            {isRTL ? 'من' : 'From'}
+                                                        </div>
+                                                    </th>
+                                                    <th className="px-1 py-1.5 text-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider whitespace-nowrap">
+                                                        <div className="flex items-center justify-center gap-0.5">
+                                                            <Warehouse className="w-2.5 h-2.5" />
+                                                            {isRTL ? 'إلى' : 'To'}
+                                                        </div>
+                                                    </th>
+                                                    <th className="px-1 py-1.5 text-center text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{isRTL ? 'الكمية' : 'Qty'}</th>
+                                                    <th className="px-1 py-1.5 text-center text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{isRTL ? 'و' : 'U'}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                {lineItems.map((item, idx) => (
+                                                    <tr
+                                                        key={item.id}
+                                                        className="hover:bg-indigo-50/40 dark:hover:bg-indigo-950/15 transition-colors cursor-pointer group"
+                                                        onClick={async () => {
+                                                            if (!item.material_id) return;
+                                                            const cachedMats = queryClient.getQueryData<any[]>(['inventory-preload-materials', companyId]);
+                                                            const fullMat = cachedMats?.find((m: any) => m.id === item.material_id);
+                                                            if (fullMat) {
+                                                                setMaterialSheet({ open: true, data: fullMat });
+                                                            } else {
+                                                                const { data: mat } = await supabase.from('fabric_materials').select('*').eq('id', item.material_id).maybeSingle();
+                                                                if (mat) setMaterialSheet({ open: true, data: mat });
+                                                            }
+                                                        }}
+                                                    >
+                                                        <td className="px-1 py-1.5 text-center">
+                                                            <span className="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 text-[9px] font-bold inline-flex items-center justify-center">{idx + 1}</span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5">
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="font-semibold text-gray-800 dark:text-gray-200 text-[11px] truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                                        {isRTL ? item.material_name_ar : (item.material_name_en || item.material_name_ar)}
+                                                                    </span>
+                                                                    <ExternalLink className="w-2.5 h-2.5 text-gray-300 group-hover:text-indigo-500 transition-colors shrink-0" />
+                                                                </div>
+                                                                <span className="text-[9px] font-mono text-gray-400">{item.material_code}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-1 py-1.5 text-center text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate">{fromWhName}</td>
+                                                        <td className="px-1 py-1.5 text-center text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">{toWhName}</td>
+                                                        <td className="px-1 py-1.5 text-center font-bold font-mono text-gray-800 dark:text-gray-200 text-[11px] tabular-nums">
+                                                            {Number(item.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                                        </td>
+                                                        <td className="px-1 py-1.5 text-center text-[9px] text-gray-400">{item.unit}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/10 border-t-2 border-emerald-200 dark:border-emerald-800">
+                                                    <td colSpan={4} className="px-2 py-2 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                                                        {isRTL ? 'الإجمالي' : 'Total'} — {lineItems.length} {isRTL ? 'صنف' : 'items'}
+                                                    </td>
+                                                    <td className="px-2 py-2 text-center font-bold font-mono text-emerald-700 dark:text-emerald-300 text-[11px]">
+                                                        {lineItems.reduce((s, i) => s + Number(i.quantity || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-2 py-2"></td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                );
+                            })()
                         ) : (
                             <CartItemsView
                                 items={lineItems}
@@ -1161,5 +1335,22 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 )}
             </div>
         </div>
+
+        {/* ═══ Material Detail Sheet (for transfers) ═══ */}
+        {materialSheet.open && (
+            <React.Suspense fallback={null}>
+                <LazyUnifiedSheet
+                    key={materialSheet.data?.id || 'no-material'}
+                    isOpen={materialSheet.open}
+                    onClose={() => setMaterialSheet({ open: false, data: null })}
+                    docType="material"
+                    mode="view"
+                    companyId={companyId || undefined}
+                    data={materialSheet.data}
+                    onSave={async () => {}}
+                />
+            </React.Suspense>
+        )}
+        </>
     );
 };

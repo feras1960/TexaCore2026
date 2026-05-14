@@ -28,6 +28,8 @@ export function useCachedQuery<
   const isRestoring = useIsRestoring();
   const query = useQuery(options);
 
+
+
   return {
     ...query,
     // During restoration: don't show loading spinner

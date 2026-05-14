@@ -244,6 +244,7 @@ export const AVAILABLE_MODULES = [
     { code: 'manufacturing', name_ar: 'التصنيع', name_en: 'Manufacturing', icon: 'Factory' },
     { code: 'hr', name_ar: 'الموارد البشرية', name_en: 'HR', icon: 'UserCircle' },
     { code: 'e-commerce', name_ar: 'التجارة الإلكترونية', name_en: 'E-Commerce', icon: 'ShoppingCart' },
+    { code: 'pbx', name_ar: 'المقسم السحابي', name_en: 'Cloud PBX', icon: 'Phone' },
     { code: 'saas', name_ar: 'إدارة المنصة', name_en: 'SaaS', icon: 'Cloud' },
     { code: 'ai_analytics', name_ar: 'تحليلات الذكاء الاصطناعي', name_en: 'AI Analytics', icon: 'Brain' },
     { code: 'activity_log', name_ar: 'سجل النشاط', name_en: 'Activity Log', icon: 'History' },

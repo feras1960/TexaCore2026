@@ -42,6 +42,7 @@ const ROUTE_MAP: Record<string, () => Promise<{ default: ComponentType<any> }>> 
   '/gold': () => import('@/features/gold/Gold'),
   '/website': () => import('@/features/website/WebsiteManagerPage'),
   '/exchange': () => import('@/features/exchange/Exchange'),
+  '/pbx': () => import('@/features/pbx/PBXModule'),
 
   // Settings & Admin
   '/support': () => import('@/features/mdm/SupportModule'),
@@ -77,6 +78,7 @@ const TIER_2_IMPORTANT = [
   '/users-permissions',   // المستخدمين والصلاحيات
   '/workflows',           // سير العمل
   '/exchange',            // الصرافة
+  '/pbx',                 // المقسم السحابي
 ];
 
 // Tier 3: Secondary — download after 30s

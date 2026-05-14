@@ -112,8 +112,8 @@ export default function MainLayout() {
               </motion.main>
             </div>
 
-            {/* Floating Quick Add Button */}
-            <QuickAddButton />
+            {/* Floating Quick Add Button (Hidden to make room for Softphone) */}
+            {/* <QuickAddButton /> */}
 
             {/* Cart Floating Widget */}
             <CartFloatingWidget />

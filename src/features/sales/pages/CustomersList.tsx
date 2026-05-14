@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useSoftphone } from '@/features/pbx/context/SoftphoneContext';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
@@ -85,6 +86,7 @@ export default function CustomersList() {
     const { t, direction, language } = useLanguage();
     const { companyId } = useCompany();
     const { currencyCode: baseCurrency } = useCompanyCurrency(language as 'ar' | 'en');
+    const { makeCall, isRegistered } = useSoftphone();
     const isRTL = direction === 'rtl';
 
     // 🔄 Realtime: auto-update
@@ -346,9 +348,18 @@ export default function CustomersList() {
             cell: (row) => {
                 const phone = row.phone || row.mobile;
                 return phone ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 group/phone relative">
                         <Phone className="w-3 h-3 text-gray-400 shrink-0" />
                         <span className="font-mono text-[12px] text-gray-700 dark:text-gray-300" dir="ltr">{phone}</span>
+                        {isRegistered && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); makeCall(phone); }}
+                                className="opacity-0 group-hover/phone:opacity-100 absolute -right-6 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-green-100 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-800 text-green-600 transition-all z-10"
+                                title={t('sales.callCustomer') || 'Call'}
+                            >
+                                <Phone className="w-3.5 h-3.5" />
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <span className="text-[11px] text-gray-300">—</span>
@@ -430,7 +441,7 @@ export default function CustomersList() {
                 </span>
             ),
         },
-    ], [isRTL, salesStats, customerBalances, baseCurrency, t]);
+    ], [isRTL, salesStats, customerBalances, baseCurrency, t, isRegistered, makeCall]);
 
     // ─── Actions Renderer ────────────────────────────────────────
     const renderActions = useCallback((row: Customer) => (

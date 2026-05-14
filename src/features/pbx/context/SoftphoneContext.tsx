@@ -11,6 +11,7 @@ interface SoftphoneState {
   callDirection: 'inbound' | 'outbound' | null;
   callStartTime: number | null;
   isMuted: boolean;
+  isOnHold: boolean;
   error: string | null;
 }
 
@@ -19,6 +20,8 @@ interface SoftphoneContextType extends SoftphoneState {
   answerCall: () => void;
   hangupCall: () => void;
   toggleMute: () => void;
+  toggleHold: () => void;
+  transferCall: (targetNumber: string) => void;
 }
 
 // ─── Configuration ────────────────────────────────────────────
@@ -45,6 +48,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     callDirection: null,
     callStartTime: null,
     isMuted: false,
+    isOnHold: false,
     error: null,
   });
 
@@ -123,6 +127,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
             callDirection: null,
             callStartTime: null,
             isMuted: false,
+            isOnHold: false,
             error: null,
           }));
           localStreamRef.current = null;
@@ -135,6 +140,8 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
   const isReconnectingRef = useRef(false);
+  const isRebuildingRef = useRef(false);
+  const isDisposingRef = useRef(false);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -143,127 +150,25 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const doReconnect = useCallback(() => {
-    const ua = userAgentRef.current;
-    if (!ua || isReconnectingRef.current) return;
+  // ─── Create fresh UA + Registerer (used for init & rebuild) ──
+  const sipConfigRef = useRef<{ username: string; password: string } | null>(null);
+  const buildNewUA = useCallback(() => {
+    const cfg = sipConfigRef.current;
+    if (!cfg) return null;
 
-    isReconnectingRef.current = true;
-    const attempt = ++reconnectAttemptRef.current;
-    // Exponential backoff: 1s, 2s, 4s, 8s (max)
-    const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+    const uri = UserAgent.makeURI(`sip:${cfg.username}@${PBX_CONFIG.domain}`);
+    if (!uri) return null;
 
-    console.log(`[Softphone] Reconnect attempt #${attempt} in ${delay}ms...`);
-
-    clearReconnectTimer();
-    reconnectTimerRef.current = setTimeout(async () => {
-      try {
-        await ua.reconnect();
-        console.log('[Softphone] ✅ Reconnected to WebSocket');
-        await registererRef.current?.register();
-        console.log('[Softphone] ✅ Re-registered');
-        reconnectAttemptRef.current = 0; // Reset on success
-      } catch (e: any) {
-        console.warn(`[Softphone] ❌ Reconnect #${attempt} failed:`, e.message);
-        // Keep trying
-        isReconnectingRef.current = false;
-        doReconnect();
-        return;
-      }
-      isReconnectingRef.current = false;
-    }, delay);
-  }, [clearReconnectTimer]);
-
-  // ─── Full Rebuild (for network switch) ─────────────────────
-  const fullRebuild = useCallback(async () => {
-    console.log('[Softphone] 🔄 Network changed — smart reconnect');
-    const ua = userAgentRef.current;
-    if (!ua) return;
-
-    clearReconnectTimer();
-    isReconnectingRef.current = false;
-    reconnectAttemptRef.current = 0;
-
-    setState(prev => ({ ...prev, isRegistered: false }));
-
-    // Wait a moment for the new network to stabilize
-    await new Promise(r => setTimeout(r, 800));
-
-    // Strategy: just reconnect the transport (don't kill the UA)
-    // This preserves any active call sessions
-    try {
-      await ua.reconnect();
-      console.log('[Softphone] ✅ Transport reconnected on new network');
-      await registererRef.current?.register();
-      console.log('[Softphone] ✅ Re-registered on new network');
-
-      // If there's an active call, re-setup the media
-      // (the old ICE candidates may be stale on the new network)
-      const activeSession = stateRef.current.activeCall;
-      if (activeSession && activeSession.state === SessionState.Established) {
-        console.log('[Softphone] 📞 Active call detected — refreshing media...');
-        try {
-          const sdh = activeSession.sessionDescriptionHandler as any;
-          const pc = sdh?.peerConnection as RTCPeerConnection;
-          if (pc) {
-            // Request ICE restart to get fresh candidates for new network
-            const offer = await pc.createOffer({ iceRestart: true });
-            await pc.setLocalDescription(offer);
-            console.log('[Softphone] ✅ ICE restart initiated for active call');
-          }
-          // Re-setup remote audio element
-          setTimeout(() => setupRemoteMedia(activeSession), 500);
-        } catch (e: any) {
-          console.warn('[Softphone] Media refresh failed:', e.message);
-        }
-      }
-    } catch (e: any) {
-      console.warn('[Softphone] Smart reconnect failed, trying full rebuild...', e.message);
-      // Only if reconnect fails, do a full stop/start (will kill active calls)
-      try {
-        registererRef.current?.unregister().catch(() => {});
-        await ua.stop();
-      } catch { /* ignore */ }
-      await new Promise(r => setTimeout(r, 500));
-      try {
-        await ua.start();
-        await registererRef.current?.register();
-        console.log('[Softphone] ✅ Full rebuild complete');
-      } catch {
-        doReconnect();
-      }
-    }
-  }, [clearReconnectTimer, doReconnect, setupRemoteMedia]);
-
-  // ─── Initialize SIP.js UserAgent ───────────────────────────
-  useEffect(() => {
-    if (!user) return;
-
-    const sipUsername = import.meta.env.VITE_SIP_USERNAME || '100';
-    const sipPassword = import.meta.env.VITE_SIP_PASSWORD || 'TexaCore2026Pbx100';
-
-    if (!sipPassword) {
-      console.warn('[Softphone] No SIP password configured.');
-      return;
-    }
-
-    const uri = UserAgent.makeURI(`sip:${sipUsername}@${PBX_CONFIG.domain}`);
-    if (!uri) {
-      console.error('[Softphone] Failed to create SIP URI');
-      return;
-    }
-
-    const options: UserAgentOptions = {
-      authorizationPassword: sipPassword,
-      authorizationUsername: sipUsername,
+    const ua = new UserAgent({
+      authorizationPassword: cfg.password,
+      authorizationUsername: cfg.username,
       transportOptions: {
         server: PBX_CONFIG.websocketUrl,
-        // ─── Aggressive reconnect settings ─────────────
-        connectionTimeout: 8,           // 8 seconds to connect
-        keepAliveInterval: 15,           // Ping every 15s (detect drops faster)
-        keepAliveDebounce: 5,            // Debounce 5s
+        connectionTimeout: 5,
+        keepAliveInterval: 8,
+        keepAliveDebounce: 3,
       },
-      uri: uri,
-      // ─── WebRTC media options: ICE/STUN for NAT traversal ──
+      uri,
       sessionDescriptionHandlerFactoryOptions: {
         peerConnectionConfiguration: {
           iceServers: [
@@ -271,7 +176,6 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
           ],
-          // ICE candidate pool for faster reconnection
           iceCandidatePoolSize: 2,
         },
       },
@@ -279,7 +183,6 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
         onInvite: (invitation: Invitation) => {
           const caller = invitation.remoteIdentity.uri.user || 'Unknown';
           console.log('[Softphone] Incoming call from', caller);
-
           setState(prev => ({
             ...prev,
             activeCall: invitation,
@@ -287,94 +190,171 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
             remoteNumber: caller,
             callDirection: 'inbound',
           }));
-
           attachSessionListeners(invitation, 'inbound');
         },
-        // Handle disconnect events — trigger fast reconnect
         onDisconnect: (error?: Error) => {
+          // Skip if we're intentionally disposing
+          if (isDisposingRef.current) return;
           console.warn('[Softphone] ⚠️ Transport disconnected:', error?.message);
           setState(prev => ({ ...prev, isRegistered: false }));
-          // Start progressive reconnect immediately
-          isReconnectingRef.current = false;
-          reconnectAttemptRef.current = 0;
-          doReconnect();
+          // Go straight to full rebuild — don't waste time on stale reconnect
+          if (!isRebuildingRef.current) {
+            setTimeout(() => fullRebuild(), 50);
+          }
         },
       },
-    };
+    });
 
-    const ua = new UserAgent(options);
+    return ua;
+  }, [attachSessionListeners]);
+
+  const registerUA = useCallback(async (ua: UserAgent) => {
+    const registerer = new Registerer(ua, { expires: 120 });
+    registererRef.current = registerer;
+
+    registerer.stateChange.addListener((newState) => {
+      const registered = newState === RegistererState.Registered;
+      setState(prev => ({ ...prev, isRegistered: registered }));
+      console.log(`[Softphone] Registration state: ${newState}`);
+    });
+
+    await registerer.register();
+  }, []);
+
+  // ─── Full Rebuild (single reconnection strategy) ────────────
+  const rebuildRetryRef = useRef(0);
+
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  const fullRebuild = useCallback(async () => {
+    if (isRebuildingRef.current || isDisposingRef.current) return;
+    if (!navigator.onLine) {
+      console.log('[Softphone] ⏳ Offline — will rebuild when online');
+      return;
+    }
+
+    isRebuildingRef.current = true;
+    const attempt = ++rebuildRetryRef.current;
+
+    if (attempt > 10) {
+      setState(prev => ({ ...prev, error: 'تعذر الاتصال بالسنترال' }));
+      isRebuildingRef.current = false;
+      setTimeout(() => { rebuildRetryRef.current = 0; isRebuildingRef.current = false; fullRebuild(); }, 30000);
+      return;
+    }
+
+    console.log(`[Softphone] 🔄 Rebuild #${attempt}`);
+    setState(prev => ({ ...prev, isRegistered: false, error: attempt > 1 ? 'جاري إعادة الاتصال...' : null }));
+
+    // Teardown old — nullify refs FIRST to prevent races
+    const oldReg = registererRef.current;
+    const oldUA = userAgentRef.current;
+    registererRef.current = null;
+    userAgentRef.current = null;
+
+    if (oldReg) { try { oldReg.dispose(); } catch (_) {} }
+    if (oldUA) {
+      isDisposingRef.current = true;
+      try {
+        const t = (oldUA as any).transport;
+        // Kill keepAlive interval to stop WS spam
+        if (t?._keepAliveInterval) { clearInterval(t._keepAliveInterval); t._keepAliveInterval = undefined; }
+        const ws = t?.ws || t?._ws;
+        if (ws && ws.readyState !== WebSocket.CLOSED) ws.close();
+        // Fire-and-forget — don't await (SIP timers take 32s!)
+        oldUA.stop().catch(() => {});
+      } catch (_) {}
+      // Brief pause to let WS close event fire
+      await new Promise(r => setTimeout(r, 50));
+      isDisposingRef.current = false;
+    }
+
+    // Build new
+    try {
+      const newUA = buildNewUA();
+      if (!newUA) throw new Error('No UA');
+      userAgentRef.current = newUA;
+      await newUA.start();
+      await registerUA(newUA);
+      console.log('[Softphone] ✅ Connected!');
+      setState(prev => ({ ...prev, error: null }));
+      rebuildRetryRef.current = 0;
+    } catch (e: any) {
+      console.warn(`[Softphone] Rebuild #${attempt} failed:`, e.message);
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 15000);
+      setTimeout(() => { isRebuildingRef.current = false; fullRebuild(); }, delay);
+      return;
+    }
+    isRebuildingRef.current = false;
+  }, [buildNewUA, registerUA]);
+
+  // ─── Initialize SIP.js UserAgent ───────────────────────────
+  useEffect(() => {
+    if (!user) return;
+
+    // Reset flags (HMR / StrictMode safe)
+    isDisposingRef.current = false;
+    isRebuildingRef.current = false;
+    isReconnectingRef.current = false;
+    rebuildRetryRef.current = 0;
+
+    const sipUsername = import.meta.env.VITE_SIP_USERNAME || '100';
+    const sipPassword = import.meta.env.VITE_SIP_PASSWORD || '';
+    if (!sipPassword) { console.warn('[Softphone] No SIP password.'); return; }
+
+    sipConfigRef.current = { username: sipUsername, password: sipPassword };
+
+    const ua = buildNewUA();
+    if (!ua) { console.error('[Softphone] Failed to create UA'); return; }
     userAgentRef.current = ua;
 
     ua.start()
-      .then(() => {
-        console.log('[Softphone] UserAgent started');
-        const registerer = new Registerer(ua, {
-          expires: 120,     // Register for 2 minutes (refresh more often)
-          extraHeaders: [],
-        });
-        registererRef.current = registerer;
-
-        registerer.stateChange.addListener((newState) => {
-          const registered = newState === RegistererState.Registered;
-          setState(prev => ({ ...prev, isRegistered: registered }));
-          if (registered) {
-            reconnectAttemptRef.current = 0; // Reset counter on successful register
-          }
-          console.log(`[Softphone] Registration state: ${newState}`);
-        });
-
-        return registerer.register();
-      })
-      .catch(error => {
-        console.error('[Softphone] Failed to start:', error);
-        setState(prev => ({ ...prev, error: 'Failed to connect to PBX' }));
-        // Try reconnecting even on initial failure
-        doReconnect();
+      .then(() => { console.log('[Softphone] UA started'); return registerUA(ua); })
+      .catch(err => {
+        console.error('[Softphone] Start failed:', err);
+        setState(prev => ({ ...prev, error: 'جاري إعادة الاتصال بالسنترال...' }));
+        setTimeout(() => { isRebuildingRef.current = false; fullRebuild(); }, 2000);
       });
 
-    // ─── Network Change Detection ────────────────────────────
-    // When browser goes online after being offline
-    const handleOnline = () => {
-      console.log('[Softphone] 🌐 Network ONLINE — triggering full rebuild');
-      fullRebuild();
+    // ─── Network events ──────────────────────────────────────
+    const triggerRebuild = (label: string) => {
+      console.log(`[Softphone] ${label}`);
+      rebuildRetryRef.current = 0;
+      isRebuildingRef.current = false;
+      setTimeout(() => fullRebuild(), 300);
     };
-
+    const handleOnline = () => triggerRebuild('🌐 Online');
     const handleOffline = () => {
-      console.log('[Softphone] 📴 Network OFFLINE');
-      clearReconnectTimer();
-      setState(prev => ({ ...prev, isRegistered: false }));
+      console.log('[Softphone] 📴 Offline');
+      setState(prev => ({ ...prev, isRegistered: false, error: 'لا يوجد اتصال بالإنترنت' }));
     };
-
-    // Detect network type changes (WiFi → Mobile, etc.)
-    const handleConnectionChange = () => {
-      const conn = (navigator as any).connection;
-      console.log(`[Softphone] 🔀 Network changed: type=${conn?.type}, effectiveType=${conn?.effectiveType}`);
-      // Full rebuild to get fresh ICE candidates for the new network
-      fullRebuild();
+    const handleNetChange = () => triggerRebuild('🔀 Network changed');
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      const t = (userAgentRef.current as any)?.transport;
+      const ws = t?.ws || t?._ws;
+      if (!ws || ws.readyState !== WebSocket.OPEN) triggerRebuild('👁 Tab visible + WS dead');
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // NetworkInformation API (Chrome/Edge/Android)
+    document.addEventListener('visibilitychange', handleVisibility);
     const conn = (navigator as any).connection;
-    if (conn) {
-      conn.addEventListener('change', handleConnectionChange);
-    }
+    if (conn) conn.addEventListener('change', handleNetChange);
 
     return () => {
-      clearReconnectTimer();
+      isDisposingRef.current = true;
+      isRebuildingRef.current = true;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      if (conn) {
-        conn.removeEventListener('change', handleConnectionChange);
-      }
-      registererRef.current?.unregister().catch(() => {});
-      ua.stop().catch(() => {});
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (conn) conn.removeEventListener('change', handleNetChange);
+      try { registererRef.current?.dispose(); } catch (_) {}
+      try { userAgentRef.current?.stop(); } catch (_) {}
       userAgentRef.current = null;
       registererRef.current = null;
     };
-  }, [user, attachSessionListeners, doReconnect, fullRebuild, clearReconnectTimer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // ─── Make Outbound Call ────────────────────────────────────
   const makeCall = useCallback(async (targetNumber: string) => {
@@ -478,6 +458,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       callDirection: null,
       callStartTime: null,
       isMuted: false,
+      isOnHold: false,
       error: null,
     }));
   }, [state.activeCall]);
@@ -498,6 +479,58 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.activeCall]);
 
+  // ─── Toggle Hold ───────────────────────────────────────────
+  const toggleHold = useCallback(async () => {
+    const session = state.activeCall;
+    if (!session || session.state !== SessionState.Established) return;
+
+    try {
+      const isCurrentlyOnHold = state.isOnHold;
+      const holdModifier = (description: RTCSessionDescriptionInit) => {
+        if (!description.sdp) return Promise.resolve(description);
+        // If putting on hold, change sendrecv to sendonly (or inactive).
+        // If unholding, change sendonly/inactive back to sendrecv.
+        if (!isCurrentlyOnHold) {
+          description.sdp = description.sdp.replace(/a=sendrecv/g, 'a=sendonly');
+        } else {
+          description.sdp = description.sdp.replace(/a=sendonly/g, 'a=sendrecv');
+          description.sdp = description.sdp.replace(/a=inactive/g, 'a=sendrecv');
+        }
+        return Promise.resolve(description);
+      };
+
+      await session.invite({
+        sessionDescriptionHandlerModifiers: [holdModifier],
+      });
+
+      setState(prev => ({ ...prev, isOnHold: !prev.isOnHold }));
+    } catch (error) {
+      console.error('[Softphone] Hold/Unhold failed:', error);
+      setState(prev => ({ ...prev, error: 'فشل في وضع المكالمة على الانتظار' }));
+    }
+  }, [state.activeCall, state.isOnHold]);
+
+  // ─── Transfer Call (Blind Transfer) ────────────────────────
+  const transferCall = useCallback(async (targetNumber: string) => {
+    const session = state.activeCall;
+    if (!session || session.state !== SessionState.Established) return;
+
+    const targetURI = UserAgent.makeURI(`sip:${targetNumber}@${PBX_CONFIG.domain}`);
+    if (!targetURI) {
+      setState(prev => ({ ...prev, error: 'رقم غير صحيح للتحويل' }));
+      return;
+    }
+
+    try {
+      await session.refer(targetURI);
+      console.log(`[Softphone] Call transferred to ${targetNumber}`);
+      // The session will automatically terminate once transfer is accepted by PBX
+    } catch (error) {
+      console.error('[Softphone] Transfer failed:', error);
+      setState(prev => ({ ...prev, error: 'فشل في تحويل المكالمة' }));
+    }
+  }, [state.activeCall]);
+
   return (
     <SoftphoneContext.Provider value={{
       ...state,
@@ -505,6 +538,8 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       answerCall,
       hangupCall,
       toggleMute,
+      toggleHold,
+      transferCall,
     }}>
       {children}
       <audio ref={remoteAudioRef} autoPlay hidden />
