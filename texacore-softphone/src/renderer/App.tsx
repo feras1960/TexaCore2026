@@ -11,18 +11,20 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dialpad' | 'history' | 'contacts' | 'settings'>('dialpad');
   const [target, setTarget] = useState('');
   const [callDuration, setCallDuration] = useState(0);
-  
-  const { 
-    isRegistered, callState, activeNumber, isMuted, isOnHold, 
-    makeCall, answerCall, hangupCall, toggleMute, toggleHold, transferCall 
-  } = useSipEngine();
-  
   const [showTransferMenu, setShowTransferMenu] = useState(false);
   const [transferTarget, setTransferTarget] = useState('');
   const [isCallMinimized, setIsCallMinimized] = useState(false);
   
   const extension = localStorage.getItem('pbx_ext') || '';
   const { client, channel } = useSupabase(extension);
+
+  const { 
+    isRegistered, callState, activeNumber, isMuted, isOnHold, 
+    makeCall, answerCall, hangupCall, toggleMute, toggleHold, transferCall 
+  } = useSipEngine(
+      // We pass the actual remote number so it saves into call history correctly
+      (target.startsWith('WEB|')) ? target : undefined
+  );
 
   // Use target if activeNumber is webrtc_guest, as Asterisk drops the display name
   const actualRemoteNumber = activeNumber === 'webrtc_guest' && target.startsWith('WEB|') 
@@ -44,7 +46,21 @@ export default function App() {
     if (num && num.startsWith('WEB|')) {
       const parts = num.split('|');
       const dev = parts[1] === 'mobile' ? 'جوال' : 'كمبيوتر';
-      return `زائر موقع (${dev}) - ${parts[2]}`;
+      const countryCode = parts[2];
+      const ip = parts[3];
+      const shortId = parts[4] || parts[2] || 'مجهول'; // fallback to older formats
+
+      let flag = '🌍';
+      if (countryCode && countryCode.length === 2) {
+        flag = String.fromCodePoint(...[...countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+      }
+
+      // Format: 🇮🇪 زائر موقع (كمبيوتر) - 192.168.1.1
+      if (ip && ip.length > 5) {
+         return `${flag} زائر موقع (${dev}) - ${ip}`;
+      } else {
+         return `${flag} زائر موقع (${dev}) - ${shortId}`;
+      }
     }
     return num;
   };
@@ -102,7 +118,9 @@ export default function App() {
           body: `زائر جديد يريد التحدث معك`,
         });
         // Set the number and show it
-        const callerInfo = data.visitor_id ? `WEB|${data.device_type}|${data.visitor_id.substring(0,6)}` : 'زائر ويب';
+        const cc = data.country_code || 'XX';
+        const ip = data.ip || '0.0.0.0';
+        const callerInfo = data.visitor_id ? `WEB|${data.device_type || 'web'}|${cc}|${ip}|${data.visitor_id.substring(0,6)}` : 'زائر ويب';
         setActiveTab('dialpad');
         setTarget(callerInfo);
       }

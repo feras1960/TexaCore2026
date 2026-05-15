@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { UserAgent, Registerer, Inviter, SessionState, RegistererState, Invitation, Session } from 'sip.js';
 import { useCallHistory } from './useCallHistory';
 
-export function useSipEngine() {
+export function useSipEngine(remoteOverride?: string) {
   const [isRegistered, setIsRegistered] = useState(false);
   const [callState, setCallState] = useState<'idle' | 'connecting' | 'connected' | 'ended' | 'ringing'>('idle');
   const [activeNumber, setActiveNumber] = useState('');
@@ -12,6 +12,9 @@ export function useSipEngine() {
   const { addCallRecord } = useCallHistory();
   const callStartTimeRef = useRef<number>(0);
   const callDirectionRef = useRef<'inbound' | 'outbound'>('outbound');
+  
+  const overrideRef = useRef<string | undefined>();
+  useEffect(() => { overrideRef.current = remoteOverride; }, [remoteOverride]);
   
   const uaRef = useRef<UserAgent | null>(null);
   const registererRef = useRef<Registerer | null>(null);
@@ -83,7 +86,7 @@ export function useSipEngine() {
       
     if (activeNumber) {
       addCallRecord({
-        number: activeNumber,
+        number: overrideRef.current || activeNumber,
         direction: duration === 0 && callDirectionRef.current === 'inbound' ? 'missed' : callDirectionRef.current,
         duration: duration
       });

@@ -42,6 +42,28 @@ export default function CallHistory({ onCall }: { onCall: (number: string) => vo
     return `${s}ث`;
   };
 
+  const formatActiveNumber = (num: string) => {
+    if (num && num.startsWith('WEB|')) {
+      const parts = num.split('|');
+      const dev = parts[1] === 'mobile' ? 'جوال' : 'كمبيوتر';
+      const countryCode = parts[2];
+      const ip = parts[3];
+      const shortId = parts[4] || parts[2] || 'مجهول';
+
+      let flag = '🌍';
+      if (countryCode && countryCode.length === 2 && countryCode !== 'XX') {
+        flag = String.fromCodePoint(...[...countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+      }
+
+      if (ip && ip.length > 5 && ip !== '0.0.0.0') {
+         return `${flag} زائر موقع (${dev}) - ${ip}`;
+      } else {
+         return `${flag} زائر موقع (${dev}) - ${shortId}`;
+      }
+    }
+    return num;
+  };
+
   return (
     <div className="history-container">
       <div className="history-filters">
@@ -60,7 +82,7 @@ export default function CallHistory({ onCall }: { onCall: (number: string) => vo
               <div className="history-icon">{getIcon(record.direction)}</div>
               <div className="history-details" onClick={() => onCall(record.number)}>
                 <div className={`history-number ${record.direction === 'missed' ? 'missed' : ''}`}>
-                  {record.name || record.number}
+                  {record.name || formatActiveNumber(record.number)}
                 </div>
                 <div className="history-meta">
                   {formatTimeAgo(record.timestamp)} {record.duration > 0 && `• ${formatDuration(record.duration)}`}
