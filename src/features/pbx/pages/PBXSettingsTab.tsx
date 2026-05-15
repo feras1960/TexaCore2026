@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Key, Webhook, Copy, Server, FileText, CheckCircle2, Bot, MessageSquare } from 'lucide-react';
+import { Settings, Key, Webhook, Copy, Server, FileText, CheckCircle2, Bot, MessageSquare, Monitor } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
+import { useSoftphone } from '../context/SoftphoneContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -41,6 +42,7 @@ function useElevenLabsWidget() {
 export default function PBXSettingsTab() {
     const { t, direction } = useLanguage();
     const { companyId } = useCompany();
+    const { linkDesktopSoftphone } = useSoftphone();
     const isRTL = direction === 'rtl';
 
     const [isRecordingEnabled, setIsRecordingEnabled] = useState(true);
@@ -195,13 +197,31 @@ export default function PBXSettingsTab() {
                 <div className="bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-2 text-gray-900 dark:text-white">
                         <Webhook className="w-5 h-5 text-rose-500" />
-                        {isRTL ? 'بيانات ربط Asterisk (للمطورين)' : 'Asterisk Integration Data (Devs)'}
+                        {isRTL ? 'تكامل التطبيقات' : 'App Integration'}
                     </h2>
-                    <p className="text-sm text-gray-500 mb-6">
-                        {isRTL 
-                            ? 'استخدم هذه البيانات في ملفات extensions.conf و pjsip.conf لربط المقسم الخاص بالشركة بسيرفراتنا السحابية.' 
-                            : 'Use these details in extensions.conf and pjsip.conf to link the company PBX to our cloud servers.'}
-                    </p>
+                    
+                    {/* Desktop Softphone Integration */}
+                    <div className="mb-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg">
+                        <h4 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-2 mb-2">
+                            <Monitor className="w-4 h-4" />
+                            {isRTL ? 'تطبيق الكمبيوتر المستقل' : 'Desktop Softphone App'}
+                        </h4>
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400 mb-3">
+                            {isRTL 
+                                ? 'إذا قمت بتثبيت تطبيق TexaCore Softphone للكمبيوتر، اضغط هنا لنقل الإعدادات وتفعيله تلقائياً بدلاً من متصفح الويب.' 
+                                : 'If you installed the TexaCore Desktop Softphone, click here to transfer settings and activate it instead of the web browser.'}
+                        </p>
+                        <Button 
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
+                            onClick={() => {
+                                linkDesktopSoftphone();
+                                toast.success(isRTL ? 'تم إرسال الإعدادات لتطبيق الكمبيوتر' : 'Settings sent to Desktop App');
+                            }}
+                        >
+                            <Monitor className="w-4 h-4" />
+                            {isRTL ? '🔗 ربط تطبيق الكمبيوتر' : '🔗 Link Desktop App'}
+                        </Button>
+                    </div>
 
                     <div className="space-y-5">
                         <div className="space-y-2">

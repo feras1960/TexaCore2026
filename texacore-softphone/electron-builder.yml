@@ -1,0 +1,37 @@
+appId: com.texacore.softphone
+productName: TexaCore Softphone
+directories:
+  output: release
+files:
+  - "dist/**/*"
+  - "package.json"
+extraResources:
+  - from: "assets/"
+    to: "assets/"
+    filter:
+      - "**/*"
+extraMetadata:
+  main: dist/main/index.js
+mac:
+  icon: assets/icon.png
+  target:
+    - dmg
+  category: public.app-category.business
+  darkModeSupport: true
+  entitlements: null
+  entitlementsInherit: null
+win:
+  icon: assets/icon.png
+  target:
+    - nsis
+    - portable
+linux:
+  icon: assets/icon.png
+  target:
+    - AppImage
+dmg:
+  title: "TexaCore Softphone"
+  backgroundColor: "#0f172a"
+nsis:
+  oneClick: true
+  allowToChangeInstallationDirectory: false

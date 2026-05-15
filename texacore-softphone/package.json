@@ -1,0 +1,29 @@
+{
+  "name": "texacore-softphone",
+  "version": "1.0.0",
+  "description": "TexaCore Softphone Client",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"tsc -p tsconfig.main.json --watch\" \"tsc -p tsconfig.preload.json --watch\" \"electron .\"",
+    "build": "vite build && tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json && electron-builder"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "sip.js": "^0.21.2",
+    "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "concurrently": "^8.2.2",
+    "electron": "^27.1.2",
+    "electron-builder": "^24.9.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  }
+}

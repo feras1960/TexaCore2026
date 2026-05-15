@@ -3,7 +3,7 @@ import { Globe, PhoneCall, Clock, CheckCircle2, Smartphone, Monitor, RefreshCw }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-
+import { useSoftphone } from '../context/SoftphoneContext';
 import { createClient } from '@supabase/supabase-js';
 
 // إنشاء عميل خاص بسحاب سوبابيز لضمان عمل الاتصال لحظياً (Realtime) 
@@ -29,6 +29,7 @@ export function OnlineVisitorsList() {
   const [callingUuid, setCallingUuid] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const channelRef = useRef<any>(null);
+  const { isDesktopConnected, dialViaDesktop } = useSoftphone();
 
   useEffect(() => {
     const channel = pbxRealtimeClient.channel('pbx_visitors');
@@ -120,17 +121,23 @@ export function OnlineVisitorsList() {
         throw new Error('القناة غير متصلة');
       }
       
-      // Send a broadcast to the specific visitor using their UUID via the active subscribed channel
+      // Send incoming_call to visitor's browser
+      // The visitor's browser will then dial 700 on PBX → routes to ext 100 → softphone rings
       await channelRef.current.send({
         type: 'broadcast',
         event: 'incoming_call',
         payload: {
           to_uuid: visitor.uuid,
-          agent_ext: '700' // Ring Group to prevent Asterisk 403 Forbidden for guests
+          agent_ext: '100'
         }
       });
       
-      toast.success('تم إرسال الطلب بنجاح! المتصفح سيرن لديه الآن.', { id: 'call-visitor' });
+      toast.success(
+        isDesktopConnected 
+          ? 'تم إرسال الطلب! سيرن السوفت فون عند قبول الزائر.' 
+          : 'تم إرسال الطلب! المتصفح سيرن لديه الآن.', 
+        { id: 'call-visitor' }
+      );
     } catch (error) {
       console.error('Error broadcasting call to visitor:', error);
       toast.error('حدث خطأ أثناء إرسال الطلب.', { id: 'call-visitor' });

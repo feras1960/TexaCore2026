@@ -4,7 +4,7 @@ import {
   Phone, PhoneOff, PhoneCall, PhoneIncoming, PhoneOutgoing,
   Mic, MicOff, Volume2, X, Delete, Minimize2, Maximize2,
   Signal, SignalZero, Wifi, WifiOff, User, Clock, Hash,
-  ChevronDown, ChevronUp, Settings, Circle, Pause, Play, PhoneForwarded
+  ChevronDown, ChevronUp, Settings, Circle, Pause, Play, PhoneForwarded, Monitor
 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 
@@ -140,6 +140,25 @@ export function SoftphoneWidget() {
   const handleDial = useCallback(() => {
     if (dialNumber.trim()) makeCall(dialNumber.trim());
   }, [dialNumber, makeCall]);
+
+  const { isDesktopConnected } = useSoftphone();
+
+  // ═══ Desktop App Connected Mode ═════════════════════════════
+  if (isDesktopConnected) {
+    return (
+      <div className={`fixed bottom-6 z-50 ${isRtl ? 'left-6' : 'right-6'}`} style={{ direction: 'ltr' }}>
+        <div className="bg-slate-900 rounded-full shadow-2xl p-2 pr-4 flex items-center gap-3 border border-emerald-500/30">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center animate-pulse">
+            <Monitor className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-white text-xs font-bold">{isRtl ? 'تطبيق الكمبيوتر متصل' : 'Desktop App Connected'}</p>
+            <p className="text-emerald-400 text-[10px]">{isRtl ? 'المكالمات يتم توجيهها للبرنامج' : 'Calls routed to desktop'}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ═══ FAB — Floating Action Button ═══════════════════════════
   if (!isOpen) {

@@ -16,7 +16,10 @@ interface SoftphoneState {
 }
 
 interface SoftphoneContextType extends SoftphoneState {
+  isDesktopConnected: boolean;
+  linkDesktopSoftphone: () => void;
   makeCall: (targetNumber: string) => void;
+  dialViaDesktop: (targetNumber: string) => void;
   answerCall: () => void;
   hangupCall: () => void;
   toggleMute: () => void;
@@ -28,6 +31,8 @@ interface SoftphoneContextType extends SoftphoneState {
 const PBX_CONFIG = {
   domain: import.meta.env.VITE_PBX_DOMAIN || 'pbx.texacore.ai',
   port: import.meta.env.VITE_PBX_WSS_PORT || '8089',
+  username: import.meta.env.VITE_SIP_USERNAME || '100',
+  password: import.meta.env.VITE_SIP_PASSWORD || '',
   get websocketUrl() {
     return `wss://${this.domain}:${this.port}/ws`;
   },
@@ -227,65 +232,12 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
 
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   const fullRebuild = useCallback(async () => {
-    if (isRebuildingRef.current || isDisposingRef.current) return;
-    if (!navigator.onLine) {
-      console.log('[Softphone] ⏳ Offline — will rebuild when online');
-      return;
-    }
-
-    isRebuildingRef.current = true;
-    const attempt = ++rebuildRetryRef.current;
-
-    if (attempt > 10) {
-      setState(prev => ({ ...prev, error: 'تعذر الاتصال بالسنترال' }));
-      isRebuildingRef.current = false;
-      setTimeout(() => { rebuildRetryRef.current = 0; isRebuildingRef.current = false; fullRebuild(); }, 30000);
-      return;
-    }
-
-    console.log(`[Softphone] 🔄 Rebuild #${attempt}`);
-    setState(prev => ({ ...prev, isRegistered: false, error: attempt > 1 ? 'جاري إعادة الاتصال...' : null }));
-
-    // Teardown old — nullify refs FIRST to prevent races
-    const oldReg = registererRef.current;
-    const oldUA = userAgentRef.current;
-    registererRef.current = null;
-    userAgentRef.current = null;
-
-    if (oldReg) { try { oldReg.dispose(); } catch (_) {} }
-    if (oldUA) {
-      isDisposingRef.current = true;
-      try {
-        // Stop user agent gracefully if possible, but don't await indefinitely
-        oldUA.stop().catch(() => {});
-        const t = (oldUA as any).transport;
-        if (t && typeof t.disconnect === 'function') {
-           t.disconnect().catch(() => {});
-        }
-      } catch (_) {}
-      // Brief pause to allow the network sockets to close cleanly
-      await new Promise(r => setTimeout(r, 500));
-      isDisposingRef.current = false;
-    }
-
-    // Build new
-    try {
-      const newUA = buildNewUA();
-      if (!newUA) throw new Error('No UA');
-      userAgentRef.current = newUA;
-      await newUA.start();
-      await registerUA(newUA);
-      console.log('[Softphone] ✅ Connected!');
-      setState(prev => ({ ...prev, error: null }));
-      rebuildRetryRef.current = 0;
-    } catch (e: any) {
-      console.warn(`[Softphone] Rebuild #${attempt} failed:`, e.message);
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 15000);
-      setTimeout(() => { isRebuildingRef.current = false; fullRebuild(); }, delay);
-      return;
-    }
-    isRebuildingRef.current = false;
+    // ═══ Browser SIP Registration Disabled ═══
+    // Desktop softphone handles all SIP traffic.
+    return;
   }, [buildNewUA, registerUA]);
+
+
 
   // ─── Initialize SIP.js UserAgent ───────────────────────────
   useEffect(() => {
@@ -307,19 +259,16 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     const sipPassword = import.meta.env.VITE_SIP_PASSWORD || '';
     if (!sipPassword) { console.warn('[Softphone] No SIP password.'); return; }
 
+    // ═══ Skip browser SIP registration — Desktop Softphone handles all SIP calls ═══
+    // The ERP browser should NOT register as a SIP endpoint because:
+    // 1. The desktop softphone (Electron) is the primary SIP client for ext 100
+    // 2. If both register, PBX randomly routes calls to either one
+    // 3. The ERP communicates with the desktop via Supabase Realtime (dialViaDesktop)
+    console.log('[Softphone] Browser SIP registration SKIPPED — Desktop softphone handles SIP calls.');
+    console.log('[Softphone] Use Realtime (dialViaDesktop) to trigger calls via desktop app.');
+    
+    // Store config for Realtime-based desktop integration (linkDesktopSoftphone)
     sipConfigRef.current = { username: sipUsername, password: sipPassword };
-
-    const ua = buildNewUA();
-    if (!ua) { console.error('[Softphone] Failed to create UA'); return; }
-    userAgentRef.current = ua;
-
-    ua.start()
-      .then(() => { console.log('[Softphone] UA started'); return registerUA(ua); })
-      .catch(err => {
-        console.error('[Softphone] Start failed:', err);
-        setState(prev => ({ ...prev, error: 'جاري إعادة الاتصال بالسنترال...' }));
-        setTimeout(() => { isRebuildingRef.current = false; fullRebuild(); }, 2000);
-      });
 
     // ─── Network events ──────────────────────────────────────
     const triggerRebuild = (label: string) => {
@@ -603,10 +552,98 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.activeCall]);
 
+  // ─── Desktop Softphone Integration ──────────────────────────
+  const [isDesktopConnected, setIsDesktopConnected] = useState(false);
+  const realtimeClientRef = useRef<any>(null);
+  const syncChannelRef = useRef<any>(null);
+
+  useEffect(() => {
+    import('@supabase/supabase-js').then(({ createClient }) => {
+      const pbxRealtimeClient = createClient(
+        import.meta.env.VITE_CLOUD_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL || '',
+        import.meta.env.VITE_CLOUD_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+      );
+      
+      realtimeClientRef.current = pbxRealtimeClient;
+      
+      const channel = pbxRealtimeClient.channel('pbx_softphone_sync');
+      syncChannelRef.current = channel;
+      
+      channel.on('presence', { event: 'sync' }, () => {
+        const presenceState = channel.presenceState();
+        let desktopFound = false;
+        Object.keys(presenceState).forEach((key) => {
+          const presences = presenceState[key] as any[];
+          if (presences.some(p => p.type === 'desktop_softphone' && p.extension === PBX_CONFIG.username)) {
+            desktopFound = true;
+          }
+        });
+        setIsDesktopConnected(desktopFound);
+      });
+
+      channel.subscribe((status: string) => {
+        console.log('[SoftphoneContext] Sync channel status:', status);
+      });
+      
+      return () => {
+        pbxRealtimeClient.removeChannel(channel);
+      };
+    });
+  }, []);
+
+  const linkDesktopSoftphone = useCallback(() => {
+    const channel = syncChannelRef.current;
+    if (!channel) {
+      console.error('[SoftphoneContext] Sync channel not ready');
+      return;
+    }
+    
+    const config = {
+      domain: PBX_CONFIG.domain,
+      extension: PBX_CONFIG.username,
+      password: PBX_CONFIG.password
+    };
+    
+    console.log('[SoftphoneContext] Sending config to Desktop App:', { domain: config.domain, extension: config.extension });
+    
+    channel.send({
+      type: 'broadcast',
+      event: 'softphone-config',
+      payload: config
+    }).then(() => {
+      console.log('[SoftphoneContext] ✅ Config broadcast sent successfully');
+    }).catch((err: any) => {
+      console.error('[SoftphoneContext] ❌ Broadcast failed:', err);
+    });
+  }, []);
+
+  const dialViaDesktop = useCallback((targetNumber: string) => {
+    const channel = syncChannelRef.current;
+    if (!channel) {
+      console.error('[SoftphoneContext] Sync channel not ready for dial');
+      return;
+    }
+    
+    console.log('[SoftphoneContext] Sending dial command to Desktop:', targetNumber);
+    
+    channel.send({
+      type: 'broadcast',
+      event: 'dial',
+      payload: { number: targetNumber }
+    }).then(() => {
+      console.log('[SoftphoneContext] ✅ Dial command sent to desktop softphone');
+    }).catch((err: any) => {
+      console.error('[SoftphoneContext] ❌ Dial broadcast failed:', err);
+    });
+  }, []);
+
   return (
     <SoftphoneContext.Provider value={{
       ...state,
+      isDesktopConnected,
+      linkDesktopSoftphone,
       makeCall,
+      dialViaDesktop,
       answerCall,
       hangupCall,
       toggleMute,
