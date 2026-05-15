@@ -60,7 +60,7 @@ export default function CallHistory({ onCall }: { onCall: (number: string) => vo
               <div className="history-icon">{getIcon(record.direction)}</div>
               <div className="history-details" onClick={() => onCall(record.number)}>
                 <div className={`history-number ${record.direction === 'missed' ? 'missed' : ''}`}>
-                  {record.number}
+                  {record.name || record.number}
                 </div>
                 <div className="history-meta">
                   {formatTimeAgo(record.timestamp)} {record.duration > 0 && `• ${formatDuration(record.duration)}`}

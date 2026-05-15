@@ -402,3 +402,17 @@ body {
 .minimize-call-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Blinking Circle for Active Call Banner */
+.blinking-circle {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #fff;
+  animation: blinkCircle 1s infinite alternate;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+@keyframes blinkCircle {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.3; transform: scale(0.85); }
+}

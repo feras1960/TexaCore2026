@@ -142,8 +142,17 @@ export function useSipEngine() {
       delegate: {
         onInvite: (invitation: Invitation) => {
           const number = invitation.remoteIdentity.uri.user || 'Unknown';
-          console.log(`[SIP] 📞 Incoming call from: ${number}`);
-          setActiveNumber(number);
+          const sipDisplayName = invitation.remoteIdentity.displayName;
+          
+          let callId = number;
+          if (sipDisplayName && sipDisplayName.startsWith('WEB|')) {
+             callId = sipDisplayName; // use WEB|... as the identifier
+          } else if (sipDisplayName) {
+             callId = `${sipDisplayName} (${number})`;
+          }
+          
+          console.log(`[SIP] 📞 Incoming call from: ${callId}`);
+          setActiveNumber(callId);
           setCallState('ringing');
           callDirectionRef.current = 'inbound';
           callStartTimeRef.current = 0;

@@ -22,6 +22,39 @@ interface VisitorPresence {
   browser?: string;
   page_title?: string;
   referrer?: string;
+  ip?: string;
+  country?: string;
+}
+
+function IpCountryBadge({ ip }: { ip: string }) {
+  const [info, setInfo] = useState<{ country: string; city: string; flag: string } | null>(null);
+  
+  useEffect(() => {
+    if (!ip || ip === 'unknown' || ip === 'غير معروف' || ip === '') return;
+    fetch(`https://ip-api.com/json/${ip}?fields=country,city,countryCode`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.country) {
+          const flag = d.countryCode
+            ? String.fromCodePoint(...[...d.countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
+            : '🌍';
+          setInfo({ country: d.country, city: d.city || '', flag });
+        }
+      })
+      .catch(() => setInfo({ country: '—', city: '', flag: '🌍' }));
+  }, [ip]);
+
+  if (!info) return <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">IP: {ip}</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+        {info.flag} {info.city ? `${info.city}, ${info.country}` : info.country}
+      </span>
+      <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">
+        IP: {ip}
+      </span>
+    </div>
+  );
 }
 
 export function OnlineVisitorsList() {
@@ -211,8 +244,11 @@ export function OnlineVisitorsList() {
                 <div className="flex items-center gap-2">
                   {getDeviceIcon(visitor.device)}
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-xs font-mono text-gray-500">
-                    {visitor.uuid.split('-')[0]}...
+                  <span className="text-sm font-semibold text-gray-700">
+                    {visitor.device === 'mobile' ? 'زائر (جوال)' : 'زائر (كمبيوتر)'}
+                  </span>
+                  <span className="text-xs font-mono text-gray-400">
+                    #{visitor.uuid.substring(0, 6)}
                   </span>
                   {visitor.browser && (
                     <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">
@@ -227,6 +263,9 @@ export function OnlineVisitorsList() {
                   <span className="truncate max-w-[120px] text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">
                     {visitor.url}
                   </span>
+                  {visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' && (
+                    <IpCountryBadge ip={visitor.ip} />
+                  )}
                 </div>
               </div>
 
