@@ -26,34 +26,32 @@ interface VisitorPresence {
   country?: string;
 }
 
-function IpCountryBadge({ ip }: { ip: string }) {
-  const [info, setInfo] = useState<{ country: string; city: string; flag: string } | null>(null);
-  
+function ResolvedCountryBadge({ ip }: { ip: string }) {
+  const [info, setInfo] = useState<{ country: string; flag: string } | null>(null);
+
   useEffect(() => {
     if (!ip || ip === 'unknown' || ip === 'غير معروف' || ip === '') return;
-    fetch(`https://ip-api.com/json/${ip}?fields=country,city,countryCode`)
+    
+    // Use ipapi.co to resolve the IP to a country
+    fetch(`https://ipapi.co/${ip}/json/`)
       .then(r => r.json())
       .then(d => {
-        if (d.country) {
-          const flag = d.countryCode
-            ? String.fromCodePoint(...[...d.countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
+        if (d.country_name) {
+          const flag = d.country
+            ? String.fromCodePoint(...[...d.country.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
             : '🌍';
-          setInfo({ country: d.country, city: d.city || '', flag });
+          setInfo({ country: d.country_name, flag });
         }
       })
-      .catch(() => setInfo({ country: '—', city: '', flag: '🌍' }));
+      .catch(() => {});
   }, [ip]);
 
-  if (!info) return <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">IP: {ip}</span>;
+  if (!info) return null;
+
   return (
-    <div className="flex items-center gap-2">
-      <span className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-        {info.flag} {info.city ? `${info.city}, ${info.country}` : info.country}
-      </span>
-      <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">
-        IP: {ip}
-      </span>
-    </div>
+    <span className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded animate-in fade-in">
+      {info.flag} {info.country}
+    </span>
   );
 }
 
@@ -263,8 +261,19 @@ export function OnlineVisitorsList() {
                   <span className="truncate max-w-[120px] text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">
                     {visitor.url}
                   </span>
+                  
+                  {visitor.country && visitor.country !== '' && visitor.country !== 'غير معروف' ? (
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      🌍 {visitor.country}
+                    </span>
+                  ) : visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' ? (
+                    <ResolvedCountryBadge ip={visitor.ip} />
+                  ) : null}
+
                   {visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' && (
-                    <IpCountryBadge ip={visitor.ip} />
+                    <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">
+                      IP: {visitor.ip}
+                    </span>
                   )}
                 </div>
               </div>
