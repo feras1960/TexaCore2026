@@ -261,14 +261,9 @@ export function OnlineVisitorsList() {
                   <span className="truncate max-w-[120px] text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">
                     {visitor.url}
                   </span>
-                  
-                  {visitor.country && visitor.country !== '' && visitor.country !== 'غير معروف' ? (
-                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                      🌍 {visitor.country}
-                    </span>
-                  ) : visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' ? (
+                  {visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' && (
                     <ResolvedCountryBadge ip={visitor.ip} />
-                  ) : null}
+                  )}
 
                   {visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' && (
                     <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">
