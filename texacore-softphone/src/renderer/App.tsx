@@ -24,21 +24,21 @@ export default function App() {
   const extension = localStorage.getItem('pbx_ext') || '';
   const { client, channel } = useSupabase(extension);
 
+  // Use target if activeNumber is webrtc_guest, as Asterisk drops the display name
+  const actualRemoteNumber = activeNumber === 'webrtc_guest' && target.startsWith('WEB|') 
+    ? target 
+    : activeNumber;
+
   // Sync call state back to ERP
   useEffect(() => {
     if (channel) {
-      // Use target if activeNumber is webrtc_guest, as Asterisk drops the display name
-      const actualRemoteNumber = activeNumber === 'webrtc_guest' && target.startsWith('WEB|') 
-        ? target 
-        : activeNumber;
-
       channel.send({
         type: 'broadcast',
         event: 'desktop_call_state',
         payload: { state: callState, remoteNumber: actualRemoteNumber, duration: callDuration }
       }).catch(console.error);
     }
-  }, [callState, activeNumber, callDuration, channel, target]);
+  }, [callState, actualRemoteNumber, callDuration, channel]);
 
   const formatActiveNumber = (num: string) => {
     if (num && num.startsWith('WEB|')) {
@@ -163,7 +163,7 @@ export default function App() {
         <div className="active-call-banner" onClick={() => setIsCallMinimized(false)}>
           <div className="banner-content">
             <div className="blinking-circle"></div>
-            <span>مكالمة جارية: {formatActiveNumber(activeNumber)} ({formatTime(callDuration)})</span>
+            <span>مكالمة جارية: {formatActiveNumber(actualRemoteNumber)} ({formatTime(callDuration)})</span>
           </div>
           <span>عودة</span>
         </div>
@@ -187,7 +187,7 @@ export default function App() {
             <div className="caller-avatar">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="rgba(255,255,255,0.6)"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
             </div>
-            <div className="caller-number">{formatActiveNumber(activeNumber)}</div>
+            <div className="caller-number">{formatActiveNumber(actualRemoteNumber)}</div>
             {callState === 'connected' && <div className="call-timer">{formatTime(callDuration)}</div>}
             <div className={`call-status-label ${callState === 'ringing' ? 'ringing' : ''}`}>
               {callState === 'connecting' && 'جاري الاتصال...'}
