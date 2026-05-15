@@ -30,8 +30,23 @@ interface VisitorPresence {
 function ResolvedCountryBadge({ country, countryCode }: { country: string, countryCode?: string }) {
   if (!country) return null;
 
-  const flag = countryCode && countryCode.length === 2
-    ? String.fromCodePoint(...[...countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
+  // Fallback map for common countries if countryCode is missing due to cache
+  const countryMap: Record<string, string> = {
+    'Ireland': 'IE', 'Germany': 'DE', 'Saudi Arabia': 'SA', 'Jordan': 'JO',
+    'United Arab Emirates': 'AE', 'United States': 'US', 'United Kingdom': 'GB',
+    'Egypt': 'EG', 'Qatar': 'QA', 'Kuwait': 'KW', 'Oman': 'OM', 'Bahrain': 'BH',
+    'Syria': 'SY', 'Lebanon': 'LB', 'Iraq': 'IQ', 'Palestine': 'PS', 'Yemen': 'YE',
+    'Turkey': 'TR', 'France': 'FR', 'Spain': 'ES', 'Italy': 'IT', 'Canada': 'CA',
+    'Australia': 'AU', 'Netherlands': 'NL', 'Sweden': 'SE', 'Switzerland': 'CH'
+  };
+
+  let code = countryCode;
+  if (!code || code.length !== 2) {
+    code = countryMap[country];
+  }
+
+  const flag = code && code.length === 2
+    ? String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
     : '🌍';
 
   return (
