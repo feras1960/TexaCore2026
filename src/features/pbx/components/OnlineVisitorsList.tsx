@@ -24,14 +24,19 @@ interface VisitorPresence {
   referrer?: string;
   ip?: string;
   country?: string;
+  country_code?: string;
 }
 
-function ResolvedCountryBadge({ country }: { country: string }) {
+function ResolvedCountryBadge({ country, countryCode }: { country: string, countryCode?: string }) {
   if (!country) return null;
+
+  const flag = countryCode && countryCode.length === 2
+    ? String.fromCodePoint(...[...countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
+    : '🌍';
 
   return (
     <span className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded animate-in fade-in">
-      🌍 {country}
+      {flag} {country}
     </span>
   );
 }
@@ -280,7 +285,7 @@ export function OnlineVisitorsList() {
                     {visitor.url}
                   </span>
                   {visitor.country && visitor.country !== '' && (
-                    <ResolvedCountryBadge country={visitor.country} />
+                    <ResolvedCountryBadge country={visitor.country} countryCode={visitor.country_code} />
                   )}
 
                   {visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' && (
