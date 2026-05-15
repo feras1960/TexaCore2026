@@ -26,31 +26,12 @@ interface VisitorPresence {
   country?: string;
 }
 
-function ResolvedCountryBadge({ ip }: { ip: string }) {
-  const [info, setInfo] = useState<{ country: string; flag: string } | null>(null);
-
-  useEffect(() => {
-    if (!ip || ip === 'unknown' || ip === 'غير معروف' || ip === '') return;
-    
-    // Use ipapi.co to resolve the IP to a country
-    fetch(`https://ipapi.co/${ip}/json/`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.country_name) {
-          const flag = d.country
-            ? String.fromCodePoint(...[...d.country.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
-            : '🌍';
-          setInfo({ country: d.country_name, flag });
-        }
-      })
-      .catch(() => {});
-  }, [ip]);
-
-  if (!info) return null;
+function ResolvedCountryBadge({ country }: { country: string }) {
+  if (!country) return null;
 
   return (
     <span className="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded animate-in fade-in">
-      {info.flag} {info.country}
+      🌍 {country}
     </span>
   );
 }
@@ -298,8 +279,8 @@ export function OnlineVisitorsList() {
                   <span className="truncate max-w-[120px] text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">
                     {visitor.url}
                   </span>
-                  {visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' && (
-                    <ResolvedCountryBadge ip={visitor.ip} />
+                  {visitor.country && visitor.country !== '' && (
+                    <ResolvedCountryBadge country={visitor.country} />
                   )}
 
                   {visitor.ip && visitor.ip !== '' && visitor.ip !== 'غير معروف' && (
