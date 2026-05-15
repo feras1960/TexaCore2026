@@ -60,7 +60,7 @@ export function OnlineVisitorsList() {
   const [callingUuid, setCallingUuid] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const channelRef = useRef<any>(null);
-  const { isDesktopConnected, dialViaDesktop, desktopCallState, hangupDesktopCall, callState: webCallState, remoteNumber: webRemoteNumber, hangupCall: webHangupCall } = useSoftphone();
+  const { isDesktopConnected, dialViaDesktop, desktopCallState, hangupDesktopCall, notifyDesktopOfWebCall, callState: webCallState, remoteNumber: webRemoteNumber, hangupCall: webHangupCall } = useSoftphone();
 
   const formatTimeDuration = (s: number) => {
     const m = Math.floor(s / 60).toString().padStart(2, '0');
@@ -184,6 +184,11 @@ export function OnlineVisitorsList() {
         throw new Error('القناة غير متصلة');
       }
       
+      // Notify desktop softphone to expect this caller BEFORE sending the invite
+      if (isDesktopConnected && notifyDesktopOfWebCall) {
+        notifyDesktopOfWebCall(visitor.uuid, visitor.device || 'desktop');
+      }
+
       // Send incoming_call to visitor's browser
       // The visitor's browser will then dial 700 on PBX → routes to ext 100 → softphone rings
       await channelRef.current.send({

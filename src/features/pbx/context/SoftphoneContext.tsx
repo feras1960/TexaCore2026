@@ -27,6 +27,7 @@ interface SoftphoneContextType extends SoftphoneState {
   toggleHold: () => void;
   desktopCallState: { state: string; remoteNumber: string; duration: number } | null;
   hangupDesktopCall: () => void;
+  notifyDesktopOfWebCall: (visitorId: string, deviceType: string) => void;
 }
 
 // ─── Configuration ────────────────────────────────────────────
@@ -659,6 +660,17 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     }).catch(console.error);
   }, []);
 
+  const notifyDesktopOfWebCall = useCallback((visitorId: string, deviceType: string) => {
+    const channel = syncChannelRef.current;
+    if (!channel) return;
+    
+    channel.send({
+      type: 'broadcast',
+      event: 'web-call',
+      payload: { visitor_id: visitorId, device_type: deviceType }
+    }).catch(console.error);
+  }, []);
+
   return (
     <SoftphoneContext.Provider value={{
       ...state,
@@ -673,6 +685,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       transferCall,
       desktopCallState,
       hangupDesktopCall,
+      notifyDesktopOfWebCall,
     }}>
       {children}
       <audio ref={remoteAudioRef} autoPlay hidden />
