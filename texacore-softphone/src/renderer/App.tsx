@@ -22,7 +22,18 @@ export default function App() {
   const [isCallMinimized, setIsCallMinimized] = useState(false);
   
   const extension = localStorage.getItem('pbx_ext') || '';
-  const { client } = useSupabase(extension);
+  const { client, channel } = useSupabase(extension);
+
+  // Sync call state back to ERP
+  useEffect(() => {
+    if (channel) {
+      channel.send({
+        type: 'broadcast',
+        event: 'desktop_call_state',
+        payload: { state: callState, remoteNumber: activeNumber, duration: callDuration }
+      }).catch(console.error);
+    }
+  }, [callState, activeNumber, callDuration, channel]);
 
   const formatActiveNumber = (num: string) => {
     if (num && num.startsWith('WEB|')) {
@@ -94,6 +105,18 @@ export default function App() {
     window.addEventListener('softphone-web-call', handleWebCall);
     return () => window.removeEventListener('softphone-web-call', handleWebCall);
   }, [callState]);
+
+  // Listen for hangup requests from ERP
+  useEffect(() => {
+    const handleRemoteHangup = () => {
+      if (callState !== 'idle') {
+        console.log('[App] Remote hangup requested from ERP');
+        hangupCall();
+      }
+    };
+    window.addEventListener('softphone-hangup', handleRemoteHangup);
+    return () => window.removeEventListener('softphone-hangup', handleRemoteHangup);
+  }, [callState, hangupCall]);
 
   const handleCall = async () => {
     if (callState === 'idle' && target) await makeCall(target);

@@ -44,6 +44,11 @@ export function useSupabase(pbxExtension: string) {
           window.dispatchEvent(event);
         }
       })
+      .on('broadcast', { event: 'hangup' }, () => {
+        console.log('[Realtime] Hangup command received!');
+        const event = new CustomEvent('softphone-hangup');
+        window.dispatchEvent(event);
+      })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to ERP Sync Channel');

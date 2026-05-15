@@ -23,8 +23,10 @@ interface SoftphoneContextType extends SoftphoneState {
   answerCall: () => void;
   hangupCall: () => void;
   toggleMute: () => void;
-  toggleHold: () => void;
   transferCall: (targetNumber: string) => void;
+  toggleHold: () => void;
+  desktopCallState: { state: string; remoteNumber: string; duration: number } | null;
+  hangupDesktopCall: () => void;
 }
 
 // ─── Configuration ────────────────────────────────────────────
@@ -554,6 +556,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Desktop Softphone Integration ──────────────────────────
   const [isDesktopConnected, setIsDesktopConnected] = useState(false);
+  const [desktopCallState, setDesktopCallState] = useState<{ state: string; remoteNumber: string; duration: number } | null>(null);
   const realtimeClientRef = useRef<any>(null);
   const syncChannelRef = useRef<any>(null);
 
@@ -579,6 +582,14 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
           }
         });
         setIsDesktopConnected(desktopFound);
+        // Reset desktop call state if disconnected
+        if (!desktopFound) setDesktopCallState(null);
+      });
+
+      channel.on('broadcast', { event: 'desktop_call_state' }, (payload) => {
+        if (payload.payload) {
+          setDesktopCallState(payload.payload);
+        }
       });
 
       channel.subscribe((status: string) => {
@@ -637,6 +648,17 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const hangupDesktopCall = useCallback(() => {
+    const channel = syncChannelRef.current;
+    if (!channel) return;
+    
+    channel.send({
+      type: 'broadcast',
+      event: 'hangup',
+      payload: {}
+    }).catch(console.error);
+  }, []);
+
   return (
     <SoftphoneContext.Provider value={{
       ...state,
@@ -649,6 +671,8 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       toggleMute,
       toggleHold,
       transferCall,
+      desktopCallState,
+      hangupDesktopCall,
     }}>
       {children}
       <audio ref={remoteAudioRef} autoPlay hidden />

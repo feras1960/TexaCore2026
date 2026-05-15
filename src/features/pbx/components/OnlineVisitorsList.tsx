@@ -60,7 +60,37 @@ export function OnlineVisitorsList() {
   const [callingUuid, setCallingUuid] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const channelRef = useRef<any>(null);
-  const { isDesktopConnected, dialViaDesktop } = useSoftphone();
+  const { isDesktopConnected, dialViaDesktop, desktopCallState, hangupDesktopCall, callState: webCallState, remoteNumber: webRemoteNumber, hangupCall: webHangupCall } = useSoftphone();
+
+  const formatTimeDuration = (s: number) => {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  };
+
+  const getCallStatus = (visitor: VisitorPresence) => {
+    // Check if desktop softphone is handling the call
+    if (isDesktopConnected && desktopCallState && desktopCallState.state !== 'idle') {
+      if (desktopCallState.remoteNumber.includes(visitor.uuid)) {
+        return {
+          state: desktopCallState.state,
+          duration: desktopCallState.duration,
+          isDesktop: true
+        };
+      }
+    }
+    // Check if web softphone is handling the call
+    if (!isDesktopConnected && webCallState !== 'idle') {
+      if (webRemoteNumber.includes(visitor.uuid)) {
+        return {
+          state: webCallState,
+          duration: 0, // Web softphone doesn't track duration natively here yet, but we show state
+          isDesktop: false
+        };
+      }
+    }
+    return null;
+  };
 
   useEffect(() => {
     const channel = pbxRealtimeClient.channel('pbx_visitors');
@@ -273,24 +303,55 @@ export function OnlineVisitorsList() {
                 </div>
               </div>
 
-              <Button 
-                size="sm" 
-                variant={callingUuid === visitor.uuid ? "outline" : "default"}
-                className={`h-8 gap-1.5 text-xs transition-all ${callingUuid === visitor.uuid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-900 text-white hover:bg-emerald-600'}`}
-                onClick={() => handleCallVisitor(visitor)}
-                disabled={callingUuid === visitor.uuid}
-              >
-                {callingUuid === visitor.uuid ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" /> جاري الرنين
-                  </>
-                ) : (
-                  <>
-                    <PhoneCall className="w-3.5 h-3.5" /> اتصال
-                  </>
-                )}
-              </Button>
-            </div>
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const callStatus = getCallStatus(visitor);
+                  const isActivelyCalling = callingUuid === visitor.uuid;
+                  
+                  if (callStatus) {
+                    const isConnected = callStatus.state === 'connected';
+                    return (
+                      <div className="flex items-center gap-2 pr-2">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
+                          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-bounce'}`} />
+                          <span className={`text-[11px] font-medium ${isConnected ? 'text-emerald-700' : 'text-amber-700'} min-w-[40px] text-center font-mono`}>
+                            {isConnected ? formatTimeDuration(callStatus.duration) : 'رنين...'}
+                          </span>
+                        </div>
+                        <Button 
+                          variant="destructive" 
+                          size="icon"
+                          className="h-8 w-8 rounded-full shadow-sm hover:shadow-md transition-all hover:bg-red-600 focus:ring-2 focus:ring-red-200"
+                          onClick={() => callStatus.isDesktop ? hangupDesktopCall() : webHangupCall()}
+                          title="إنهاء المكالمة"
+                        >
+                          <PhoneOff className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <Button 
+                      size="sm" 
+                      variant={isActivelyCalling ? "outline" : "default"}
+                      className={`h-8 gap-1.5 text-xs transition-all rounded-full px-4 ${isActivelyCalling ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-900 text-white hover:bg-emerald-600 hover:shadow-md hover:-translate-y-0.5'}`}
+                      onClick={() => handleCallVisitor(visitor)}
+                      disabled={isActivelyCalling}
+                    >
+                      {isActivelyCalling ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> جاري الاتصال
+                        </>
+                      ) : (
+                        <>
+                          <PhoneCall className="w-3.5 h-3.5" /> اتصال
+                        </>
+                      )}
+                    </Button>
+                  );
+                })()}
+              </div>
           ))}
         </div>
       )}
