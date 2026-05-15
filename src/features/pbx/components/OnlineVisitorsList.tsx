@@ -352,6 +352,7 @@ export function OnlineVisitorsList() {
                   );
                 })()}
               </div>
+            </div>
           ))}
         </div>
       )}
