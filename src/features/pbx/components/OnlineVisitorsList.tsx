@@ -71,7 +71,8 @@ export function OnlineVisitorsList() {
   const getCallStatus = (visitor: VisitorPresence) => {
     // Check if desktop softphone is handling the call
     if (isDesktopConnected && desktopCallState && desktopCallState.state !== 'idle') {
-      if (desktopCallState.remoteNumber.includes(visitor.uuid)) {
+      const shortUuid = visitor.uuid.substring(0, 6);
+      if (desktopCallState.remoteNumber.includes(shortUuid)) {
         return {
           state: desktopCallState.state,
           duration: desktopCallState.duration,
@@ -81,7 +82,8 @@ export function OnlineVisitorsList() {
     }
     // Check if web softphone is handling the call
     if (!isDesktopConnected && webCallState !== 'idle') {
-      if (webRemoteNumber.includes(visitor.uuid)) {
+      const shortUuid = visitor.uuid.substring(0, 6);
+      if (webRemoteNumber.includes(shortUuid)) {
         return {
           state: webCallState,
           duration: 0, // Web softphone doesn't track duration natively here yet, but we show state

@@ -27,13 +27,18 @@ export default function App() {
   // Sync call state back to ERP
   useEffect(() => {
     if (channel) {
+      // Use target if activeNumber is webrtc_guest, as Asterisk drops the display name
+      const actualRemoteNumber = activeNumber === 'webrtc_guest' && target.startsWith('WEB|') 
+        ? target 
+        : activeNumber;
+
       channel.send({
         type: 'broadcast',
         event: 'desktop_call_state',
-        payload: { state: callState, remoteNumber: activeNumber, duration: callDuration }
+        payload: { state: callState, remoteNumber: actualRemoteNumber, duration: callDuration }
       }).catch(console.error);
     }
-  }, [callState, activeNumber, callDuration, channel]);
+  }, [callState, activeNumber, callDuration, channel, target]);
 
   const formatActiveNumber = (num: string) => {
     if (num && num.startsWith('WEB|')) {
