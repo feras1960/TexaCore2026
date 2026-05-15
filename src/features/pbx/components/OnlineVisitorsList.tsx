@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Globe, PhoneCall, Clock, CheckCircle2, Smartphone, Monitor, RefreshCw } from 'lucide-react';
+import { Globe, PhoneCall, Clock, CheckCircle2, Smartphone, Monitor, RefreshCw, Loader2, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
