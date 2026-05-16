@@ -53,6 +53,9 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
   bool isOnHold = false;
   bool isPttConference = false;
 
+  /// Current SIP extension (e.g., '101', '102')
+  String? get sipExtension => _lastUsername;
+
   /// Whether there is a held call (for UI)
   bool get hasHeldCall => heldCall != null;
 

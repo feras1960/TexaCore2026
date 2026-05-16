@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -61,9 +62,14 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   String? _currentTalker;
   bool _isConferenceConnected = false;
   String? _conferenceRoomId;
+  bool _pttLocked = false; // locked when someone else is talking
 
-  // ─── PTT History per channel (24 hours) ───
+  // ─── Supabase Realtime ───
+  RealtimeChannel? _realtimeChannel;
+
+  // ─── PTT History per channel (cloud synced) ───
   final Map<int, List<_PttHistoryItem>> _channelHistory = {};
+  bool _isLoadingHistory = false;
 
   List<_PttHistoryItem> get _currentHistory {
     if (_selectedChannelIndex == -1) {
@@ -119,11 +125,16 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       return;
     }
 
-    // Dial ptt_{room} → Asterisk routes to ConfBridge (starts muted)
+    // Dial ptt_{room} → Asterisk routes to ConfBridge
     _conferenceRoomId = room;
     sipService.makePttCall(room);
     _isConferenceConnected = true;
     debugPrint('[NexaTalkie] 📡 Joining ConfBridge: ptt_$room');
+
+    // Subscribe to Realtime for talking status
+    _subscribeToRealtime(room);
+    // Load cloud history for this channel
+    _loadCloudHistory(channelIndex);
     setState(() {});
   }
 
@@ -133,11 +144,128 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     sipService.hangupPtt();
     _isConferenceConnected = false;
     _conferenceRoomId = null;
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = null;
     debugPrint('[NexaTalkie] 📴 Left ConfBridge');
   }
 
-  // ─── PTT Actions (Hybrid: SIP live + local recording) ───
+  // ─── Supabase Realtime: who is talking ───
+  void _subscribeToRealtime(String room) {
+    _realtimeChannel?.unsubscribe();
+    final client = ref.read(supabaseClientProvider);
+    _realtimeChannel = client
+        .channel('nexatalkie_$room')
+        .onBroadcast(
+          event: 'ptt_talking',
+          callback: (payload) {
+            final isTalking = payload['is_talking'] as bool? ?? false;
+            final talkerName = payload['user_name'] as String?;
+            final talkerId = payload['user_id'] as String?;
+            final currentUserId = client.auth.currentUser?.id ?? Env.defaultUserId;
+            // Ignore own broadcasts
+            if (talkerId == currentUserId) return;
+            setState(() {
+              if (isTalking) {
+                _currentTalker = talkerName ?? 'متحدث';
+                _pttLocked = true; // Lock PTT for others
+              } else {
+                _currentTalker = null;
+                _pttLocked = false;
+              }
+            });
+          },
+        )
+        .onBroadcast(
+          event: 'ptt_new_message',
+          callback: (payload) {
+            // New voice message from another user — refresh history
+            _loadCloudHistory(_selectedChannelIndex);
+          },
+        )
+        .onBroadcast(
+          event: 'call_alert',
+          callback: (payload) {
+            final toUserId = payload['to_user_id'] as String?;
+            final currentUserId = client.auth.currentUser?.id ?? Env.defaultUserId;
+            if (toUserId != null && toUserId != currentUserId) return;
+            // Someone is pinging us!
+            final fromName = payload['from_name'] as String? ?? 'مستخدم';
+            _playSound('chirp');
+            _playSound('chirp'); // Double chirp for alert
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('📻 $fromName يطلبك على القناة!'),
+                  backgroundColor: const Color(0xFF3B82F6),
+                  duration: const Duration(seconds: 5),
+                  action: SnackBarAction(
+                    label: 'رد',
+                    textColor: Colors.white,
+                    onPressed: () {},
+                  ),
+                ),
+              );
+            }
+          },
+        )
+        .subscribe();
+    debugPrint('[NexaTalkie] 📡 Realtime subscribed: nexatalkie_$room');
+  }
+
+  // ─── Load cloud-synced voice history ───
+  Future<void> _loadCloudHistory(int channelIndex) async {
+    if (channelIndex == -1) return;
+    _isLoadingHistory = true;
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final room = _mockChannels[channelIndex]['conference_room'] as String;
+      // Query nexa_ptt_messages for this channel's conference_room
+      final channelData = await client
+          .from('nexa_ptt_channels')
+          .select('id')
+          .eq('conference_room', room)
+          .maybeSingle();
+      if (channelData == null) {
+        _isLoadingHistory = false;
+        return;
+      }
+      final channelId = channelData['id'] as String;
+      final messages = await client
+          .from('nexa_ptt_messages')
+          .select()
+          .eq('channel_id', channelId)
+          .gt('expires_at', DateTime.now().toUtc().toIso8601String())
+          .order('created_at', ascending: false)
+          .limit(50);
+      final currentUserId = client.auth.currentUser?.id ?? Env.defaultUserId;
+      final items = (messages as List).map((m) {
+        final listenedBy = (m['listened_by'] as List?)?.cast<String>() ?? [];
+        return _PttHistoryItem(
+          sender: m['sender_name'] ?? m['sender_ext'] ?? 'مجهول',
+          duration: _formatDuration(m['duration_seconds'] ?? 0),
+          time: DateTime.parse(m['created_at']),
+          listenedBy: listenedBy,
+          totalMembers: _mockChannels[channelIndex]['member_count'],
+          isMine: m['sender_id'] == currentUserId,
+          audioUrl: m['audio_url'],
+        );
+      }).toList();
+      setState(() {
+        _channelHistory[channelIndex] = items;
+      });
+      debugPrint('[NexaTalkie] ☁️ Loaded ${items.length} cloud messages');
+    } catch (e) {
+      debugPrint('[NexaTalkie] ❌ Load cloud history error: $e');
+    }
+    _isLoadingHistory = false;
+  }
+
+  // ─── PTT Actions (Hybrid: SIP live + local recording + cloud sync) ───
   void _startTalking() async {
+    if (_pttLocked) {
+      debugPrint('[NexaTalkie] 🔒 PTT locked — someone else is talking');
+      return;
+    }
     setState(() {
       _isTalking = true;
       _talkSeconds = 0;
@@ -151,12 +279,24 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     if (sipService.hasPttCall) {
       sipService.pttUnmute();
     } else {
-      // Not in conference yet (or dropped) — force reconnect
       _isConferenceConnected = false;
       _joinConference(_selectedChannelIndex);
     }
 
-    // 2. Start local recording (for history/review)
+    // 2. Broadcast "I'm talking" to all via Realtime
+    _realtimeChannel?.sendBroadcastMessage(
+      event: 'ptt_talking',
+      payload: {
+        'user_id': ref.read(supabaseClientProvider).auth.currentUser?.id ?? Env.defaultUserId,
+        'user_name': sipService.sipExtension ?? 'User',
+        'is_talking': true,
+      },
+    );
+
+    // 3. Play chirp sound effect
+    _playSound('chirp');
+
+    // 4. Start local recording (for cloud upload)
     try {
       final mediaDevices = html.window.navigator.mediaDevices;
       if (mediaDevices == null) {
@@ -171,7 +311,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
         _audioChunks.add(blob as html.Blob);
       });
       _mediaRecorder!.start();
-      debugPrint('[NexaTalkie] 🎤 Recording started (for history)');
+      debugPrint('[NexaTalkie] 🎤 Recording started');
     } catch (e) {
       debugPrint('[NexaTalkie] ❌ Mic error: $e');
     }
@@ -180,6 +320,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   void _stopTalking() {
     _talkTimer?.cancel();
     final duration = _formatDuration(_talkSeconds);
+    final durationSecs = _talkSeconds;
     final channelIdx = _selectedChannelIndex;
     final hadAudio = _talkSeconds > 0;
 
@@ -189,13 +330,27 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       sipService.pttMute();
     }
 
-    // 2. Stop local recording and save to history
+    // 2. Broadcast "I stopped talking"
+    _realtimeChannel?.sendBroadcastMessage(
+      event: 'ptt_talking',
+      payload: {
+        'user_id': ref.read(supabaseClientProvider).auth.currentUser?.id ?? Env.defaultUserId,
+        'is_talking': false,
+        'duration_seconds': durationSecs,
+      },
+    );
+
+    // 3. Play roger sound
+    _playSound('roger');
+
+    // 4. Stop recording + upload to Supabase Storage
     if (_mediaRecorder != null) {
       _mediaRecorder!.addEventListener('stop', (_) {
         final audioBlob = html.Blob(_audioChunks, 'audio/webm');
         final audioUrl = html.Url.createObjectUrlFromBlob(audioBlob);
 
         if (hadAudio || _audioChunks.isNotEmpty) {
+          // Add to local history immediately
           setState(() {
             _channelHistory.putIfAbsent(channelIdx, () => []);
             _channelHistory[channelIdx]!.insert(
@@ -211,15 +366,15 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
               ),
             );
           });
-          debugPrint('[NexaTalkie] ✅ Recording saved: $audioUrl');
+
+          // Upload to Supabase Storage in background
+          _uploadRecording(audioBlob, durationSecs, channelIdx);
         }
 
-        // 3. Release mic AFTER recording is saved
         _releaseMicTracks();
       });
       _mediaRecorder!.stop();
     } else {
-      // No recorder — just cleanup
       _releaseMicTracks();
     }
 
@@ -227,6 +382,78 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       _isTalking = false;
       _talkSeconds = 0;
     });
+  }
+
+  /// Upload recording to Supabase Storage + insert message record
+  Future<void> _uploadRecording(html.Blob audioBlob, int durationSecs, int channelIdx) async {
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final userId = client.auth.currentUser?.id ?? Env.defaultUserId;
+      final sipService = ref.read(sipServiceProvider);
+      final ext = sipService.sipExtension ?? 'unknown';
+      final room = _mockChannels[channelIdx]['conference_room'] as String;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final filePath = '$userId/$room-$timestamp.webm';
+
+      // Convert Blob to Uint8List
+      final reader = html.FileReader();
+      reader.readAsArrayBuffer(audioBlob);
+      await reader.onLoadEnd.first;
+      final bytes = Uint8List.fromList(reader.result as List<int>);
+
+      // Upload to Supabase Storage
+      await client.storage.from('ptt-recordings').uploadBinary(
+        filePath,
+        bytes,
+        fileOptions: const FileOptions(contentType: 'audio/webm'),
+      );
+      final publicUrl = client.storage.from('ptt-recordings').getPublicUrl(filePath);
+      debugPrint('[NexaTalkie] ☁️ Uploaded: $publicUrl');
+
+      // Get channel_id from room name
+      final channelData = await client
+          .from('nexa_ptt_channels')
+          .select('id')
+          .eq('conference_room', room)
+          .maybeSingle();
+      if (channelData == null) {
+        debugPrint('[NexaTalkie] ⚠️ Channel not found in DB for room: $room');
+        return;
+      }
+
+      // Insert message record
+      await client.from('nexa_ptt_messages').insert({
+        'channel_id': channelData['id'],
+        'sender_id': userId,
+        'sender_name': ext,
+        'sender_ext': ext,
+        'audio_url': publicUrl,
+        'duration_seconds': durationSecs,
+        'file_size_bytes': bytes.length,
+      });
+      debugPrint('[NexaTalkie] ✅ Message record saved');
+
+      // Notify others via Realtime
+      _realtimeChannel?.sendBroadcastMessage(
+        event: 'ptt_new_message',
+        payload: {'sender': ext, 'duration': durationSecs},
+      );
+    } catch (e) {
+      debugPrint('[NexaTalkie] ❌ Upload error: $e');
+    }
+  }
+
+  /// Play PTT sound effect
+  void _playSound(String name) {
+    try {
+      // Use Web Audio API for instant playback
+      final audio = html.AudioElement()
+        ..src = 'assets/assets/sounds/ptt_$name.mp3'
+        ..volume = 0.3;
+      audio.play();
+    } catch (e) {
+      debugPrint('[NexaTalkie] ⚠️ Sound error: $e');
+    }
   }
 
   /// Properly release all microphone tracks
@@ -254,6 +481,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     _talkTimer?.cancel();
     _releaseMicTracks();
     _leaveConference();
+    _realtimeChannel?.unsubscribe();
     super.dispose();
   }
 
