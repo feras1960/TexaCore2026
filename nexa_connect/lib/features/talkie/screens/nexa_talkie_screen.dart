@@ -274,50 +274,45 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       padding: EdgeInsets.fromLTRB(
           20, MediaQuery.of(context).padding.top + 12, 20, 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [const Color(0xFF1A1A2E), const Color(0xFF16213E)]
-              : [const Color(0xFF667EEA), const Color(0xFF764BA2)],
-        ),
+        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF764BA2).withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(isDark ? 0.15 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            width: 44, height: 44,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: theme.colorScheme.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(CupertinoIcons.antenna_radiowaves_left_right,
-                color: Colors.white, size: 22),
+            child: Icon(CupertinoIcons.antenna_radiowaves_left_right,
+                color: theme.colorScheme.primary, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('NexaTalkie',
+                Text('NexaTalkie',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5)),
                 Text('Push-to-Talk',
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: theme.colorScheme.onSurface.withOpacity(0.5),
                         fontSize: 13,
                         fontWeight: FontWeight.w500)),
               ],
@@ -328,12 +323,14 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
           GestureDetector(
             onTap: () => _showCreateChannel(theme, isDark),
             child: Container(
-              width: 38, height: 38,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: theme.colorScheme.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(CupertinoIcons.plus, color: Colors.white, size: 20),
+              child: Icon(CupertinoIcons.plus,
+                  color: theme.colorScheme.primary, size: 20),
             ),
           ),
         ],
@@ -346,19 +343,22 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       onTap: () => Navigator.push(context,
           CupertinoPageRoute(builder: (_) => const PttInvitationsScreen())),
       child: Container(
-        width: 38, height: 38,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
+          color: theme.colorScheme.primary.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            const Icon(CupertinoIcons.bell, color: Colors.white, size: 20),
+            Icon(CupertinoIcons.bell, color: theme.colorScheme.primary, size: 20),
             Positioned(
-              right: 4, top: 4,
+              right: 4,
+              top: 4,
               child: Container(
-                width: 10, height: 10,
+                width: 10,
+                height: 10,
                 decoration: const BoxDecoration(
                     shape: BoxShape.circle, color: Color(0xFFFF3B30)),
               ),
