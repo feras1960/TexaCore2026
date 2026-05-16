@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'dart:js' as js;
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
@@ -43,6 +44,15 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Join the default channel's ConfBridge silently on load so it's ready for instant PTT
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _joinConference(_selectedChannelIndex);
+    });
+  }
   // ─── State ───
   int _selectedChannelIndex = 0;
   bool _isTalking = false;
@@ -141,7 +151,8 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     if (sipService.hasPttCall) {
       sipService.pttUnmute();
     } else {
-      // Not in conference yet — join first
+      // Not in conference yet (or dropped) — force reconnect
+      _isConferenceConnected = false;
       _joinConference(_selectedChannelIndex);
     }
 
@@ -203,15 +214,13 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
           debugPrint('[NexaTalkie] ✅ Recording saved: $audioUrl');
         }
 
-        // 3. Release mic & disconnect AFTER recording is saved
+        // 3. Release mic AFTER recording is saved
         _releaseMicTracks();
-        _leaveConference();
       });
       _mediaRecorder!.stop();
     } else {
       // No recorder — just cleanup
       _releaseMicTracks();
-      _leaveConference();
     }
 
     setState(() {
@@ -387,19 +396,62 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     final selectedFilter = _selectedChannelIndex == -1 ? 'All' : _mockChannels[_selectedChannelIndex]['name'].toString();
     final icons = [CupertinoIcons.globe, ..._mockChannels.map((c) => c['type'] == 'group' ? CupertinoIcons.person_3_fill : CupertinoIcons.person_2_fill)];
     final colors = [const Color(0xFF007AFF), ..._mockChannels.map((c) => const Color(0xFF34C759))];
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
 
-    return Stack(
-      children: [
-        Column(
-          children: [
-            // Status Filter Bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    Widget buildChannelFilter() {
+      return FloatingFilterBar(
+        filters: filters,
+        selected: selectedFilter,
+        icons: icons,
+        colors: colors,
+        onSelected: (f) {
+          if (f == 'All') {
+            setState(() => _selectedChannelIndex = -1);
+          } else {
+            final idx = _mockChannels.indexWhere((c) => c['name'] == f);
+            setState(() => _selectedChannelIndex = idx);
+            _joinConference(idx);
+          }
+        },
+      );
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: (_) {
+        ref.read(sipServiceProvider).ensurePttAudioPlaying();
+      },
+      onPanDown: (_) {
+        ref.read(sipServiceProvider).ensurePttAudioPlaying();
+      },
+      child: Stack(
+        children: [
+          Offstage(
+            offstage: true,
+            child: SizedBox(
+              width: 1,
+              height: 1,
+              child: RTCVideoView(ref.read(sipServiceProvider).remoteRenderer),
+            ),
+          ),
+          Column(
+            children: [
+              // Status Filter Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: FloatingFilterBar(
                 filters: statusFilters,
                 selected: selectedStatusLabel,
-                icons: const [CupertinoIcons.speaker_2_fill, CupertinoIcons.settings, CupertinoIcons.speaker_slash_fill],
-                colors: const [Color(0xFF34C759), Color(0xFF007AFF), Color(0xFFFF3B30)],
+                icons: const [
+                  CupertinoIcons.speaker_2_fill,
+                  CupertinoIcons.settings,
+                  CupertinoIcons.speaker_slash_fill
+                ],
+                colors: const [
+                  Color(0xFF34C759),
+                  Color(0xFF007AFF),
+                  Color(0xFFFF3B30)
+                ],
                 onSelected: (f) {
                   final notifier = ref.read(talkieStatusProvider.notifier);
                   final sipService = ref.read(sipServiceProvider);
@@ -417,25 +469,12 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
               ),
             ),
 
-            // Channel Filter Bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: FloatingFilterBar(
-                filters: filters,
-                selected: selectedFilter,
-                icons: icons,
-                colors: colors,
-                onSelected: (f) {
-                  if (f == 'All') {
-                    setState(() => _selectedChannelIndex = -1);
-                  } else {
-                    final idx = _mockChannels.indexWhere((c) => c['name'] == f);
-                    setState(() => _selectedChannelIndex = idx);
-                    _joinConference(idx);
-                  }
-                },
+            // Channel Filter Bar (Desktop/Tablet)
+            if (!isMobile)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: buildChannelFilter(),
               ),
-            ),
 
             // History title
             Padding(
@@ -469,9 +508,11 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
                               fontSize: 14)),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 260),
+                      padding: EdgeInsets.fromLTRB(
+                          16, 4, 16, isMobile ? 320 : 130),
                       itemCount: _currentHistory.length,
-                      itemBuilder: (ctx, i) => _buildHistoryItem(_currentHistory[i], theme, isDark),
+                      itemBuilder: (ctx, i) =>
+                          _buildHistoryItem(_currentHistory[i], theme, isDark),
                     ),
             ),
           ],
@@ -481,10 +522,20 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
         Positioned(
           left: 16,
           right: 16,
-          bottom: 156,
+          bottom: isMobile ? 156 : 24,
           child: _buildPttArea(theme, isDark),
         ),
+
+        // Floating Channel Filter Bar (Mobile)
+        if (isMobile)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 96,
+            child: buildChannelFilter(),
+          ),
       ],
+    ),
     );
   }
 

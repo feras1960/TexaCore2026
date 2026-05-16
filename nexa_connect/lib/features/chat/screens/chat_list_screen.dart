@@ -90,11 +90,35 @@ class ChatListScreenState extends ConsumerState<ChatListScreen>
           .toList();
     }
 
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+
+    Widget buildFilterBar() {
+      return FloatingFilterBar(
+        filters: const ['All', 'Unread', 'Favorites', 'Groups'],
+        selected: _selectedFilter,
+        icons: const [
+          CupertinoIcons.chat_bubble_2,
+          CupertinoIcons.envelope_badge,
+          CupertinoIcons.heart_fill,
+          CupertinoIcons.person_3,
+        ],
+        colors: const [
+          Color(0xFF007AFF),
+          Color(0xFFFF3B30),
+          Color(0xFFFF2D55),
+          Color(0xFF34C759),
+        ],
+        onSelected: (f) => setState(() => _selectedFilter = f),
+      );
+    }
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
+            Column(
+              children: [
                 // Header
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -240,27 +264,12 @@ class ChatListScreenState extends ConsumerState<ChatListScreen>
                   ),
                 ),
 
-                // Filter bar
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: FloatingFilterBar(
-                    filters: const ['All', 'Unread', 'Favorites', 'Groups'],
-                    selected: _selectedFilter,
-                    icons: const [
-                      CupertinoIcons.chat_bubble_2,
-                      CupertinoIcons.envelope_badge,
-                      CupertinoIcons.heart_fill,
-                      CupertinoIcons.person_3,
-                    ],
-                    colors: const [
-                      Color(0xFF007AFF),
-                      Color(0xFFFF3B30),
-                      Color(0xFFFF2D55),
-                      Color(0xFF34C759),
-                    ],
-                    onSelected: (f) => setState(() => _selectedFilter = f),
+                // Filter bar for Desktop/Tablet
+                if (!isMobile)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: buildFilterBar(),
                   ),
-                ),
 
                 // Archived Row
                 Padding(
@@ -300,7 +309,7 @@ class ChatListScreenState extends ConsumerState<ChatListScreen>
                     physics: const AlwaysScrollableScrollPhysics(
                       parent: BouncingScrollPhysics(),
                     ),
-                    padding: const EdgeInsets.only(bottom: 200),
+                    padding: EdgeInsets.only(bottom: isMobile ? 240 : 200),
                     itemCount: filteredChats.length,
                     separatorBuilder: (context, index) => Divider(
                       color: theme.colorScheme.outline.withAlpha(60),
@@ -314,6 +323,17 @@ class ChatListScreenState extends ConsumerState<ChatListScreen>
                 ),
               ],
             ),
+
+            // Floating Filter Bar for Mobile
+            if (isMobile)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 110,
+                child: buildFilterBar(),
+              ),
+          ],
+        ),
       ),
     );
   }

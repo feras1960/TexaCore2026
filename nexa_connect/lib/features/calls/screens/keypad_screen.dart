@@ -230,6 +230,7 @@ class _KeypadScreenState extends ConsumerState<KeypadScreen>
     final callState = ref.watch(callStateProvider);
     final activeCall = ref.watch(activeCallProvider);
     final registrationState = ref.watch(sipRegistrationProvider);
+    final sipService = ref.watch(sipServiceProvider);
     final theme = Theme.of(context);
 
     // Start/stop timer based on state
@@ -254,6 +255,7 @@ class _KeypadScreenState extends ConsumerState<KeypadScreen>
   }
 
   Widget _buildDialpad(ThemeData theme, String registrationState) {
+    final sipService = ref.watch(sipServiceProvider);
     final isRegistered = registrationState == 'REGISTERED';
     final isDark = theme.brightness == Brightness.dark;
     final contacts = ref.watch(contactsProvider);
@@ -333,7 +335,7 @@ class _KeypadScreenState extends ConsumerState<KeypadScreen>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          isRegistered ? 'Ext 101' : 'Connecting...',
+                          isRegistered ? 'Ext ${sipService.currentUsername}' : 'Connecting...',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

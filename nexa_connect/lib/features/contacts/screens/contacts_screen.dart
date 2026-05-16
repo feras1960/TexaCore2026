@@ -94,11 +94,45 @@ class ContactsScreenState extends ConsumerState<ContactsScreen>
       }
     }
 
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+
+    Widget buildFilterBar() {
+      return FloatingFilterBar(
+        filters: const ['All', 'Phone', 'Customers', 'Suppliers'],
+        selected: filterLabel(currentFilter),
+        icons: const [
+          CupertinoIcons.person_2,
+          CupertinoIcons.phone,
+          CupertinoIcons.cart,
+          CupertinoIcons.building_2_fill,
+        ],
+        colors: const [
+          Color(0xFF007AFF),
+          Color(0xFF34C759),
+          Color(0xFFFF9500),
+          Color(0xFF5856D6),
+        ],
+        onSelected: (f) {
+          final map = {
+            'All': ContactFilter.all,
+            'Phone': ContactFilter.phone,
+            'Customers': ContactFilter.customers,
+            'Suppliers': ContactFilter.suppliers,
+          };
+          ref
+              .read(contactFilterProvider.notifier)
+              .setFilter(map[f] ?? ContactFilter.all);
+        },
+      );
+    }
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
+            Column(
+              children: [
                 // Header
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -217,60 +251,46 @@ class ContactsScreenState extends ConsumerState<ContactsScreen>
                   ),
                 ),
 
-                // Filter bar
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: FloatingFilterBar(
-                    filters: const ['All', 'Phone', 'Customers', 'Suppliers'],
-                    selected: filterLabel(currentFilter),
-                    icons: const [
-                      CupertinoIcons.person_2,
-                      CupertinoIcons.phone,
-                      CupertinoIcons.cart,
-                      CupertinoIcons.building_2_fill,
-                    ],
-                    colors: const [
-                      Color(0xFF007AFF),
-                      Color(0xFF34C759),
-                      Color(0xFFFF9500),
-                      Color(0xFF5856D6),
-                    ],
-                    onSelected: (f) {
-                      final map = {
-                        'All': ContactFilter.all,
-                        'Phone': ContactFilter.phone,
-                        'Customers': ContactFilter.customers,
-                        'Suppliers': ContactFilter.suppliers,
-                      };
-                      ref
-                          .read(contactFilterProvider.notifier)
-                          .setFilter(map[f] ?? ContactFilter.all);
+                // Filter bar for Desktop/Tablet
+                if (!isMobile)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: buildFilterBar(),
+                  ),
+
+                // Contacts List
+                Expanded(
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
+                    ),
+                    padding: EdgeInsets.only(bottom: isMobile ? 240 : 200),
+                    itemCount: contacts.length,
+                    separatorBuilder: (context, index) => Divider(
+                      color: theme.colorScheme.outline.withAlpha(60),
+                      indent: 72,
+                      height: 1,
+                    ),
+                    itemBuilder: (context, index) {
+                      return ContactCard(
+                        contact: contacts[index],
+                        onTap: () {},
+                      );
                     },
                   ),
                 ),
-
-            // Contacts List
-            Expanded(
-              child: ListView.separated(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                padding: const EdgeInsets.only(bottom: 200),
-                itemCount: contacts.length,
-                separatorBuilder: (context, index) => Divider(
-                  color: theme.colorScheme.outline.withAlpha(60),
-                  indent: 72,
-                  height: 1,
-                ),
-                itemBuilder: (context, index) {
-                  return ContactCard(
-                    contact: contacts[index],
-                    onTap: () {},
-                  );
-                },
-              ),
+              ],
             ),
+
+            // Floating Filter Bar for Mobile
+            if (isMobile)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 110,
+                child: buildFilterBar(),
+              ),
           ],
         ),
       ),

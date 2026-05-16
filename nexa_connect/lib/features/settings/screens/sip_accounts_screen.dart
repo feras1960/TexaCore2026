@@ -6,6 +6,9 @@ import '../../../core/models/sip_account.dart';
 import '../../../core/config/env.dart';
 import '../../calls/providers/sip_provider.dart';
 
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+
 /// Provider to manage SIP accounts list
 final sipAccountsProvider =
     NotifierProvider<SipAccountsNotifier, List<SipAccount>>(
@@ -13,18 +16,29 @@ final sipAccountsProvider =
 
 class SipAccountsNotifier extends Notifier<List<SipAccount>> {
   @override
-  List<SipAccount> build() => [
-        // Default account from env
-        SipAccount(
-          id: 'default',
-          displayName: 'TexaCore PBX',
-          server: Env.pbxDomain,
-          port: int.tryParse(Env.pbxWssPort) ?? 8089,
-          username: '101',
-          password: 'TexaCore2026Pbx101',
-          isActive: true,
-        ),
-      ];
+  List<SipAccount> build() {
+    final activeExt = html.window.localStorage['active_sip_ext'] ?? '101';
+    return [
+      SipAccount(
+        id: '101',
+        displayName: 'TexaCore PBX (101)',
+        server: Env.pbxDomain,
+        port: int.tryParse(Env.pbxWssPort) ?? 8089,
+        username: '101',
+        password: 'TexaCore2026Pbx101',
+        isActive: activeExt == '101',
+      ),
+      SipAccount(
+        id: '102',
+        displayName: 'TexaCore PBX (102)',
+        server: Env.pbxDomain,
+        port: int.tryParse(Env.pbxWssPort) ?? 8089,
+        username: '102',
+        password: 'TexaCore2026Pbx102',
+        isActive: activeExt == '102',
+      ),
+    ];
+  }
 
   void addAccount(SipAccount account) {
     state = [...state, account];
@@ -39,6 +53,7 @@ class SipAccountsNotifier extends Notifier<List<SipAccount>> {
   }
 
   void setActive(String id) {
+    html.window.localStorage['active_sip_ext'] = id;
     state = state.map((a) => a.copyWith(isActive: a.id == id)).toList();
   }
 }
