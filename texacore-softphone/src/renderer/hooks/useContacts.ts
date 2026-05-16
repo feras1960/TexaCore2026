@@ -21,36 +21,20 @@ export function useContacts() {
     const fetchContacts = async () => {
       setLoading(true);
       try {
-        // Fetch customers
-        const { data: customers } = await supabase
-          .from('customers')
-          .select('id, name_ar, name_en, phone, mobile')
-          .limit(200);
-
-        // Fetch suppliers
-        const { data: suppliers } = await supabase
-          .from('suppliers')
-          .select('id, name_ar, name_en, phone, mobile')
-          .limit(200);
+        const { data, error } = await supabase.rpc('get_softphone_contacts');
+        if (error) throw error;
 
         const formatted: Contact[] = [];
 
-        (customers || []).forEach(c => {
+        (data || []).forEach((c: any) => {
           const name = c.name_ar || c.name_en || 'بدون اسم';
-          const phone = c.phone || '';
-          const mobile = c.mobile || '';
-          if (phone || mobile) {
-            formatted.push({ id: 'c-' + c.id, name, phone, mobile, type: 'عميل' });
-          }
-        });
-
-        (suppliers || []).forEach(s => {
-          const name = s.name_ar || s.name_en || 'بدون اسم';
-          const phone = s.phone || '';
-          const mobile = s.mobile || '';
-          if (phone || mobile) {
-            formatted.push({ id: 's-' + s.id, name, phone, mobile, type: 'مورد' });
-          }
+          formatted.push({ 
+            id: c.id, 
+            name, 
+            phone: c.phone || '', 
+            mobile: c.mobile || '', 
+            type: c.type 
+          });
         });
 
         // Sort alphabetically

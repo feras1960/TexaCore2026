@@ -576,13 +576,19 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       channel.on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState();
         let desktopFound = false;
+        let detectedExtension = '';
         Object.keys(presenceState).forEach((key) => {
           const presences = presenceState[key] as any[];
-          if (presences.some(p => p.type === 'desktop_softphone' && p.extension === PBX_CONFIG.username)) {
+          const desktop = presences.find(p => p.type === 'desktop_softphone');
+          if (desktop) {
             desktopFound = true;
+            detectedExtension = desktop.extension || '';
           }
         });
         setIsDesktopConnected(desktopFound);
+        if (desktopFound) {
+          console.log(`[SoftphoneContext] 📱 Desktop/Mobile app detected — ext ${detectedExtension}`);
+        }
         // Reset desktop call state if disconnected
         if (!desktopFound) setDesktopCallState(null);
       });
@@ -610,24 +616,42 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     
+    // Send full ERP context so the app can configure itself
     const config = {
+      // PBX Connection
       domain: PBX_CONFIG.domain,
+      port: PBX_CONFIG.port,
       extension: PBX_CONFIG.username,
-      password: PBX_CONFIG.password
+      password: PBX_CONFIG.password,
+      wss_url: PBX_CONFIG.websocketUrl,
+      // User Identity
+      user_id: user?.id || '',
+      user_email: user?.email || '',
+      user_name: user?.user_metadata?.full_name || user?.user_metadata?.name || '',
+      // Company/Tenant Scope
+      company_id: user?.user_metadata?.company_id || '',
+      tenant_id: user?.user_metadata?.tenant_id || '',
+      // Supabase credentials for data access
+      supabase_url: import.meta.env.VITE_CLOUD_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL || '',
+      supabase_anon_key: import.meta.env.VITE_CLOUD_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '',
     };
     
-    console.log('[SoftphoneContext] Sending config to Desktop App:', { domain: config.domain, extension: config.extension });
+    console.log('[SoftphoneContext] Sending full config to App:', { 
+      domain: config.domain, extension: config.extension, 
+      company_id: config.company_id, tenant_id: config.tenant_id,
+      user: config.user_email 
+    });
     
     channel.send({
       type: 'broadcast',
       event: 'softphone-config',
       payload: config
     }).then(() => {
-      console.log('[SoftphoneContext] ✅ Config broadcast sent successfully');
+      console.log('[SoftphoneContext] ✅ Full config broadcast sent successfully');
     }).catch((err: any) => {
       console.error('[SoftphoneContext] ❌ Broadcast failed:', err);
     });
-  }, []);
+  }, [user]);
 
   const dialViaDesktop = useCallback((targetNumber: string) => {
     const channel = syncChannelRef.current;

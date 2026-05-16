@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCallHistory, CallRecord } from '../hooks/useCallHistory';
 
 export default function CallHistory({ onCall }: { onCall: (number: string) => void }) {
+  const { t } = useTranslation();
   const { history, clearHistory, deleteRecord } = useCallHistory();
   const [filter, setFilter] = useState<'all' | 'inbound' | 'outbound' | 'missed'>('all');
 
@@ -27,25 +29,25 @@ export default function CallHistory({ onCall }: { onCall: (number: string) => vo
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'الآن';
-    if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
-    if (diffHours < 24) return `منذ ${diffHours} ساعة`;
-    if (diffDays === 1) return 'أمس';
-    return date.toLocaleDateString('ar-SA');
+    if (diffMins < 1) return t('history.justNow');
+    if (diffMins < 60) return t('history.minsAgo', { count: diffMins });
+    if (diffHours < 24) return t('history.hoursAgo', { count: diffHours });
+    if (diffDays === 1) return t('history.yesterday');
+    return date.toLocaleDateString();
   };
 
   const formatDuration = (seconds: number) => {
     if (seconds === 0) return '';
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    if (m > 0) return `${m}د ${s}ث`;
-    return `${s}ث`;
+    if (m > 0) return `${m}${t('history.min')} ${s}${t('history.sec')}`;
+    return `${s}${t('history.sec')}`;
   };
 
   const formatActiveNumber = (num: string) => {
     if (num && num.startsWith('WEB|')) {
       const parts = num.split('|');
-      const dev = parts[1] === 'mobile' ? 'جوال' : 'كمبيوتر';
+      const dev = parts[1] === 'mobile' ? t('app.mobile') : t('app.pc');
       const countryCode = parts[2];
       const ip = parts[3];
       const shortId = parts[4] || parts[2] || 'مجهول';
@@ -56,9 +58,9 @@ export default function CallHistory({ onCall }: { onCall: (number: string) => vo
       }
 
       if (ip && ip.length > 5 && ip !== '0.0.0.0') {
-         return `${flag} زائر موقع (${dev}) - ${ip}`;
+         return `${flag} ${t('app.webVisitor')} (${dev}) - ${ip}`;
       } else {
-         return `${flag} زائر موقع (${dev}) - ${shortId}`;
+         return `${flag} ${t('app.webVisitor')} (${dev}) - ${shortId}`;
       }
     }
     return num;
@@ -67,15 +69,15 @@ export default function CallHistory({ onCall }: { onCall: (number: string) => vo
   return (
     <div className="history-container">
       <div className="history-filters">
-        <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>الكل</button>
-        <button className={filter === 'missed' ? 'active' : ''} onClick={() => setFilter('missed')}>فائتة</button>
-        <button className={filter === 'inbound' ? 'active' : ''} onClick={() => setFilter('inbound')}>واردة</button>
-        <button className={filter === 'outbound' ? 'active' : ''} onClick={() => setFilter('outbound')}>صادرة</button>
+        <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t('history.all')}</button>
+        <button className={filter === 'missed' ? 'active' : ''} onClick={() => setFilter('missed')}>{t('history.missed')}</button>
+        <button className={filter === 'inbound' ? 'active' : ''} onClick={() => setFilter('inbound')}>{t('history.inbound')}</button>
+        <button className={filter === 'outbound' ? 'active' : ''} onClick={() => setFilter('outbound')}>{t('history.outbound')}</button>
       </div>
 
       <div className="history-list">
         {filteredHistory.length === 0 ? (
-          <div className="empty-state">لا توجد مكالمات</div>
+          <div className="empty-state">{t('history.empty')}</div>
         ) : (
           filteredHistory.map(record => (
             <div key={record.id} className="history-item">
@@ -98,7 +100,7 @@ export default function CallHistory({ onCall }: { onCall: (number: string) => vo
 
       {history.length > 0 && (
         <button className="btn-clear-history" onClick={clearHistory}>
-          مسح السجل بالكامل
+          {t('history.clearAll')}
         </button>
       )}
     </div>
