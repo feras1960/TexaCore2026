@@ -116,5 +116,19 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>يحتاج NexaConnect للوصول إلى الشبكة المحلية للاتصال بالسنترال الداخلي (PBX) وإجراء المكالمات عبر شبكة الشركة.</string>
 
+
+	<!-- 🔐 OAuth Deep Link (Google / Apple Sign-In callback) -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>io.supabase.nexaconnect</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>LOGIN_CALLBACK</string>
+		</dict>
+	</array>
+
 </dict>
 </plist>
