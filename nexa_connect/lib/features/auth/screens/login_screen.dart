@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart' hide TextDirection;
 import '../providers/auth_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 // ─── Country codes with flag emoji ───
 const _countries = <String, (String, String)>{
@@ -74,9 +75,10 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final List<TextEditingController> _otpControllers = List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
   String _countryFlag = '🌍';
   String _countryCode = '';
 
@@ -84,6 +86,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _showOtp = false;
   bool _showEmail = false;
   bool _obscure = true;
+  int _resendSeconds = 0;
 
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
@@ -100,9 +103,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void dispose() {
     _phoneController.dispose();
-    _otpController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    for (final c in _otpControllers) c.dispose();
+    for (final f in _otpFocusNodes) f.dispose();
     _animCtrl.dispose();
     super.dispose();
   }
@@ -118,28 +122,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (phone.length < 8) { _err('auth.invalid_phone'.tr()); return; }
     setState(() => _isLoading = true);
-    final full = '+$phone';
-    final ok = await ref.read(authProvider.notifier).signUpWithPhone(phone: full, fullName: '');
-    setState(() { _isLoading = false; if (ok) _showOtp = true; });
-    if (ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('auth.flash_call_msg'.tr()),
-        backgroundColor: const Color(0xFF34C759), duration: const Duration(seconds: 5),
-      ));
-    } else if (!ok && mounted) {
-      _err(ref.read(authProvider).error ?? 'حدث خطأ');
+    try {
+      final full = '+$phone';
+      await Supabase.instance.client.auth.signInWithOtp(phone: full);
+      if (mounted) {
+        setState(() { _isLoading = false; _showOtp = true; _resendSeconds = 60; });
+        _startResendTimer();
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _otpFocusNodes[0].requestFocus();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _err(e.toString());
+      }
     }
   }
 
   Future<void> _verifyOtp() async {
-    final otp = _otpController.text.trim();
-    if (otp.length < 4) { _err('auth.invalid_otp'.tr()); return; }
+    final otp = _otpControllers.map((c) => _normalizeDigits(c.text)).join();
+    if (otp.length < 6) { _err('auth.invalid_otp'.tr()); return; }
     setState(() => _isLoading = true);
-    final phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final full = '+$phone';
-    final ok = await ref.read(authProvider.notifier).verifyOtp(phone: full, token: otp);
-    setState(() => _isLoading = false);
-    if (!ok && mounted) _err(ref.read(authProvider).error ?? 'auth.invalid_otp'.tr());
+    try {
+      final phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      final full = '+$phone';
+      await Supabase.instance.client.auth.verifyOTP(
+        phone: full, token: otp, type: OtpType.sms,
+      );
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _err(e.toString());
+      }
+    }
+  }
+
+  void _startResendTimer() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      setState(() => _resendSeconds--);
+      return _resendSeconds > 0;
+    });
+  }
+
+  void _resendCode() {
+    for (final c in _otpControllers) c.clear();
+    _sendOtp();
   }
 
   Future<void> _emailLogin() async {
@@ -287,16 +318,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         style: TextStyle(fontSize: 13, color: isDark ? Colors.white.withValues(alpha: 0.45) : Colors.black45)),
       const SizedBox(height: 28),
 
-      if (!_showEmail) ...[
+      if (!_showEmail && !_showOtp) ...[
         // Phone with built-in + prefix and country flag
         _phoneField(isDark),
-        if (_showOtp) ...[
-          const SizedBox(height: 12),
-          _field(_otpController, 'auth.otp_hint'.tr(), CupertinoIcons.lock_shield, isDark,
-              keyboard: TextInputType.number, ltr: true),
-        ],
         const SizedBox(height: 20),
-        _primaryBtn(_showOtp ? 'auth.verify_login'.tr() : 'auth.send_code'.tr(), _showOtp ? _verifyOtp : _sendOtp),
+        _primaryBtn('auth.send_code'.tr(), _sendOtp),
+      ] else if (_showOtp) ...[
+        // ═══ OTP Verification Screen ═══
+        _otpVerificationView(isDark),
       ] else ...[
         // Email
         _field(_emailController, 'auth.email_hint'.tr(), CupertinoIcons.mail, isDark,
@@ -346,6 +375,105 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ],
           )),
         ),
+      ),
+    ]);
+  }
+
+  // ═══ OTP Verification View ═══
+  Widget _otpVerificationView(bool isDark) {
+    final phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    return Column(crossAxisAlignment: CrossAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+      // Lock icon
+      Container(
+        width: 56, height: 56,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(CupertinoIcons.lock_shield_fill, color: Colors.white, size: 28),
+      ),
+      const SizedBox(height: 16),
+      Text('auth.otp_hint'.tr(),
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: isDark ? Colors.white : const Color(0xFF1A1A2E))),
+      const SizedBox(height: 8),
+      Text('auth.flash_call_msg'.tr(),
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 13, color: isDark ? Colors.white.withValues(alpha: 0.45) : Colors.black45)),
+      const SizedBox(height: 6),
+      // Show phone number
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Text('+$phone', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+          color: const Color(0xFF6366F1), letterSpacing: 1)),
+      ),
+      const SizedBox(height: 28),
+      // 6 digit boxes
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(6, (i) {
+          return Container(
+            width: 46, height: 54,
+            margin: EdgeInsets.only(left: i == 0 ? 0 : 8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A1A2A) : const Color(0xFFF7F8FA),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _otpControllers[i].text.isNotEmpty
+                  ? const Color(0xFF6366F1)
+                  : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08)),
+                width: _otpControllers[i].text.isNotEmpty ? 2 : 1,
+              ),
+            ),
+            child: TextField(
+              controller: _otpControllers[i],
+              focusNode: _otpFocusNodes[i],
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              maxLength: 1,
+              inputFormatters: [_ArabicDigitFormatter()],
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : Colors.black87),
+              decoration: const InputDecoration(
+                counterText: '', border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              onChanged: (val) {
+                setState(() {}); // rebuild border colors
+                if (val.isNotEmpty && i < 5) {
+                  _otpFocusNodes[i + 1].requestFocus();
+                } else if (val.isEmpty && i > 0) {
+                  _otpFocusNodes[i - 1].requestFocus();
+                }
+                // Auto-submit when all 6 filled
+                if (i == 5 && val.isNotEmpty) {
+                  final code = _otpControllers.map((c) => c.text).join();
+                  if (code.length == 6) _verifyOtp();
+                }
+              },
+            ),
+          );
+        })),
+      ),
+      const SizedBox(height: 24),
+      // Verify button
+      _primaryBtn('auth.verify_login'.tr(), _verifyOtp),
+      const SizedBox(height: 16),
+      // Resend / Timer
+      if (_resendSeconds > 0)
+        Text('${'auth.send_code'.tr()} (${_resendSeconds}s)',
+          style: TextStyle(fontSize: 13, color: isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black38))
+      else
+        GestureDetector(
+          onTap: _resendCode,
+          child: Text('auth.send_code'.tr(),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6366F1), fontWeight: FontWeight.w700)),
+        ),
+      const SizedBox(height: 12),
+      // Back / change number
+      GestureDetector(
+        onTap: () => setState(() { _showOtp = false; for (final c in _otpControllers) c.clear(); }),
+        child: Text('auth.switch_phone'.tr(),
+          style: TextStyle(fontSize: 13, color: isDark ? Colors.white.withValues(alpha: 0.45) : Colors.black45)),
       ),
     ]);
   }

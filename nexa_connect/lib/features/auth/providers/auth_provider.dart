@@ -87,6 +87,8 @@ class AuthNotifier extends Notifier<NexaAuthState> {
     state = state.copyWith(status: NexaAuthStatus.loading, error: null);
     try {
       await _supabase.auth.signInWithOtp(phone: phone, data: {'full_name': fullName});
+      // OTP sent — go back to unauthenticated (waiting for code)
+      state = const NexaAuthState(status: NexaAuthStatus.unauthenticated);
       return true;
     } on AuthException catch (e) {
       state = NexaAuthState(status: NexaAuthStatus.unauthenticated, error: e.message);
