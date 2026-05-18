@@ -1,8 +1,69 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart' hide TextDirection;
 import '../providers/auth_provider.dart';
+
+// ─── Country codes with flag emoji ───
+const _countries = <String, (String, String)>{
+  '1': ('🇺🇸', 'US'), '7': ('🇷🇺', 'RU'),
+  '20': ('🇪🇬', 'EG'), '27': ('🇿🇦', 'ZA'),
+  '30': ('🇬🇷', 'GR'), '31': ('🇳🇱', 'NL'), '32': ('🇧🇪', 'BE'), '33': ('🇫🇷', 'FR'),
+  '34': ('🇪🇸', 'ES'), '36': ('🇭🇺', 'HU'), '39': ('🇮🇹', 'IT'),
+  '40': ('🇷🇴', 'RO'), '41': ('🇨🇭', 'CH'), '43': ('🇦🇹', 'AT'), '44': ('🇬🇧', 'GB'),
+  '45': ('🇩🇰', 'DK'), '46': ('🇸🇪', 'SE'), '47': ('🇳🇴', 'NO'), '48': ('🇵🇱', 'PL'),
+  '49': ('🇩🇪', 'DE'),
+  '51': ('🇵🇪', 'PE'), '52': ('🇲🇽', 'MX'), '55': ('🇧🇷', 'BR'),
+  '60': ('🇲🇾', 'MY'), '61': ('🇦🇺', 'AU'), '62': ('🇮🇩', 'ID'), '63': ('🇵🇭', 'PH'),
+  '64': ('🇳🇿', 'NZ'), '65': ('🇸🇬', 'SG'), '66': ('🇹🇭', 'TH'),
+  '81': ('🇯🇵', 'JP'), '82': ('🇰🇷', 'KR'), '86': ('🇨🇳', 'CN'),
+  '90': ('🇹🇷', 'TR'), '91': ('🇮🇳', 'IN'), '92': ('🇵🇰', 'PK'), '93': ('🇦🇫', 'AF'),
+  '94': ('🇱🇰', 'LK'), '95': ('🇲🇲', 'MM'), '98': ('🇮🇷', 'IR'),
+  '212': ('🇲🇦', 'MA'), '213': ('🇩🇿', 'DZ'), '216': ('🇹🇳', 'TN'),
+  '218': ('🇱🇾', 'LY'), '220': ('🇬🇲', 'GM'), '221': ('🇸🇳', 'SN'),
+  '249': ('🇸🇩', 'SD'), '250': ('🇷🇼', 'RW'), '251': ('🇪🇹', 'ET'),
+  '252': ('🇸🇴', 'SO'), '253': ('🇩🇯', 'DJ'), '254': ('🇰🇪', 'KE'), '256': ('🇺🇬', 'UG'),
+  '351': ('🇵🇹', 'PT'), '353': ('🇮🇪', 'IE'), '354': ('🇮🇸', 'IS'),
+  '358': ('🇫🇮', 'FI'), '370': ('🇱🇹', 'LT'), '371': ('🇱🇻', 'LV'), '372': ('🇪🇪', 'EE'),
+  '380': ('🇺🇦', 'UA'), '381': ('🇷🇸', 'RS'),
+  '420': ('🇨🇿', 'CZ'), '421': ('🇸🇰', 'SK'),
+  '961': ('🇱🇧', 'LB'), '962': ('🇯🇴', 'JO'), '963': ('🇸🇾', 'SY'),
+  '964': ('🇮🇶', 'IQ'), '965': ('🇰🇼', 'KW'), '966': ('🇸🇦', 'SA'),
+  '967': ('🇾🇪', 'YE'), '968': ('🇴🇲', 'OM'), '970': ('🇵🇸', 'PS'),
+  '971': ('🇦🇪', 'AE'), '972': ('🇮🇱', 'IL'), '973': ('🇧🇭', 'BH'),
+  '974': ('🇶🇦', 'QA'), '975': ('🇧🇹', 'BT'), '976': ('🇲🇳', 'MN'),
+};
+
+/// Convert Arabic/Hindi numerals to English
+String _normalizeDigits(String input) {
+  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+  const hindiDigits  = '۰۱۲۳۴۵۶۷۸۹';
+  var result = input;
+  for (int i = 0; i < 10; i++) {
+    result = result.replaceAll(arabicDigits[i], '$i').replaceAll(hindiDigits[i], '$i');
+  }
+  return result;
+}
+
+/// Detect country from phone digits
+(String, String) _detectCountry(String digits) {
+  // Try 3-digit, 2-digit, 1-digit codes
+  if (digits.length >= 3 && _countries.containsKey(digits.substring(0, 3))) return _countries[digits.substring(0, 3)]!;
+  if (digits.length >= 2 && _countries.containsKey(digits.substring(0, 2))) return _countries[digits.substring(0, 2)]!;
+  if (digits.isNotEmpty && _countries.containsKey(digits.substring(0, 1))) return _countries[digits.substring(0, 1)]!;
+  return ('🌍', '');
+}
+
+/// Input formatter that normalizes Arabic/Hindi numerals
+class _ArabicDigitFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final normalized = _normalizeDigits(newValue.text).replaceAll(RegExp(r'[^0-9]'), '');
+    if (normalized == newValue.text) return newValue;
+    return TextEditingValue(text: normalized, selection: TextSelection.collapsed(offset: normalized.length));
+  }
+}
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +77,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _otpController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  String _countryFlag = '🌍';
+  String _countryCode = '';
 
   bool _isLoading = false;
   bool _showOtp = false;
@@ -31,6 +94,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic);
     _animCtrl.forward();
+    _phoneController.addListener(_onPhoneChanged);
   }
 
   @override
@@ -43,12 +107,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
+  void _onPhoneChanged() {
+    final digits = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final detected = _detectCountry(digits);
+    if (detected.$1 != _countryFlag) setState(() { _countryFlag = detected.$1; _countryCode = detected.$2; });
+  }
+
   // ─── Actions ───
   Future<void> _sendOtp() async {
-    final phone = _phoneController.text.trim();
+    final phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (phone.length < 8) { _err('auth.invalid_phone'.tr()); return; }
     setState(() => _isLoading = true);
-    final full = phone.startsWith('+') ? phone : '+$phone';
+    final full = '+$phone';
     final ok = await ref.read(authProvider.notifier).signUpWithPhone(phone: full, fullName: '');
     setState(() { _isLoading = false; if (ok) _showOtp = true; });
     if (ok && mounted) {
@@ -65,8 +135,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final otp = _otpController.text.trim();
     if (otp.length < 4) { _err('auth.invalid_otp'.tr()); return; }
     setState(() => _isLoading = true);
-    final phone = _phoneController.text.trim();
-    final full = phone.startsWith('+') ? phone : '+$phone';
+    final phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final full = '+$phone';
     final ok = await ref.read(authProvider.notifier).verifyOtp(phone: full, token: otp);
     setState(() => _isLoading = false);
     if (!ok && mounted) _err(ref.read(authProvider).error ?? 'auth.invalid_otp'.tr());
@@ -218,9 +288,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       const SizedBox(height: 28),
 
       if (!_showEmail) ...[
-        // Phone
-        _field(_phoneController, 'auth.phone_hint'.tr(), CupertinoIcons.phone, isDark,
-            keyboard: TextInputType.phone, ltr: true),
+        // Phone with built-in + prefix and country flag
+        _phoneField(isDark),
         if (_showOtp) ...[
           const SizedBox(height: 12),
           _field(_otpController, 'auth.otp_hint'.tr(), CupertinoIcons.lock_shield, isDark,
@@ -279,6 +348,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
       ),
     ]);
+  }
+
+  // ─── Professional Phone Field ───
+  Widget _phoneField(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1A2A) : const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06)),
+      ),
+      child: Row(children: [
+        // Country flag + "+"
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(_countryFlag, style: const TextStyle(fontSize: 22)),
+            const SizedBox(width: 6),
+            Text('+', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white70 : Colors.black54)),
+          ]),
+        ),
+        Container(width: 1, height: 28, color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08)),
+        // Phone input
+        Expanded(
+          child: TextField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            textDirection: TextDirection.ltr,
+            textAlign: TextAlign.left,
+            inputFormatters: [_ArabicDigitFormatter()],
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 17,
+              fontWeight: FontWeight.w600, letterSpacing: 1.2),
+            decoration: InputDecoration(
+              hintText: '971 50 123 4567',
+              hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 15,
+                fontWeight: FontWeight.w400, letterSpacing: 1),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              suffixIcon: _countryCode.isNotEmpty ? Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Center(widthFactor: 1, child: Text(_countryCode,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                    color: const Color(0xFF6366F1).withOpacity(0.7)))),
+              ) : null,
+            ),
+          ),
+        ),
+      ]),
+    );
   }
 
   // ─── Helpers ───

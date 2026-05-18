@@ -3,6 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
+/// On web: redirect back to current site. On mobile: use deep link.
+String get _oauthRedirect =>
+    kIsWeb ? Uri.base.origin : 'io.supabase.nexaconnect://login-callback/';
+
 enum NexaAuthStatus { loading, authenticated, unauthenticated }
 
 class NexaAuthState {
@@ -122,7 +126,7 @@ class AuthNotifier extends Notifier<NexaAuthState> {
     try {
       await _supabase.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'io.supabase.nexaconnect://login-callback/',
+        redirectTo: _oauthRedirect,
       );
       return true;
     } on AuthException catch (e) {
@@ -140,7 +144,7 @@ class AuthNotifier extends Notifier<NexaAuthState> {
     try {
       await _supabase.auth.signInWithOAuth(
         OAuthProvider.apple,
-        redirectTo: 'io.supabase.nexaconnect://login-callback/',
+        redirectTo: _oauthRedirect,
       );
       return true;
     } on AuthException catch (e) {
