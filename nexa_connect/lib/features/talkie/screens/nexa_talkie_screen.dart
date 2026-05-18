@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
@@ -804,8 +805,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   // Body
   // ═══════════════════════════════════
   Widget _buildBody(ThemeData theme, bool isDark) {
-    final talkieStatusNotifier = ref.watch(talkieStatusProvider);
-    final talkieStatus = talkieStatusNotifier.status;
+    final talkieStatus = ref.watch(talkieStatusProvider);
     final statusFilters = ['talkie.status_available'.tr(), 'talkie.status_auto'.tr(), 'talkie.status_silent'.tr()];
     String selectedStatusLabel = statusFilters[1];
     switch (talkieStatus) {

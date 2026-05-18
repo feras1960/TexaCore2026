@@ -4,31 +4,29 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum TalkieStatus { available, silent, auto }
 
-class TalkieStatusNotifier extends ChangeNotifier {
-  TalkieStatus _status = TalkieStatus.auto;
-  TalkieStatus get status => _status;
+class TalkieStatusNotifier extends Notifier<TalkieStatus> {
+  @override
+  TalkieStatus build() => TalkieStatus.auto;
 
   final _supabase = Supabase.instance.client;
 
   void setStatus(TalkieStatus s) async {
-    if (_status == s) return;
-    _status = s;
-    notifyListeners();
+    if (state == s) return;
+    state = s;
 
-    // مزامنة مع قاعدة البيانات
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
 
     String dbStatus;
     switch (s) {
       case TalkieStatus.available:
-        dbStatus = 'always';
+        dbStatus = 'available';
         break;
       case TalkieStatus.silent:
         dbStatus = 'silent';
         break;
       case TalkieStatus.auto:
-        dbStatus = 'scheduled'; // أو 'auto' إذا كان مدعوماً
+        dbStatus = 'scheduled';
         break;
     }
 
@@ -43,6 +41,4 @@ class TalkieStatusNotifier extends ChangeNotifier {
   }
 }
 
-final talkieStatusProvider = ChangeNotifierProvider<TalkieStatusNotifier>((ref) {
-  return TalkieStatusNotifier();
-});
+final talkieStatusProvider = NotifierProvider<TalkieStatusNotifier, TalkieStatus>(TalkieStatusNotifier.new);

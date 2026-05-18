@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/utils/responsive.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../providers/selected_settings_provider.dart';
 import 'sip_accounts_screen.dart';
 
@@ -334,7 +335,7 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   InkWell(
                     onTap: () async {
-                      await Supabase.instance.client.auth.signOut();
+                      await ref.read(authProvider.notifier).signOut();
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(

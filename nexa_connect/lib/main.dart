@@ -6,6 +6,8 @@ import 'core/config/env.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
 import 'features/home/screens/main_screen.dart';
+import 'features/auth/screens/login_screen.dart';
+import 'features/auth/providers/auth_provider.dart';
 import 'core/services/home_widget_service.dart';
 
 void main() async {
@@ -21,12 +23,7 @@ void main() async {
 
   runApp(
     EasyLocalization(
-      supportedLocales: const [
-        Locale('en'),
-        Locale('ar'),
-        Locale('uk'),
-        Locale('ru')
-      ],
+      supportedLocales: const [Locale('en'), Locale('ar'), Locale('uk'), Locale('ru')],
       path: 'assets/translations',
       fallbackLocale: const Locale('en'),
       useOnlyLangCode: true,
@@ -40,6 +37,8 @@ class NexaConnectApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
     return MaterialApp(
       title: 'Nexa Connect',
       debugShowCheckedModeBanner: false,
@@ -49,7 +48,11 @@ class NexaConnectApp extends ConsumerWidget {
       theme: AppTheme.lightTheme(context.locale.languageCode),
       darkTheme: AppTheme.darkTheme(context.locale.languageCode),
       themeMode: ref.watch(themeModeProvider),
-      home: const MainScreen(),
+      home: switch (authState.status) {
+        NexaAuthStatus.loading => const Scaffold(body: Center(child: CircularProgressIndicator())),
+        NexaAuthStatus.authenticated => const MainScreen(),
+        NexaAuthStatus.unauthenticated => const LoginScreen(),
+      },
     );
   }
 }
