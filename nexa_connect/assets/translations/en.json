@@ -105,5 +105,32 @@
     "status_available": "Available",
     "status_auto": "Auto",
     "status_silent": "Silent"
+  },
+  "auth": {
+    "enter_phone": "Enter your phone number",
+    "phone_verify_desc": "You will receive a call to verify your number",
+    "phone_hint": "e.g. +971501234567",
+    "otp_hint": "Verification code (4 digits)",
+    "send_code": "Send verification code",
+    "verify_login": "Confirm login ✓",
+    "login_email": "Login with email",
+    "email_title": "Login with email",
+    "email_desc": "Use your email and password",
+    "email_hint": "Email address",
+    "password_hint": "Password",
+    "login": "Sign in",
+    "or": "or",
+    "google": "Continue with Google",
+    "apple": "Continue with Apple",
+    "switch_phone": "Login with phone instead",
+    "switch_email": "Login with email",
+    "flash_call_msg": "📞 You will receive a call — enter the last 4 digits",
+    "invalid_phone": "Please enter a valid phone number",
+    "invalid_otp": "Please enter the verification code",
+    "invalid_email": "Please enter email and password",
+    "feature_voip": "High quality VoIP calls",
+    "feature_ptt": "Push to talk with your team",
+    "feature_e2e": "End-to-end encryption",
+    "feature_mesh": "Works without internet (Mesh)"
   }
 }
