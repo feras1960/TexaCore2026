@@ -75,6 +75,13 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   final _liveLocationNotifier = ValueNotifier<Map<String, String>>({'location': '', 'mapsLink': ''});
   final _localRecorder = LocalVideoRecorder();
 
+  // ─── Lone Worker (العامل الوحيد) ───
+  bool _isLoneWorkerEnabled = false;
+  Timer? _loneWorkerTimer;
+  Timer? _loneWorkerCheckTimer;
+  bool _isLoneWorkerCheckActive = false;
+  int _loneWorkerCountdown = 60; // 60 ثانية للاستجابة
+
   // ─── Supabase Realtime ───
   RealtimeChannel? _realtimeChannel;
 
@@ -607,6 +614,62 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
                 ),
               ),
             ),
+          // 🦺 Lone Worker Check Overlay (ملء الشاشة)
+          if (_isLoneWorkerCheckActive)
+            Positioned.fill(
+              child: Container(
+                color: const Color(0xFFFFCC00).withOpacity(0.95), // لون أصفر تحذيري
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(CupertinoIcons.exclamationmark_triangle_fill, size: 80, color: Colors.black87),
+                    const SizedBox(height: 24),
+                    const Text('فحص العامل الوحيد',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                        )),
+                    const SizedBox(height: 12),
+                    const Text('هل أنت بخير؟ يرجى تأكيد تواجدك',
+                        style: TextStyle(
+                          color: Colors.black54,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        )),
+                    const SizedBox(height: 32),
+                    Text('$_loneWorkerCountdown',
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 80,
+                          fontWeight: FontWeight.w900,
+                        )),
+                    const SizedBox(height: 40),
+                    GestureDetector(
+                      onTap: () => _confirmLoneWorkerSafety(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)),
+                          ]
+                        ),
+                        child: const Text('أنا بخير ✅', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text('سيتم تفعيل نداء الطوارئ تلقائياً في حال عدم الاستجابة',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        )),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -666,6 +729,24 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
                         fontSize: 13,
                         fontWeight: FontWeight.w500)),
               ],
+            ),
+          ),
+          GestureDetector(
+            onTap: _toggleLoneWorkerMode,
+            child: Container(
+              width: 38,
+              height: 38,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: _isLoneWorkerEnabled ? const Color(0xFFFFCC00).withOpacity(0.2) : theme.colorScheme.onSurface.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isLoneWorkerEnabled ? const Color(0xFFFFCC00) : Colors.transparent,
+                  width: 1.5,
+                )
+              ),
+              child: Icon(CupertinoIcons.person_crop_circle_fill_badge_checkmark,
+                  color: _isLoneWorkerEnabled ? const Color(0xFFFF9500) : theme.colorScheme.onSurface.withOpacity(0.4), size: 20),
             ),
           ),
           _buildInviteBadge(theme),
@@ -1634,6 +1715,75 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
         debugPrint('[SOS] Live location error: $e');
       }
     });
+  }
+
+  // ═══════════════════════════════════
+  // 🦺 Lone Worker Logic (العامل الوحيد)
+  // ═══════════════════════════════════
+  
+  void _toggleLoneWorkerMode() {
+    setState(() {
+      _isLoneWorkerEnabled = !_isLoneWorkerEnabled;
+    });
+
+    if (_isLoneWorkerEnabled) {
+      _startLoneWorkerTimer();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('🦺 تم تفعيل وضع "العامل الوحيد". سيتم الاطمئنان عليك دورياً.'), backgroundColor: Color(0xFFFF9500)),
+      );
+    } else {
+      _loneWorkerTimer?.cancel();
+      _loneWorkerCheckTimer?.cancel();
+      setState(() => _isLoneWorkerCheckActive = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('🦺 تم إيقاف وضع "العامل الوحيد".'), backgroundColor: Colors.grey),
+      );
+    }
+  }
+
+  void _startLoneWorkerTimer() {
+    _loneWorkerTimer?.cancel();
+    // للاختبار الفعلي السريع، سنجعل المؤقت دقيقة واحدة. في الإنتاج يمكن أن يكون 30 دقيقة.
+    _loneWorkerTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _triggerLoneWorkerCheck();
+    });
+  }
+
+  void _triggerLoneWorkerCheck() {
+    if (_isSosActive || _isLoneWorkerCheckActive) return; // لا تقاطع الطوارئ الفعلية أو الفحص الجاري
+    
+    // تشغيل تنبيه قوي
+    _playSound('alert');
+    HapticFeedback.heavyImpact();
+
+    setState(() {
+      _isLoneWorkerCheckActive = true;
+      _loneWorkerCountdown = 60; // 60 ثانية للرد
+    });
+
+    _loneWorkerCheckTimer?.cancel();
+    _loneWorkerCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _loneWorkerCountdown--;
+        if (_loneWorkerCountdown <= 0) {
+          timer.cancel();
+          _isLoneWorkerCheckActive = false;
+          // تفعيل الطوارئ التلقائي لأن العامل لم يرد
+          debugPrint('[LoneWorker] No response! Triggering SOS auto-broadcast.');
+          _triggerSos('sos');
+        }
+      });
+    });
+  }
+
+  void _confirmLoneWorkerSafety() {
+    _loneWorkerCheckTimer?.cancel();
+    setState(() {
+      _isLoneWorkerCheckActive = false;
+    });
+    // إعادة تشغيل المؤقت الرئيسي
+    _startLoneWorkerTimer();
+    HapticFeedback.lightImpact();
   }
 
   void _showCallMemberList(ThemeData theme, bool isDark) async {
