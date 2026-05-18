@@ -166,10 +166,18 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
     }
   }
 
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 3;
+
   void _scheduleReconnect() {
-    Future.delayed(const Duration(seconds: 5), () {
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      debugPrint('[SIP] ⛔ Max reconnect attempts reached ($_maxReconnectAttempts). Stopped.');
+      return;
+    }
+    _reconnectAttempts++;
+    Future.delayed(Duration(seconds: 5 * _reconnectAttempts), () {
       if (registrationState == 'FAILED' || registrationState == 'NONE') {
-        debugPrint('[SIP] 🔄 Retrying registration...');
+        debugPrint('[SIP] 🔄 Retrying registration (attempt $_reconnectAttempts/$_maxReconnectAttempts)...');
         register(
           server: _lastServer,
           username: _lastUsername,
@@ -748,10 +756,15 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
       localRenderer.srcObject = stream;
       debugPrint('[SIP] 🎤 Local stream attached (${stream.getAudioTracks().length} audio tracks)');
     } else if (state.originator == Originator.remote) {
-      remoteRenderer.srcObject = stream;
+      // Assign to renderer (needed for audio playback), wrapped in try-catch
+      try {
+        remoteRenderer.srcObject = stream;
+      } catch (e) {
+        debugPrint('[SIP] ⚠️ remoteRenderer.srcObject error (non-fatal): $e');
+      }
       debugPrint('[SIP] 🔊 Remote stream attached (${stream.getAudioTracks().length} audio tracks)');
       
-      // For PTT: auto-play remote audio via hidden HTML audio element
+      // For PTT: also try explicit audio element
       if (isPttConference) {
         _playPttAudio(stream);
       }
@@ -760,19 +773,22 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
   }
 
   /// Play PTT conference audio through a hidden <audio> element
+  /// Note: Even without this, audio plays automatically via WebRTC peer connection
   void _playPttAudio(MediaStream stream) {
     try {
-      // Get the underlying JS MediaStream object
-      final jsMediaStream = js_util.getProperty(stream, 'jsStream') 
-        ?? js_util.getProperty(stream, '_jsStream')
-        ?? js_util.getProperty(stream, 'stream');
+      // Try to get the underlying JS MediaStream for explicit audio control
+      dynamic jsMediaStream;
+      try { jsMediaStream = js_util.getProperty(stream, 'jsStream'); } catch (_) {}
+      jsMediaStream ??= (() { try { return js_util.getProperty(stream, '_jsStream'); } catch (_) { return null; } })();
+      jsMediaStream ??= (() { try { return js_util.getProperty(stream, 'stream'); } catch (_) { return null; } })();
       
       if (jsMediaStream == null) {
-        debugPrint('[SIP-PTT] ⚠️ Could not get JS MediaStream, trying renderer approach');
-        // Fallback: ensure remoteRenderer plays audio
-        remoteRenderer.srcObject = stream;
-        return;
+        debugPrint('[SIP-PTT] ℹ️ JS MediaStream not accessible — audio plays via WebRTC automatically');
+        return; // Audio still works through WebRTC peer connection
       }
+      
+      // Remove old audio element if exists
+      _pttAudioElement?.remove();
       
       final audioEl = html.AudioElement()
         ..autoplay = true
@@ -780,11 +796,9 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
       js_util.setProperty(audioEl, 'srcObject', jsMediaStream);
       html.document.body?.append(audioEl);
       _pttAudioElement = audioEl;
-      debugPrint('[SIP-PTT] 🔊 Audio auto-play started');
+      debugPrint('[SIP-PTT] 🔊 Audio auto-play started via explicit element');
     } catch (e) {
-      debugPrint('[SIP-PTT] ⚠️ Audio play error: $e');
-      // Fallback: make sure remote renderer has the stream
-      remoteRenderer.srcObject = stream;
+      debugPrint('[SIP-PTT] ℹ️ Audio element setup skipped: $e — audio plays via WebRTC');
     }
   }
 

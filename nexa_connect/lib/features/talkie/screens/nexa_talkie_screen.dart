@@ -7,31 +7,23 @@ import 'package:easy_localization/easy_localization.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'dart:js' as js;
-import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:livekit_client/livekit_client.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
-import '../../../core/services/ptt_service.dart';
+import '../../../core/services/livekit_ptt_service.dart';
 import '../../../core/providers/supabase_provider.dart';
+import '../../../core/providers/livekit_provider.dart';
 import '../../../core/widgets/nexa_creation_wizard.dart';
 import '../../shared/screens/wizard_step_members.dart';
 import '../../../core/models/contact.dart';
 import '../../../core/config/env.dart';
-import '../../calls/providers/sip_provider.dart';
 import '../widgets/ptt_button.dart';
 import 'ptt_invitations_screen.dart';
 import '../../../widgets/shared/floating_filter_bar.dart';
 import '../providers/talkie_status_provider.dart';
-
-/// Provider for NexaTalkie service
-final nexaTalkieProvider = ChangeNotifierProvider<NexaTalkieService>((ref) {
-  final client = ref.read(supabaseClientProvider);
-  final userId = client.auth.currentUser?.id ?? Env.defaultUserId;
-  final service = NexaTalkieService(client, null!, userId);
-  service.loadChannels();
-  service.loadInvitations();
-  return service;
-});
+import '../../calls/screens/livekit_call_screen.dart';
+import '../../../core/services/local_video_recorder.dart';
 
 /// NexaTalkie Screen — dedicated tab for Push-to-Talk
 class NexaTalkieScreen extends ConsumerStatefulWidget {
@@ -49,9 +41,17 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   @override
   void initState() {
     super.initState();
-    // Join the default channel's ConfBridge silently on load so it's ready for instant PTT
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _joinConference(_selectedChannelIndex);
+      // Load channels and join first one via LiveKit
+      final pttService = ref.read(livekitPttProvider);
+      pttService.loadChannels().then((_) {
+        if (pttService.channels.isNotEmpty && mounted) {
+          final channel = pttService.channels[0];
+          _subscribeToRealtime(channel.conferenceRoom);
+          _loadCloudHistory(0);
+          pttService.joinChannel(channel);
+        }
+      });
     });
   }
   // ─── State ───
@@ -60,9 +60,20 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   int _talkSeconds = 0;
   Timer? _talkTimer;
   String? _currentTalker;
-  bool _isConferenceConnected = false;
-  String? _conferenceRoomId;
   bool _pttLocked = false; // locked when someone else is talking
+  bool _realtimeSubscribed = false; // track if realtime is actually connected
+  bool _isVideoPtt = false; // Video PTT mode (swipe up)
+  bool _isShowingFullScreenVideo = false; // Full-screen remote video overlay
+
+  // ─── Emergency SOS ───
+  bool _isSosActive = false;
+  bool _isSosCountdown = false;
+  int _sosCountdown = 3;
+  Timer? _sosTimer;
+  Timer? _locationTimer;
+  bool _isShowingSosAlert = false;
+  final _liveLocationNotifier = ValueNotifier<Map<String, String>>({'location': '', 'mapsLink': ''});
+  final _localRecorder = LocalVideoRecorder();
 
   // ─── Supabase Realtime ───
   RealtimeChannel? _realtimeChannel;
@@ -80,97 +91,63 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     return _channelHistory[_selectedChannelIndex] ?? [];
   }
 
-  final List<Map<String, dynamic>> _mockChannels = [
-    {
-      'name': 'فريق المستودع',
-      'type': 'group',
-      'member_count': 8,
-      'online_count': 3,
-      'conference_room': 'warehouse',
-      'has_talker': false,
-      'talker_name': null,
-    },
-    {
-      'name': 'فريق المبيعات',
-      'type': 'group',
-      'member_count': 5,
-      'online_count': 2,
-      'conference_room': 'sales',
-      'has_talker': false,
-      'talker_name': null,
-    },
-  ];
+  /// Get channels from LiveKit PTT provider
+  List<PttChannel> get _channels => ref.read(livekitPttProvider).channels;
 
   // ─── Audio Recording (Web) — for history/review ───
   html.MediaRecorder? _mediaRecorder;
   List<html.Blob> _audioChunks = [];
   html.MediaStream? _micStream;
 
-  // ─── Join ConfBridge on channel select ───
-  void _joinConference(int channelIndex) {
-    final room = channelIndex == -1 
-        ? '9999' // Global broadcast
-        : _mockChannels[channelIndex]['conference_room'] as String;
-        
-    if (_conferenceRoomId == room && _isConferenceConnected) return;
-
-    // Leave previous conference if different
-    if (_isConferenceConnected && _conferenceRoomId != room) {
-      _leaveConference();
-    }
-
-    final sipService = ref.read(sipServiceProvider);
-    if (!sipService.isRegistered) {
-      debugPrint('[NexaTalkie] ⚠️ SIP not registered, cannot join conference');
-      return;
-    }
-
-    // Dial ptt_{room} → Asterisk routes to ConfBridge
-    _conferenceRoomId = room;
-    sipService.makePttCall(room);
-    _isConferenceConnected = true;
-    debugPrint('[NexaTalkie] 📡 Joining ConfBridge: ptt_$room');
-
-    // Subscribe to Realtime for talking status
-    _subscribeToRealtime(room);
-    // Load cloud history for this channel
-    _loadCloudHistory(channelIndex);
-    setState(() {});
+  // ─── Join LiveKit Room on channel select ───
+  void _joinChannel(int channelIndex) {
+    if (channelIndex < 0 || channelIndex >= _channels.length) return;
+    
+    final pttService = ref.read(livekitPttProvider);
+    final channel = _channels[channelIndex];
+    
+    pttService.joinChannel(channel);
+    debugPrint('[NexaTalkie] 📡 Joining LiveKit room: ptt_${channel.conferenceRoom}');
   }
 
-  void _leaveConference() {
-    if (!_isConferenceConnected) return;
-    final sipService = ref.read(sipServiceProvider);
-    sipService.hangupPtt();
-    _isConferenceConnected = false;
-    _conferenceRoomId = null;
+  void _leaveChannel() {
+    final pttService = ref.read(livekitPttProvider);
+    pttService.leaveChannel();
     _realtimeChannel?.unsubscribe();
     _realtimeChannel = null;
-    debugPrint('[NexaTalkie] 📴 Left ConfBridge');
+    debugPrint('[NexaTalkie] 📴 Left LiveKit room');
   }
 
   // ─── Supabase Realtime: who is talking ───
   void _subscribeToRealtime(String room) {
     _realtimeChannel?.unsubscribe();
+    _realtimeSubscribed = false;
     final client = ref.read(supabaseClientProvider);
+    debugPrint('[NexaTalkie] 📡 Subscribing to Realtime: nexatalkie_$room');
     _realtimeChannel = client
         .channel('nexatalkie_$room')
         .onBroadcast(
           event: 'ptt_talking',
           callback: (payload) {
+            debugPrint('[NexaTalkie] 📨 Received ptt_talking: $payload');
             final isTalking = payload['is_talking'] as bool? ?? false;
             final talkerName = payload['user_name'] as String?;
-            final talkerId = payload['user_id'] as String?;
-            final currentUserId = client.auth.currentUser?.id ?? Env.defaultUserId;
-            // Ignore own broadcasts
-            if (talkerId == currentUserId) return;
+            final talkerExt = payload['user_ext'] as String?;
+            // Filter by user_id to ignore own messages
+            final myUserId = ref.read(supabaseClientProvider).auth.currentUser?.id ?? Env.defaultUserId;
+            if (talkerExt != null && talkerExt == myUserId) return;
             setState(() {
               if (isTalking) {
-                _currentTalker = talkerName ?? 'متحدث';
+                _currentTalker = talkerName ?? talkerExt ?? 'متحدث';
                 _pttLocked = true; // Lock PTT for others
               } else {
                 _currentTalker = null;
                 _pttLocked = false;
+                // إغلاق شاشة الفيديو تلقائياً عند توقف المتحدث
+                if (_isShowingFullScreenVideo) {
+                  _isShowingFullScreenVideo = false;
+                  Navigator.of(context).pop();
+                }
               }
             });
           },
@@ -178,6 +155,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
         .onBroadcast(
           event: 'ptt_new_message',
           callback: (payload) {
+            debugPrint('[NexaTalkie] 📨 Received ptt_new_message');
             // New voice message from another user — refresh history
             _loadCloudHistory(_selectedChannelIndex);
           },
@@ -208,8 +186,74 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
             }
           },
         )
-        .subscribe();
-    debugPrint('[NexaTalkie] 📡 Realtime subscribed: nexatalkie_$room');
+        .onBroadcast(
+          event: 'sos_alert',
+          callback: (payload) {
+            final type = payload['type'] as String? ?? '';
+            if (type == 'emergency') {
+              final name = payload['user_name'] as String? ?? 'مستخدم';
+              final location = payload['location'] as String? ?? '';
+              final mapsLink = payload['maps_link'] as String? ?? '';
+              
+              _liveLocationNotifier.value = {
+                'location': location,
+                'mapsLink': mapsLink,
+              };
+
+              if (mounted && !_isShowingSosAlert) {
+                _isShowingSosAlert = true;
+                
+                // بدء التسجيل المحلي بعد ثانية لضمان بدء البث (الفيديو/الصوت) في المتصفح
+                Future.delayed(const Duration(seconds: 1), () {
+                  if (_isShowingSosAlert) _localRecorder.startRecording();
+                });
+
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  barrierColor: const Color(0xFFFF3B30).withOpacity(0.3),
+                  builder: (_) => _EmergencyAlertDialog(
+                    senderName: name,
+                    locationNotifier: _liveLocationNotifier,
+                    onDismiss: () {
+                      _isShowingSosAlert = false;
+                      _localRecorder.stopAndSave(name); // حفظ الملف محلياً
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ).then((_) {
+                  _isShowingSosAlert = false;
+                  _localRecorder.cancel();
+                });
+              }
+            } else if (type == 'cancelled' && _isShowingSosAlert) {
+              _isShowingSosAlert = false;
+              _localRecorder.stopAndSave('SOS_Ended'); // حفظ الملف للمستقبل
+              Navigator.of(context).pop();
+            }
+          },
+        )
+        .onBroadcast(
+          event: 'sos_location',
+          callback: (payload) {
+            final lat = payload['lat'];
+            final lng = payload['lng'];
+            final mapsLink = payload['maps_link'] as String? ?? '';
+            if (lat != null && lng != null) {
+              _liveLocationNotifier.value = {
+                'location': '$lat, $lng',
+                'mapsLink': mapsLink,
+              };
+            }
+          },
+        )
+        .subscribe((status, [error]) {
+          debugPrint('[NexaTalkie] 📡 Realtime status: $status (error: $error)');
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            _realtimeSubscribed = true;
+            debugPrint('[NexaTalkie] ✅ Realtime CONNECTED: nexatalkie_$room');
+          }
+        });
   }
 
   // ─── Load cloud-synced voice history ───
@@ -218,7 +262,8 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     _isLoadingHistory = true;
     try {
       final client = ref.read(supabaseClientProvider);
-      final room = _mockChannels[channelIndex]['conference_room'] as String;
+      if (channelIndex < 0 || channelIndex >= _channels.length) return;
+      final room = _channels[channelIndex].conferenceRoom;
       // Query nexa_ptt_messages for this channel's conference_room
       final channelData = await client
           .from('nexa_ptt_channels')
@@ -238,6 +283,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
           .order('created_at', ascending: false)
           .limit(50);
       final currentUserId = client.auth.currentUser?.id ?? Env.defaultUserId;
+      final memberCount = channelIndex < _channels.length ? _channels[channelIndex].memberCount : 0;
       final items = (messages as List).map((m) {
         final listenedBy = (m['listened_by'] as List?)?.cast<String>() ?? [];
         return _PttHistoryItem(
@@ -245,9 +291,10 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
           duration: _formatDuration(m['duration_seconds'] ?? 0),
           time: DateTime.parse(m['created_at']),
           listenedBy: listenedBy,
-          totalMembers: _mockChannels[channelIndex]['member_count'],
+          totalMembers: memberCount,
           isMine: m['sender_id'] == currentUserId,
           audioUrl: m['audio_url'],
+          messageType: m['message_type'] ?? 'audio',
         );
       }).toList();
       setState(() {
@@ -260,12 +307,18 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     _isLoadingHistory = false;
   }
 
-  // ─── PTT Actions (Hybrid: SIP live + local recording + cloud sync) ───
+  bool _isBusy = false; // guard against rapid press/release
+
+  // ─── PTT Actions (Hybrid: LiveKit live + local recording + cloud sync) ───
   void _startTalking() async {
-    if (_pttLocked) {
+    if (_isBusy) return;
+    // Check lock from PTT service (someone else is talking)
+    final pttService = ref.read(livekitPttProvider);
+    if (pttService.isLocked || _pttLocked) {
       debugPrint('[NexaTalkie] 🔒 PTT locked — someone else is talking');
       return;
     }
+    _isBusy = true;
     setState(() {
       _isTalking = true;
       _talkSeconds = 0;
@@ -274,21 +327,16 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       setState(() => _talkSeconds++);
     });
 
-    // 1. Unmute SIP conference (live audio to all)
-    final sipService = ref.read(sipServiceProvider);
-    if (sipService.hasPttCall) {
-      sipService.pttUnmute();
-    } else {
-      _isConferenceConnected = false;
-      _joinConference(_selectedChannelIndex);
-    }
+    // 1. Enable mic in LiveKit room (live audio to all)
+    await pttService.startTalking();
 
-    // 2. Broadcast "I'm talking" to all via Realtime
+    // 2. Broadcast lock signal on screen's Realtime channel too
+    final userId = ref.read(supabaseClientProvider).auth.currentUser?.id ?? '';
     _realtimeChannel?.sendBroadcastMessage(
       event: 'ptt_talking',
       payload: {
-        'user_id': ref.read(supabaseClientProvider).auth.currentUser?.id ?? Env.defaultUserId,
-        'user_name': sipService.sipExtension ?? 'User',
+        'user_id': userId,
+        'user_name': 'User',
         'is_talking': true,
       },
     );
@@ -301,6 +349,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       final mediaDevices = html.window.navigator.mediaDevices;
       if (mediaDevices == null) {
         debugPrint('[NexaTalkie] ⚠️ mediaDevices null');
+        _isBusy = false;
         return;
       }
       _micStream = await mediaDevices.getUserMedia({'audio': true});
@@ -315,26 +364,31 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     } catch (e) {
       debugPrint('[NexaTalkie] ❌ Mic error: $e');
     }
+    _isBusy = false;
   }
 
-  void _stopTalking() {
+  void _stopTalking() async {
+    if (_isBusy) {
+      // If startTalking is still running, wait a bit then retry
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    _isBusy = true;
     _talkTimer?.cancel();
     final duration = _formatDuration(_talkSeconds);
     final durationSecs = _talkSeconds;
     final channelIdx = _selectedChannelIndex;
     final hadAudio = _talkSeconds > 0;
 
-    // 1. Mute SIP conference (stop live broadcast)
-    final sipService = ref.read(sipServiceProvider);
-    if (sipService.hasPttCall) {
-      sipService.pttMute();
-    }
+    // 1. Disable mic in LiveKit room (stop live broadcast)
+    final pttService = ref.read(livekitPttProvider);
+    await pttService.stopTalking();
 
-    // 2. Broadcast "I stopped talking"
+    // 2. Broadcast unlock signal on screen's Realtime channel
+    final userId = ref.read(supabaseClientProvider).auth.currentUser?.id ?? '';
     _realtimeChannel?.sendBroadcastMessage(
       event: 'ptt_talking',
       payload: {
-        'user_id': ref.read(supabaseClientProvider).auth.currentUser?.id ?? Env.defaultUserId,
+        'user_id': userId,
         'is_talking': false,
         'duration_seconds': durationSecs,
       },
@@ -360,7 +414,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
                 duration: duration,
                 time: DateTime.now(),
                 listenedBy: [],
-                totalMembers: _mockChannels[channelIdx]['member_count'],
+                totalMembers: channelIdx < _channels.length ? _channels[channelIdx].memberCount : 0,
                 isMine: true,
                 audioUrl: audioUrl,
               ),
@@ -382,6 +436,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       _isTalking = false;
       _talkSeconds = 0;
     });
+    _isBusy = false;
   }
 
   /// Upload recording to Supabase Storage + insert message record
@@ -389,9 +444,8 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     try {
       final client = ref.read(supabaseClientProvider);
       final userId = client.auth.currentUser?.id ?? Env.defaultUserId;
-      final sipService = ref.read(sipServiceProvider);
-      final ext = sipService.sipExtension ?? 'unknown';
-      final room = _mockChannels[channelIdx]['conference_room'] as String;
+      final ext = 'User'; // Will be updated after Auth implementation
+      final room = channelIdx < _channels.length ? _channels[channelIdx].conferenceRoom : 'unknown';
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final filePath = '$userId/$room-$timestamp.webm';
 
@@ -480,7 +534,7 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   void dispose() {
     _talkTimer?.cancel();
     _releaseMicTracks();
-    _leaveConference();
+    _leaveChannel();
     _realtimeChannel?.unsubscribe();
     super.dispose();
   }
@@ -494,10 +548,65 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     return Scaffold(
       backgroundColor:
           isDark ? const Color(0xFF111111) : const Color(0xFFF5F5F7),
-      body: Column(
+      body: Stack(
         children: [
-          _buildHeader(theme, isDark),
-          Expanded(child: _buildBody(theme, isDark)),
+          Column(
+            children: [
+              _buildHeader(theme, isDark),
+              Expanded(child: _buildBody(theme, isDark)),
+            ],
+          ),
+          // 🚨 SOS Countdown Overlay (ملء الشاشة)
+          if (_isSosCountdown)
+            Positioned.fill(
+              child: GestureDetector(
+                onTapDown: (_) => _cancelSosCountdown(),
+                child: Container(
+                  color: const Color(0xFFFF3B30).withOpacity(0.92),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('$_sosCountdown',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 140,
+                            fontWeight: FontWeight.w900,
+                          )),
+                      const SizedBox(height: 16),
+                      const Text('🚨 تفعيل الطوارئ',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                          )),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildSosTypeBtn('sos', 'طوارئ 🚨', Colors.red.shade900),
+                          const SizedBox(width: 12),
+                          _buildSosTypeBtn('help', 'مساعدة 🟡', Colors.orange.shade700),
+                          const SizedBox(width: 12),
+                          _buildSosTypeBtn('urgent', 'عاجل 🔵', Colors.blue.shade700),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Text('سيتم تفعيل "طوارئ" تلقائياً عند انتهاء العد',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                          )),
+                      const SizedBox(height: 16),
+                      Text('اسحب للأسفل أو اضغط خارج الأزرار للإلغاء',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 14,
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -526,28 +635,32 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(CupertinoIcons.antenna_radiowaves_left_right,
-                color: theme.colorScheme.primary, size: 22),
-          ),
+          Builder(builder: (_) {
+            final isConnected = ref.watch(livekitPttProvider).isConnected;
+            final statusColor = isConnected ? const Color(0xFF34C759) : const Color(0xFFFF3B30);
+            return Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(CupertinoIcons.antenna_radiowaves_left_right,
+                  color: statusColor, size: 22),
+            );
+          }),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('NexaTalkie',
+                Text('NexaLive',
                     style: TextStyle(
                         color: theme.colorScheme.onSurface,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5)),
-                Text('Push-to-Talk',
+                Text('Real-Time Communication',
                     style: TextStyle(
                         color: theme.colorScheme.onSurface.withOpacity(0.5),
                         fontSize: 13,
@@ -620,10 +733,11 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       case TalkieStatus.silent: selectedStatusLabel = statusFilters[2]; break;
     }
 
-    final filters = ['All', ..._mockChannels.map((c) => c['name'].toString())];
-    final selectedFilter = _selectedChannelIndex == -1 ? 'All' : _mockChannels[_selectedChannelIndex]['name'].toString();
-    final icons = [CupertinoIcons.globe, ..._mockChannels.map((c) => c['type'] == 'group' ? CupertinoIcons.person_3_fill : CupertinoIcons.person_2_fill)];
-    final colors = [const Color(0xFF007AFF), ..._mockChannels.map((c) => const Color(0xFF34C759))];
+    final channelNames = _channels.map((c) => c.name).toList();
+    final filters = ['All', ...channelNames];
+    final selectedFilter = _selectedChannelIndex == -1 ? 'All' : (_selectedChannelIndex < _channels.length ? _channels[_selectedChannelIndex].name : 'All');
+    final icons = [CupertinoIcons.globe, ..._channels.map((c) => c.type == 'group' ? CupertinoIcons.person_3_fill : CupertinoIcons.person_2_fill)];
+    final colors = [const Color(0xFF007AFF), ..._channels.map((c) => const Color(0xFF34C759))];
     final isMobile = MediaQuery.sizeOf(context).width < 600;
 
     Widget buildChannelFilter() {
@@ -636,9 +750,13 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
           if (f == 'All') {
             setState(() => _selectedChannelIndex = -1);
           } else {
-            final idx = _mockChannels.indexWhere((c) => c['name'] == f);
+            final idx = _channels.indexWhere((c) => c.name == f);
             setState(() => _selectedChannelIndex = idx);
-            _joinConference(idx);
+            // Subscribe to Realtime for this channel immediately
+            final room = _channels[idx].conferenceRoom;
+            _subscribeToRealtime(room);
+            _loadCloudHistory(idx);
+            _joinChannel(idx);
           }
         },
       );
@@ -646,22 +764,8 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onTapDown: (_) {
-        ref.read(sipServiceProvider).ensurePttAudioPlaying();
-      },
-      onPanDown: (_) {
-        ref.read(sipServiceProvider).ensurePttAudioPlaying();
-      },
       child: Stack(
         children: [
-          Offstage(
-            offstage: true,
-            child: SizedBox(
-              width: 1,
-              height: 1,
-              child: RTCVideoView(ref.read(sipServiceProvider).remoteRenderer),
-            ),
-          ),
           Column(
             children: [
               // Status Filter Bar
@@ -682,16 +786,12 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
                 ],
                 onSelected: (f) {
                   final notifier = ref.read(talkieStatusProvider.notifier);
-                  final sipService = ref.read(sipServiceProvider);
                   if (f == statusFilters[0]) {
                     notifier.setStatus(TalkieStatus.available);
-                    sipService.setTalkieSilent(false);
                   } else if (f == statusFilters[1]) {
                     notifier.setStatus(TalkieStatus.auto);
-                    sipService.setTalkieSilent(false);
                   } else if (f == statusFilters[2]) {
                     notifier.setStatus(TalkieStatus.silent);
-                    sipService.setTalkieSilent(true);
                   }
                 },
               ),
@@ -788,6 +888,66 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
         : '';
     final allHeard = item.listenedBy.length >= item.totalMembers - 1;
 
+    // 🚨 رسالة طوارئ — تصميم مميز
+    if (item.messageType == 'emergency') {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFFFF3B30).withOpacity(isDark ? 0.3 : 0.1),
+              const Color(0xFFFF3B30).withOpacity(isDark ? 0.15 : 0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFF3B30).withOpacity(0.4), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            // أيقونة طوارئ
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF3B30),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(CupertinoIcons.exclamationmark_triangle_fill,
+                  color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            // تفاصيل
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('🚨 تنبيه طوارئ — ${item.sender}',
+                      style: const TextStyle(
+                        color: Color(0xFFFF3B30),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      )),
+                  const SizedBox(height: 2),
+                  Text('📍 بث فيديو مباشر + إرسال موقع',
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        fontSize: 11,
+                      )),
+                ],
+              ),
+            ),
+            // الوقت
+            Text(_timeAgo(item.time),
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                  fontSize: 11,
+                )),
+          ],
+        ),
+      );
+    }
+
+    // رسالة صوتية عادية
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -927,9 +1087,12 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
   // PTT Area
   // ═══════════════════════════════════
   Widget _buildPttArea(ThemeData theme, bool isDark) {
-    final ch = _selectedChannelIndex == -1 
-        ? {'name': 'Global Broadcast', 'online_count': 12} 
-        : _mockChannels[_selectedChannelIndex];
+    final pttService = ref.watch(livekitPttProvider);
+    final channelName = _selectedChannelIndex == -1
+        ? 'Global Broadcast'
+        : (_selectedChannelIndex < _channels.length ? _channels[_selectedChannelIndex].name : 'Global');
+    final memberCount = pttService.participantCount;
+    final isLivekitConnected = pttService.isConnected;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -951,34 +1114,271 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
       child: Column(
         children: [
           // Channel name
-          Text(ch['name'],
+          Text(channelName,
               style: TextStyle(
                   color: theme.colorScheme.onSurface.withOpacity(0.6),
                   fontSize: 14,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text(
-            _isTalking
-                ? 'talkie.broadcasting'.tr()
-                : _isConferenceConnected
-                    ? '${'talkie.connected_room'.tr()} • ${ch['online_count']} ${'talkie.members'.tr()}'
-                    : '${'talkie.connected'.tr()} • ${ch['online_count']} ${'talkie.members_active'.tr()}',
-            style: TextStyle(
-              color: _isTalking ? const Color(0xFFFF3B30) : const Color(0xFF34C759),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6, height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isLivekitConnected ? const Color(0xFF34C759) : const Color(0xFFFF9500),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                _isTalking
+                    ? 'talkie.broadcasting'.tr()
+                    : isLivekitConnected
+                        ? 'NexaLive • $memberCount ${'talkie.members'.tr()}'
+                        : '${'talkie.connected'.tr()} • $memberCount ${'talkie.members_active'.tr()}',
+                style: TextStyle(
+                  color: _isTalking ? const Color(0xFFFF3B30) : const Color(0xFF34C759),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
 
-          // PTT Button
+          // Remote video — عرض فيديو المتحدث بملء الشاشة
+          if (_currentTalker != null && !_isTalking)
+            Builder(
+              builder: (context) {
+                final livekit = ref.watch(livekitServiceProvider);
+                final remoteVideos = livekit.remoteParticipants
+                    .where((p) => p.videoTrackPublications.any((pub) => pub.track != null && !pub.muted))
+                    .toList();
+                if (remoteVideos.isEmpty) return const SizedBox.shrink();
+                final remotePart = remoteVideos.first;
+                final videoTrack = remotePart.videoTrackPublications
+                    .where((pub) => pub.track != null && !pub.muted)
+                    .map((pub) => pub.track as VideoTrack)
+                    .firstOrNull;
+                if (videoTrack == null) return const SizedBox.shrink();
+                
+                // فتح شاشة ملء الشاشة تلقائياً
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!_isShowingFullScreenVideo) {
+                    _isShowingFullScreenVideo = true;
+                    showDialog(
+                      context: context,
+                      barrierDismissible: true,
+                      barrierColor: Colors.black,
+                      builder: (_) => _FullScreenVideoOverlay(
+                        videoTrack: videoTrack,
+                        speakerName: _currentTalker ?? '',
+                        onClose: () {
+                          _isShowingFullScreenVideo = false;
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ).then((_) => _isShowingFullScreenVideo = false);
+                  }
+                });
+                
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF34C759).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF34C759).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(CupertinoIcons.video_camera_solid, color: Color(0xFF34C759), size: 16),
+                      const SizedBox(width: 6),
+                      Text('$_currentTalker يبث فيديو مباشر 📹',
+                          style: const TextStyle(color: Color(0xFF34C759), fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+          // Video PTT preview (when video mode is active)
+          if (_isVideoPtt && _isTalking)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              height: 300,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFF3B30).withOpacity(0.5), width: 2),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Builder(
+                  builder: (context) {
+                    final livekit = ref.watch(livekitServiceProvider);
+                    final localPart = livekit.room?.localParticipant;
+                    if (localPart == null) {
+                      return const Center(child: Text('جاري تشغيل الكاميرا...', style: TextStyle(color: Colors.white54, fontSize: 13)));
+                    }
+                    final videoTrack = localPart.videoTrackPublications
+                        .where((pub) => pub.track != null && !pub.muted)
+                        .map((pub) => pub.track as VideoTrack)
+                        .firstOrNull;
+                    if (videoTrack == null) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(CupertinoIcons.video_camera_solid, color: Color(0xFFFF3B30), size: 28),
+                            const SizedBox(height: 6),
+                            Text('بث فيديو مباشر', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                          ],
+                        ),
+                      );
+                    }
+                    return Stack(
+                      children: [
+                        VideoTrackRenderer(videoTrack, fit: VideoViewFit.cover),
+                        // زر تبديل الكاميرا أمامية/خلفية
+                        Positioned(
+                          top: 8, right: 8,
+                          child: GestureDetector(
+                            onTap: () => ref.read(livekitServiceProvider).switchCamera(),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(CupertinoIcons.camera_rotate, color: Colors.white, size: 18),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          // PTT Button (with video swipe-up)
           PttButton(
             isTalking: _isTalking,
             currentSpeaker: _currentTalker,
             recordingDuration: _talkSeconds,
             onStartTalking: _startTalking,
-            onStopTalking: _stopTalking,
+            onStopTalking: () {
+              _stopTalking();
+              // إيقاف الفيديو عند الإفلات
+              if (_isVideoPtt) {
+                setState(() => _isVideoPtt = false);
+                ref.read(livekitServiceProvider).toggleCamera(enabled: false);
+              }
+            },
+            isVideoMode: _isVideoPtt,
+            onVideoToggle: () {
+              setState(() => _isVideoPtt = true);
+              ref.read(livekitServiceProvider).toggleCamera(enabled: true);
+            },
           ),
+
+          const SizedBox(height: 10),
+
+          // أزرار: اتصال مباشر + SOS / إيقاف الطوارئ
+          if (_isSosActive)
+            // 🚨 حالة الطوارئ نشطة — زر إيقاف كبير
+            GestureDetector(
+              onTap: _stopSos,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF3B30), Color(0xFFCC0000)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFFFF3B30).withOpacity(0.5), blurRadius: 20),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(CupertinoIcons.xmark_circle_fill, color: Colors.white, size: 22),
+                    SizedBox(width: 8),
+                    Text('🚨 إيقاف الطوارئ',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        )),
+                  ],
+                ),
+              ),
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // زر اتصال مباشر 1:1
+                GestureDetector(
+                  onTap: () => _showCallMemberList(theme, isDark),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF007AFF).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.phone, color: Color(0xFF007AFF), size: 16),
+                        SizedBox(width: 6),
+                        Text('اتصال مباشر',
+                            style: TextStyle(
+                                color: Color(0xFF007AFF),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // 🚨 زر الطوارئ SOS
+                GestureDetector(
+                  onLongPressStart: (_) => _startSosCountdown(),
+                  onLongPressEnd: (_) => _cancelSosCountdown(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF3B30).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFFF3B30).withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.exclamationmark_shield,
+                            color: Color(0xFFFF3B30), size: 16),
+                        SizedBox(width: 4),
+                        Text('SOS',
+                            style: TextStyle(
+                              color: Color(0xFFFF3B30),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
         ],
       ),
     );
@@ -989,6 +1389,380 @@ class _NexaTalkieScreenState extends ConsumerState<NexaTalkieScreen>
     if (d.inMinutes < 1) return 'talkie.now'.tr();
     if (d.inMinutes < 60) return '${d.inMinutes} د';
     return '${d.inHours} س';
+  }
+
+  // ═══════════════════════════════════
+  // 🚨 Emergency SOS Logic
+  // ═══════════════════════════════════
+
+  Widget _buildSosTypeBtn(String type, String label, Color color) {
+    return GestureDetector(
+      onTap: () {
+        _sosTimer?.cancel();
+        setState(() => _isSosCountdown = false);
+        _triggerSos(type);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+          ]
+        ),
+        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  void _startSosCountdown() {
+    if (_isSosActive) return;
+    setState(() {
+      _isSosCountdown = true;
+      _sosCountdown = 3;
+    });
+    _sosTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _sosCountdown--;
+        if (_sosCountdown <= 0) {
+          timer.cancel();
+          _isSosCountdown = false;
+          _triggerSos('sos'); // Default type
+        }
+      });
+    });
+  }
+
+  void _cancelSosCountdown() {
+    if (!_isSosCountdown) return;
+    _sosTimer?.cancel();
+    setState(() {
+      _isSosCountdown = false;
+      _sosCountdown = 3;
+    });
+  }
+
+  Future<void> _triggerSos(String emergencyType) async {
+    setState(() => _isSosActive = true);
+
+    final supabase = ref.read(supabaseClientProvider);
+    final livekit = ref.read(livekitServiceProvider);
+    final userName = supabase.auth.currentUser?.userMetadata?['full_name'] ?? 'User';
+    final channelName = ref.read(livekitPttProvider).channels.isNotEmpty
+        ? ref.read(livekitPttProvider).channels[_selectedChannelIndex].name
+        : 'القناة الرئيسية';
+
+    // 1. تفعيل الكاميرا تلقائياً (بث صامت — بدون عرض محلي)
+    try {
+      await livekit.toggleCamera(enabled: true);
+      await Future.delayed(const Duration(milliseconds: 500));
+    } catch (e) {
+      debugPrint('[SOS] Camera error: $e');
+    }
+    // لا نعرض معاينة الكاميرا المحلية — فقط بث للآخرين
+    await livekit.enableMicrophone();
+
+    // 2. الحصول على GPS الحقيقي
+    String locationStr = 'غير متوفر';
+    String? mapsLink;
+    try {
+      final geo = html.window.navigator.geolocation;
+      final pos = await geo.getCurrentPosition(
+        enableHighAccuracy: true,
+        timeout: const Duration(seconds: 5),
+      );
+      final lat = pos.coords!.latitude;
+      final lng = pos.coords!.longitude;
+      locationStr = '$lat, $lng';
+      mapsLink = 'https://maps.google.com/?q=$lat,$lng';
+      debugPrint('[SOS] 📍 GPS: $locationStr');
+    } catch (e) {
+      debugPrint('[SOS] GPS error: $e');
+      locationStr = 'تعذر الحصول على الموقع';
+    }
+
+    // بدء تحديث الموقع المستمر أثناء الطوارئ
+    _startLiveLocationUpdates();
+
+    final pttService = ref.read(livekitPttProvider);
+    final activeChannelId = pttService.activeChannelId;
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    // تسجيل الطوارئ في قاعدة البيانات
+    if (activeChannelId != null && currentUserId != null) {
+      try {
+        final latValue = double.tryParse(locationStr.split(',')[0].trim());
+        final lngValue = double.tryParse(locationStr.split(',').length > 1 ? locationStr.split(',')[1].trim() : '');
+        
+        await supabase.from('nexa_ptt_emergencies').insert({
+          'channel_id': activeChannelId,
+          'user_id': currentUserId,
+          'emergency_type': emergencyType,
+          'lat': latValue,
+          'lng': lngValue,
+          'status': 'active',
+        });
+
+        // رسالة تلقائية في الشات
+        String typeAr = emergencyType == 'help' ? 'مساعدة 🟡' : emergencyType == 'urgent' ? 'عاجل 🔵' : 'طوارئ قصوى 🚨';
+        await supabase.from('messages').insert({
+          'channel_id': activeChannelId,
+          'user_id': currentUserId,
+          'content': '🚨 أعلن [$userName] حالة [$typeAr]. الموقع: $mapsLink',
+          'type': 'system', // نوع رسالة نظام إن وجد
+        });
+
+      } catch (e) {
+        debugPrint('[SOS] Error saving emergency to DB: $e');
+      }
+    }
+
+    // 3. بث تنبيه الطوارئ لكل الأعضاء
+    _realtimeChannel?.sendBroadcastMessage(
+      event: 'sos_alert',
+      payload: {
+        'user_name': userName,
+        'location': locationStr,
+        'maps_link': mapsLink ?? '',
+        'channel': channelName,
+        'timestamp': DateTime.now().toIso8601String(),
+        'type': emergencyType,
+      },
+    );
+
+    // 4. حفظ رسالة الطوارئ في تاريخ القناة
+    try {
+      final room = _channels.isNotEmpty
+          ? _channels[_selectedChannelIndex].conferenceRoom
+          : '';
+      final channelData = await supabase
+          .from('nexa_ptt_channels')
+          .select('id')
+          .eq('conference_room', room)
+          .maybeSingle();
+      if (channelData != null) {
+        await supabase.from('nexa_ptt_messages').insert({
+          'channel_id': channelData['id'],
+          'sender_id': supabase.auth.currentUser?.id ?? Env.defaultUserId,
+          'sender_name': userName,
+          'sender_ext': '',
+          'message_type': 'emergency',
+          'duration_seconds': 0,
+          'audio_url': '',
+          'metadata': {
+            'location': locationStr,
+            'maps_link': mapsLink ?? '',
+            'channel': channelName,
+            'type': 'sos',
+          },
+          'expires_at': DateTime.now().add(const Duration(days: 30)).toUtc().toIso8601String(),
+        });
+        _loadCloudHistory(_selectedChannelIndex);
+      }
+    } catch (e) {
+      debugPrint('[SOS] Save message error: $e');
+    }
+
+    // 5. إظهار حالة الطوارئ
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(CupertinoIcons.exclamationmark_triangle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text('🚨 تم تفعيل الطوارئ — بث فيديو مباشر + إرسال الموقع',
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
+            ],
+          ),
+          backgroundColor: const Color(0xFFFF3B30),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
+  void _stopSos() {
+    _sosTimer?.cancel();
+    _locationTimer?.cancel();
+    final livekit = ref.read(livekitServiceProvider);
+    livekit.toggleCamera(enabled: false);
+    livekit.disableMicrophone();
+    setState(() {
+      _isSosActive = false;
+      _isVideoPtt = false;
+    });
+
+    // إبلاغ الأعضاء بإلغاء الطوارئ
+    _realtimeChannel?.sendBroadcastMessage(
+      event: 'sos_alert',
+      payload: {
+        'type': 'cancelled',
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+    );
+  }
+
+  // تحديث الموقع المباشر كل 10 ثواني
+  void _startLiveLocationUpdates() {
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      if (!_isSosActive) {
+        _locationTimer?.cancel();
+        return;
+      }
+      try {
+        final pos = await html.window.navigator.geolocation.getCurrentPosition(
+          enableHighAccuracy: true,
+          timeout: const Duration(seconds: 5),
+        );
+        final lat = pos.coords!.latitude;
+        final lng = pos.coords!.longitude;
+        _realtimeChannel?.sendBroadcastMessage(
+          event: 'sos_location',
+          payload: {
+            'lat': lat,
+            'lng': lng,
+            'maps_link': 'https://maps.google.com/?q=$lat,$lng',
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+        );
+        debugPrint('[SOS] 📍 Live location update: $lat, $lng');
+      } catch (e) {
+        debugPrint('[SOS] Live location error: $e');
+      }
+    });
+  }
+
+  void _showCallMemberList(ThemeData theme, bool isDark) async {
+    final pttService = ref.read(livekitPttProvider);
+    final livekit = ref.read(livekitServiceProvider);
+    final participants = livekit.remoteParticipants;
+
+    if (participants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا يوجد مستخدمون متصلون حالياً'),
+          backgroundColor: Color(0xFFFF9500),
+        ),
+      );
+      return;
+    }
+
+    final channelId = pttService.activeChannelId;
+    Map<String, String> memberStatus = {};
+    if (channelId != null) {
+      try {
+        final res = await Supabase.instance.client
+            .from('nexa_ptt_members')
+            .select('user_id, availability')
+            .eq('channel_id', channelId);
+        
+        for (var row in (res as List)) {
+          final uid = row['user_id'] as String;
+          final status = row['availability'] as String? ?? 'always';
+          memberStatus[uid] = status;
+        }
+      } catch (e) {
+        debugPrint('[Presence] Error fetching member status: $e');
+      }
+    }
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('حالة التواجد - مباشر',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface)),
+            ),
+            ...participants.map((p) {
+              // افتراضياً نستخدم identity كـ user_id للمطابقة (حسب تنفيذ LiveKit الحالي)
+              final status = memberStatus[p.identity] ?? 'always';
+              Color statusColor = const Color(0xFF34C759); // Green
+              String statusText = 'متاح للتحدث';
+
+              if (status == 'silent') {
+                statusColor = const Color(0xFFFF9500); // Yellow
+                statusText = 'صامت / مشغول';
+              } else if (status == 'scheduled' || status == 'auto') {
+                statusColor = const Color(0xFFFFCC00); // Yellow/Orange
+                statusText = 'تلقائي';
+              }
+
+              return ListTile(
+                leading: Stack(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: const Color(0xFF007AFF).withOpacity(0.1),
+                      child: const Icon(CupertinoIcons.person, color: Color(0xFF007AFF)),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: theme.scaffoldBackgroundColor, width: 2),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                title: Text(p.identity ?? 'مستخدم',
+                    style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w600)),
+                subtitle: Text(statusText, style: TextStyle(color: statusColor, fontSize: 12)),
+                trailing: GestureDetector(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _startDirectCall(p.identity ?? '', 'مستخدم');
+                  },
+                  child: Container(
+                    width: 40, height: 40,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF34C759),
+                    ),
+                    child: const Icon(CupertinoIcons.phone, color: Colors.white, size: 20),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _startDirectCall(String targetUserId, String targetName) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => LiveKitCallScreen(
+          targetUserId: targetUserId,
+          targetName: targetName,
+          isIncoming: false,
+        ),
+      ),
+    );
   }
 
   void _showCreateChannel(ThemeData theme, bool isDark) {
@@ -1033,6 +1807,7 @@ class _PttHistoryItem {
   final int totalMembers;
   final bool isMine;
   final String? audioUrl;
+  final String messageType; // 'audio' | 'emergency'
 
   _PttHistoryItem({
     required this.sender,
@@ -1042,5 +1817,288 @@ class _PttHistoryItem {
     required this.totalMembers,
     this.isMine = false,
     this.audioUrl,
+    this.messageType = 'audio',
   });
+}
+
+/// شاشة فيديو ملء الشاشة — تظهر تلقائياً عند بث فيديو PTT
+class _FullScreenVideoOverlay extends StatelessWidget {
+  final VideoTrack videoTrack;
+  final String speakerName;
+  final VoidCallback onClose;
+
+  const _FullScreenVideoOverlay({
+    required this.videoTrack,
+    required this.speakerName,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black,
+      child: Stack(
+        children: [
+          // فيديو ملء الشاشة
+          Positioned.fill(
+            child: VideoTrackRenderer(videoTrack, fit: VideoViewFit.cover),
+          ),
+
+          // اسم المتحدث + زر إغلاق
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 16, right: 16,
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8, height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFFFF3B30),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('بث مباشر • $speakerName',
+                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: onClose,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 🚨 شاشة تنبيه الطوارئ — تظهر عند الأعضاء عندما يضغط أحدهم SOS
+class _EmergencyAlertDialog extends StatefulWidget {
+  final String senderName;
+  final ValueNotifier<Map<String, String>> locationNotifier;
+  final VoidCallback onDismiss;
+
+  const _EmergencyAlertDialog({
+    required this.senderName,
+    required this.locationNotifier,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_EmergencyAlertDialog> createState() => _EmergencyAlertDialogState();
+}
+
+class _EmergencyAlertDialogState extends State<_EmergencyAlertDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) => Container(
+          color: Color.lerp(
+            const Color(0xFFFF3B30).withOpacity(0.85),
+            const Color(0xFFCC0000).withOpacity(0.95),
+            _pulseAnimation.value,
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // أيقونة طوارئ كبيرة
+                Transform.scale(
+                  scale: _pulseAnimation.value * 1.2,
+                  child: Container(
+                    width: 120, height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.2),
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: const Icon(CupertinoIcons.exclamationmark_triangle_fill,
+                        color: Colors.white, size: 60),
+                  ),
+                ),
+                const SizedBox(height: 30),
+
+                const Text('🚨 تنبيه طوارئ',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    )),
+                const SizedBox(height: 16),
+
+                Text(widget.senderName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    )),
+                const SizedBox(height: 12),
+
+                // مؤشر التسجيل المحلي
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.redAccent, width: 1.5),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.circle_fill, color: Colors.redAccent, size: 10),
+                      SizedBox(width: 6),
+                      Text('جاري التسجيل للحفظ المحلي...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          )),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // الموقع الحي والتحديثات
+                ValueListenableBuilder<Map<String, String>>(
+                  valueListenable: widget.locationNotifier,
+                  builder: (context, locData, child) {
+                    final locationStr = locData['location'] ?? '';
+                    final mapsLink = locData['mapsLink'] ?? '';
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(CupertinoIcons.location_solid, color: Colors.white, size: 18),
+                              const SizedBox(width: 8),
+                              Text(locationStr,
+                                  style: const TextStyle(color: Colors.white, fontSize: 16)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // زر فتح الخريطة
+                        if (mapsLink.isNotEmpty)
+                          GestureDetector(
+                            onTap: () => html.window.open(mapsLink, '_blank'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.25),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white.withOpacity(0.5)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(CupertinoIcons.map, color: Colors.white, size: 18),
+                                  SizedBox(width: 8),
+                                  Text('📍 فتح الموقع المباشر (تحديث حي)',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      )),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // وقت + بث
+                Text('${TimeOfDay.now().format(context)}',
+                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
+                const SizedBox(height: 4),
+                Text('📹 بث فيديو مباشر + 📍 موقع حي',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    )),
+
+                const SizedBox(height: 40),
+
+                // زر إغلاق
+                GestureDetector(
+                  onTap: widget.onDismiss,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Text('تم الاطلاع',
+                        style: TextStyle(
+                          color: Color(0xFFFF3B30),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        )),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

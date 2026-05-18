@@ -6,6 +6,7 @@ import 'core/config/env.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
 import 'features/home/screens/main_screen.dart';
+import 'core/services/home_widget_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,8 @@ void main() async {
     url: Env.supabaseUrl,
     anonKey: Env.supabaseAnonKey,
   );
+
+  await HomeWidgetService.initialize();
 
   runApp(
     EasyLocalization(

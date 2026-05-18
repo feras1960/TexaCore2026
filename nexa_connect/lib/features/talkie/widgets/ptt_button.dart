@@ -10,6 +10,8 @@ class PttButton extends StatefulWidget {
   final int recordingDuration;
   final VoidCallback onStartTalking;
   final VoidCallback onStopTalking;
+  final VoidCallback? onVideoToggle; // سحب للأعلى → فيديو
+  final bool isVideoMode;
 
   const PttButton({
     super.key,
@@ -18,6 +20,8 @@ class PttButton extends StatefulWidget {
     this.recordingDuration = 0,
     required this.onStartTalking,
     required this.onStopTalking,
+    this.onVideoToggle,
+    this.isVideoMode = false,
   });
 
   @override
@@ -28,6 +32,7 @@ class _PttButtonState extends State<PttButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   bool _isPressed = false;
+  double _dragOffset = 0;
 
   /// Is another user talking? (lock the button)
   bool get _isLocked =>
@@ -133,26 +138,35 @@ class _PttButtonState extends State<PttButton>
             ),
           ),
 
-        // ─── PTT Button — Full Width ───
-        GestureDetector(
-          onTapDown: _isLocked
+        // ─── PTT Button — Full Width, reliable touch ───
+        Listener(
+          onPointerDown: _isLocked
               ? null
               : (_) {
-                  setState(() => _isPressed = true);
-                  widget.onStartTalking();
-                },
-          onTapUp: _isLocked
+                    setState(() { _isPressed = true; _dragOffset = 0; });
+                    widget.onStartTalking();
+                  },
+          onPointerUp: _isLocked
               ? null
               : (_) {
-                  setState(() => _isPressed = false);
-                  widget.onStopTalking();
-                },
-          onTapCancel: _isLocked
+                    setState(() { _isPressed = false; _dragOffset = 0; });
+                    widget.onStopTalking();
+                  },
+          onPointerCancel: _isLocked
               ? null
-              : () {
-                  setState(() => _isPressed = false);
-                  widget.onStopTalking();
-                },
+              : (_) {
+                    setState(() { _isPressed = false; _dragOffset = 0; });
+                    widget.onStopTalking();
+                  },
+          onPointerMove: _isLocked
+              ? null
+              : (event) {
+                    _dragOffset += event.delta.dy;
+                    // سحب لأعلى > 40 بكسل = تفعيل الفيديو
+                    if (_dragOffset < -40 && !widget.isVideoMode && widget.onVideoToggle != null) {
+                      widget.onVideoToggle!();
+                    }
+                  },
           child: AnimatedBuilder(
             animation: _pulseController,
             builder: (context, child) {
@@ -173,7 +187,7 @@ class _PttButtonState extends State<PttButton>
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   width: double.infinity,
-                  height: 60,
+                  height: 80,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     color: mainColor,
@@ -196,24 +210,24 @@ class _PttButtonState extends State<PttButton>
                     children: [
                       Icon(
                         widget.isTalking
-                            ? CupertinoIcons.waveform
+                            ? (widget.isVideoMode ? CupertinoIcons.video_camera_solid : CupertinoIcons.waveform)
                             : _isLocked
                                 ? CupertinoIcons.lock_fill
                                 : CupertinoIcons.mic_fill,
                         color: Colors.white,
-                        size: 26,
+                        size: 28,
                       ),
                       const SizedBox(width: 10),
                       Text(
                         widget.isTalking
-                            ? 'talkie.release_to_send'.tr()
+                            ? (widget.isVideoMode ? 'بث مباشر ⬆ فيديو' : 'talkie.release_to_send'.tr())
                             : widget.currentSpeaker != null
                                 ? 'talkie.channel_busy'.tr()
                                 : 'talkie.hold_to_talk'.tr(),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: 0.3,
                         ),
                       ),

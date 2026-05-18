@@ -37,7 +37,7 @@ dependencies:
   google_fonts: ^8.1.0
   flutter_animate: ^4.5.2
   supabase_flutter: ^2.12.4
-  flutter_webrtc: ^1.4.1
+  flutter_webrtc: ^1.4.0
   sip_ua: ^1.1.0
   image_picker: ^1.2.2
   record: ^6.2.0
@@ -53,6 +53,9 @@ dependencies:
   easy_localization: ^3.0.8
   file_picker: ^9.2.1
   uuid: ^4.5.1
+  livekit_client: ^2.7.0
+  http: ^1.2.0
+  home_widget: ^0.9.1
 
 dev_dependencies:
   flutter_test:

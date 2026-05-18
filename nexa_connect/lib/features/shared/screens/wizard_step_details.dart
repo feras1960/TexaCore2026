@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/contact.dart';
 import 'wizard_step_members.dart';
 import '../../../core/providers/supabase_provider.dart';
-import '../../../core/services/ptt_service.dart';
+import '../../../core/services/livekit_ptt_service.dart';
+import '../../../core/providers/livekit_provider.dart';
 import '../../../core/config/env.dart';
-import '../../talkie/screens/nexa_talkie_screen.dart';
 
 class WizardStepDetails extends ConsumerStatefulWidget {
   final GroupWizardType wizardType;
@@ -52,7 +52,7 @@ class _WizardStepDetailsState extends ConsumerState<WizardStepDetails> {
 
       if (widget.wizardType == GroupWizardType.talkie) {
         // 1. Create PTT Channel
-        final pttService = ref.read(nexaTalkieProvider);
+        final pttService = ref.read(livekitPttProvider);
         final channelId = await pttService.createChannel(name, 'group');
         
         if (channelId != null) {

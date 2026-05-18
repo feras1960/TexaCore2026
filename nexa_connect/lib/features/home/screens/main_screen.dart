@@ -14,6 +14,9 @@ import '../../talkie/screens/nexa_talkie_screen.dart';
 import '../../calls/providers/sip_provider.dart';
 import '../../calls/providers/call_history_provider.dart';
 import '../../../core/services/sip_service.dart';
+import '../../../core/services/livekit_call_service.dart';
+import '../../../core/providers/livekit_provider.dart';
+import '../../calls/screens/livekit_call_screen.dart';
 import '../../../core/layouts/adaptive_shell.dart';
 import '../../chat/providers/selected_chat_provider.dart';
 import '../../chat/screens/chat_conversation_screen.dart';
@@ -66,6 +69,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       ref.read(callHistoryProvider);
       // Listen for call state changes to show call screen
       ref.read(sipServiceProvider).addListener(_onSipStateChanged);
+      // Initialize LiveKit call service (listens for incoming calls)
+      ref.read(livekitCallProvider).addListener(_onLiveKitCallStateChanged);
     });
   }
 
@@ -88,9 +93,31 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     }
   }
 
+  bool _isLiveKitCallShowing = false;
+
+  void _onLiveKitCallStateChanged() {
+    final callService = ref.read(livekitCallProvider);
+    final isIncoming = callService.state == LiveCallState.incomingRinging;
+    
+    if (isIncoming && !_isLiveKitCallShowing) {
+      _isLiveKitCallShowing = true;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => LiveKitCallScreen(
+            targetUserId: callService.activeCall!.remoteUserId,
+            targetName: callService.activeCall!.remoteName,
+            isIncoming: true,
+          ),
+        ),
+      ).then((_) => _isLiveKitCallShowing = false);
+    }
+  }
+
   @override
   void dispose() {
     ref.read(sipServiceProvider).removeListener(_onSipStateChanged);
+    ref.read(livekitCallProvider).removeListener(_onLiveKitCallStateChanged);
     _pageController.dispose();
     super.dispose();
   }
@@ -144,7 +171,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         'contacts'.tr(),
         'Keypad',
         'Chats',
-        'Talkie',
+        'NexaLive',
         'settings'.tr(),
       ];
 
