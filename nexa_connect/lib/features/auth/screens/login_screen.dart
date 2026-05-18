@@ -205,6 +205,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
                 const SizedBox(height: 24),
 
+                // ── أو ──
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('أو', style: TextStyle(
+                        color: isDark ? Colors.white38 : Colors.black38,
+                        fontSize: 13, fontWeight: FontWeight.w500,
+                      )),
+                    ),
+                    Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Google Sign-In ──
+                _buildSocialButton(
+                  onTap: () => ref.read(authProvider.notifier).signInWithGoogle(),
+                  isDark: isDark,
+                  icon: _googleIcon(),
+                  label: 'المتابعة مع Google',
+                ),
+                const SizedBox(height: 12),
+
+                // ── Apple Sign-In ──
+                _buildSocialButton(
+                  onTap: () => ref.read(authProvider.notifier).signInWithApple(),
+                  isDark: isDark,
+                  icon: Icon(CupertinoIcons.at, size: 20,
+                      color: isDark ? Colors.white : Colors.black87),
+                  label: 'المتابعة مع Apple',
+                  isApple: true,
+                ),
+                const SizedBox(height: 28),
+
                 // ── Register Link ──
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -284,4 +320,86 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       ),
     );
   }
+
+  Widget _buildSocialButton({
+    required VoidCallback onTap,
+    required bool isDark,
+    required Widget icon,
+    required String label,
+    bool isApple = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isApple
+              ? (isDark ? Colors.white : Colors.black)
+              : (isDark ? const Color(0xFF1C1C2E) : Colors.white),
+          side: BorderSide(
+            color: isDark ? Colors.white12 : Colors.black.withOpacity(0.08),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            icon,
+            const SizedBox(width: 12),
+            Text(label, style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: isApple
+                  ? (isDark ? Colors.black : Colors.white)
+                  : (isDark ? Colors.white70 : Colors.black87),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _googleIcon() {
+    return SizedBox(
+      width: 20, height: 20,
+      child: CustomPaint(painter: _GoogleLogoPainter()),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double s = size.width;
+    // Simplified Google "G" logo
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    // Blue
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(Rect.fromLTWH(0, 0, s, s), -0.3, 3.5, true, paint);
+
+    // Green
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(Rect.fromLTWH(0, 0, s, s), 1.9, 1.2, true, paint);
+
+    // Yellow
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(Rect.fromLTWH(0, 0, s, s), 3.1, 1.0, true, paint);
+
+    // Red
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(Rect.fromLTWH(0, 0, s, s), 4.1, 1.4, true, paint);
+
+    // White center
+    paint.color = Colors.white;
+    canvas.drawCircle(Offset(s / 2, s / 2), s * 0.32, paint);
+
+    // Blue bar
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawRect(Rect.fromLTWH(s * 0.48, s * 0.36, s * 0.52, s * 0.28), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

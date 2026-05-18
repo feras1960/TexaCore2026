@@ -116,6 +116,41 @@ class AuthNotifier extends Notifier<NexaAuthState> {
       return false;
     }
   }
+  /// تسجيل دخول بحساب Google
+  Future<bool> signInWithGoogle() async {
+    state = state.copyWith(status: NexaAuthStatus.loading, error: null);
+    try {
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'io.supabase.nexaconnect://login-callback/',
+      );
+      return true;
+    } on AuthException catch (e) {
+      state = NexaAuthState(status: NexaAuthStatus.unauthenticated, error: e.message);
+      return false;
+    } catch (e) {
+      state = NexaAuthState(status: NexaAuthStatus.unauthenticated, error: e.toString());
+      return false;
+    }
+  }
+
+  /// تسجيل دخول بحساب Apple
+  Future<bool> signInWithApple() async {
+    state = state.copyWith(status: NexaAuthStatus.loading, error: null);
+    try {
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.apple,
+        redirectTo: 'io.supabase.nexaconnect://login-callback/',
+      );
+      return true;
+    } on AuthException catch (e) {
+      state = NexaAuthState(status: NexaAuthStatus.unauthenticated, error: e.message);
+      return false;
+    } catch (e) {
+      state = NexaAuthState(status: NexaAuthStatus.unauthenticated, error: e.toString());
+      return false;
+    }
+  }
 
   Future<void> signOut() async {
     await _supabase.auth.signOut();
